@@ -20,7 +20,7 @@ def test_health_endpoint_returns_healthy_status(client):
     assert data["status"] == "healthy"
 
 
-def test_health_endpoint_returns_version_02(client):
+def test_health_endpoint_returns_version_03(client):
     response = client.get("/health")
     data = response.json()
-    assert data["version"] == "0.2"
+    assert data["version"] == "0.3.0"

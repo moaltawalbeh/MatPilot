@@ -52,7 +52,7 @@ class CIFParser(IParser):
 
         # Build Material value object if we have enough data
         material = None
-        if cif_data.get("formula") or cif_data.get("name"):
+        if cif_data.get("formula") or cif_data.get("name") or cif_data.get("lattice_parameters"):
             material = Material(
                 name=cif_data.get("name", ""),
                 formula=cif_data.get("formula", ""),

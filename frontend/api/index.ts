@@ -1,2 +1,2 @@
-export { apiClient } from "@/lib/api-client";
+export { apiService } from "@/lib/api-client";
 export { mockService } from "@/services/mock-service";

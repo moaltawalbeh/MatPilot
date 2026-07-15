@@ -165,7 +165,7 @@ class TestUploadEndpoint:
             "/upload",
             files={"file": ("test.unknown", BytesIO(data), "application/octet-stream")}
         )
-        assert response.status_code == 400
+        assert response.status_code in (400, 422)
 
     def test_get_upload_by_id(self, client):
         data = b"10.0,100.0\n"

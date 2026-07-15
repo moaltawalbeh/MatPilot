@@ -38,6 +38,7 @@ from backend.application.use_cases.submit_analysis import SubmitAnalysisUseCase
 from backend.application.use_cases.get_analysis_result import GetAnalysisResultUseCase
 from backend.application.use_cases.search_reference import SearchReferenceUseCase, GetProvidersUseCase
 from backend.application.use_cases.generate_report import GenerateReportUseCase
+from backend.application.use_cases.project import ProjectUseCase
 
 
 class DIContainer:
@@ -89,6 +90,7 @@ class DIContainer:
         self.search_reference_use_case = SearchReferenceUseCase(self.reference_engine)
         self.get_providers_use_case = GetProvidersUseCase(self.reference_engine)
         self.generate_report_use_case = GenerateReportUseCase(self.uow)
+        self.project_use_case = ProjectUseCase(self.uow)
 
         self.logger.info("DI Container initialized", version=self.config.version)
 

@@ -6,7 +6,8 @@ from backend.domain.interfaces.repository import (
     IExperimentRepository,
     IAnalysisJobRepository,
     IAnalysisResultRepository,
-    IReportRepository
+    IReportRepository,
+    IProjectRepository,
 )
 
 
@@ -114,3 +115,31 @@ class MemoryReportRepository(IReportRepository):
 
     async def delete(self, id: UUID) -> bool:
         return self._data.pop(id, None) is not None
+
+
+class MemoryProjectRepository(IProjectRepository):
+    def __init__(self):
+        self._data: Dict[UUID, object] = {}
+
+    async def get_by_id(self, id: UUID) -> Optional[object]:
+        return self._data.get(id)
+
+    async def get_all(self) -> List[object]:
+        return list(self._data.values())
+
+    async def add(self, entity: object) -> object:
+        self._data[entity.id] = entity
+        return entity
+
+    async def update(self, entity: object) -> object:
+        self._data[entity.id] = entity
+        return entity
+
+    async def delete(self, id: UUID) -> bool:
+        return self._data.pop(id, None) is not None
+
+    async def get_by_owner(self, owner_id: str) -> List[object]:
+        return [p for p in self._data.values() if getattr(p, "owner_id", "") == owner_id]
+
+    async def get_by_status(self, status: str) -> List[object]:
+        return [p for p in self._data.values() if getattr(p, "status", "") == status]

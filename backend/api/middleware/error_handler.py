@@ -1,12 +1,11 @@
-
 """Centralized exception handling for FastAPI.
 
-Uses FastAPI's @app.exception_handler decorator pattern.
-Middleware-based exception handling is unreliable for route exceptions.
+Provides unified error response format across all exception types.
 """
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
 
 from backend.domain.exceptions.domain_exceptions import (
     MatPilotException,
@@ -16,14 +15,13 @@ from backend.domain.exceptions.domain_exceptions import (
     StorageException,
     ProviderException,
     AnalysisException,
-    EntityNotFoundError
+    EntityNotFoundError,
 )
 from backend.infrastructure.logging.structured_logger import get_logger
 
 logger = get_logger("api.errors")
 
 
-# Exception to HTTP status code mapping
 EXCEPTION_STATUS_MAP = {
     InvalidFileException: 400,
     UnsupportedFormatException: 400,
@@ -35,34 +33,44 @@ EXCEPTION_STATUS_MAP = {
 }
 
 
+def _error_response(status_code: int, error_type: str, message: str, request: Request) -> JSONResponse:
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "error": {
+                "type": error_type,
+                "message": message,
+                "path": str(request.url.path),
+                "method": request.method,
+            }
+        },
+    )
+
+
 def register_exception_handlers(app):
-    """Register all exception handlers on the FastAPI app."""
+    @app.exception_handler(RequestValidationError)
+    async def validation_exception_handler(request: Request, exc: RequestValidationError):
+        errors = []
+        for err in exc.errors():
+            loc = " -> ".join(str(l) for l in err.get("loc", []))
+            errors.append(f"{loc}: {err.get('msg', '')}")
+        message = "; ".join(errors)
+        logger.warning("Validation error", path=str(request.url.path), detail=message)
+        return _error_response(422, "ValidationError", message, request)
 
     @app.exception_handler(MatPilotException)
     async def matpilot_exception_handler(request: Request, exc: MatPilotException):
         status_code = EXCEPTION_STATUS_MAP.get(type(exc), 500)
         error_type = type(exc).__name__
-
         logger.error(
             "API exception",
             path=str(request.url.path),
             method=request.method,
             error_type=error_type,
-            message=str(exc),
-            status_code=status_code
-        )
-
-        return JSONResponse(
+            detail=str(exc),
             status_code=status_code,
-            content={
-                "error": {
-                    "type": error_type,
-                    "message": str(exc),
-                    "path": str(request.url.path),
-                    "method": request.method
-                }
-            }
         )
+        return _error_response(status_code, error_type, str(exc), request)
 
     @app.exception_handler(Exception)
     async def generic_exception_handler(request: Request, exc: Exception):
@@ -71,17 +79,6 @@ def register_exception_handlers(app):
             path=str(request.url.path),
             method=request.method,
             error_type=type(exc).__name__,
-            message=str(exc)
+            detail=str(exc),
         )
-
-        return JSONResponse(
-            status_code=500,
-            content={
-                "error": {
-                    "type": "InternalServerError",
-                    "message": "An unexpected error occurred",
-                    "path": str(request.url.path),
-                    "method": request.method
-                }
-            }
-        )
+        return _error_response(500, "InternalServerError", "An unexpected error occurred", request)

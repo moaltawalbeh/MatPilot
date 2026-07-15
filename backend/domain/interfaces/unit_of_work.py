@@ -7,7 +7,8 @@ from backend.domain.interfaces.repository import (
     IExperimentRepository,
     IAnalysisJobRepository,
     IAnalysisResultRepository,
-    IReportRepository
+    IReportRepository,
+    IProjectRepository,
 )
 
 
@@ -23,6 +24,7 @@ class IUnitOfWork(ABC):
     analysis_jobs: IAnalysisJobRepository
     analysis_results: IAnalysisResultRepository
     reports: IReportRepository
+    projects: IProjectRepository
 
     @abstractmethod
     async def commit(self):

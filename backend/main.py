@@ -7,7 +7,7 @@ Entry point for the backend API server.
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.api.routers import upload, analysis, providers, report, health, jobs, config, system
+from backend.api.routers import upload, analysis, providers, report, health, jobs, config, system, projects
 from backend.api.middleware.error_handler import register_exception_handlers
 from backend.infrastructure.di.container import DIContainer
 
@@ -15,7 +15,7 @@ from backend.infrastructure.di.container import DIContainer
 def create_app() -> FastAPI:
     app = FastAPI(
         title="MatPilot API",
-        version="0.2.0",
+        version="0.3.0",
         description="Cloud platform for Materials Characterization"
     )
 
@@ -44,6 +44,7 @@ def create_app() -> FastAPI:
     app.include_router(jobs.router)
     app.include_router(config.router)
     app.include_router(system.router)
+    app.include_router(projects.router)
 
     return app
 

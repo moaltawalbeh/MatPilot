@@ -76,7 +76,7 @@ class LoggingConfig:
 class MatPilotConfig:
     """Root configuration container."""
     app_name: str = "MatPilot"
-    version: str = "0.2.0"
+    version: str = "0.3.0"
     environment: str = field(default_factory=lambda: os.environ.get("MATPILOT_ENV", "development"))
     upload: UploadConfig = field(default_factory=UploadConfig)
     storage: StorageConfig = field(default_factory=StorageConfig)

@@ -1,10 +1,10 @@
-
 from backend.domain.interfaces.unit_of_work import IUnitOfWork
 from backend.infrastructure.database.memory_repositories import (
     MemoryExperimentRepository,
     MemoryAnalysisJobRepository,
     MemoryAnalysisResultRepository,
-    MemoryReportRepository
+    MemoryReportRepository,
+    MemoryProjectRepository,
 )
 
 
@@ -14,6 +14,7 @@ class InMemoryUnitOfWork(IUnitOfWork):
         self.analysis_jobs = MemoryAnalysisJobRepository()
         self.analysis_results = MemoryAnalysisResultRepository()
         self.reports = MemoryReportRepository()
+        self.projects = MemoryProjectRepository()
         self._committed = False
 
     async def commit(self):

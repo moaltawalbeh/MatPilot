@@ -63,3 +63,15 @@ class IAnalysisResultRepository(IRepository):
 class IReportRepository(IRepository):
     """Repository for Report entities."""
     pass
+
+
+class IProjectRepository(IRepository):
+    """Repository for Project entities."""
+
+    @abstractmethod
+    async def get_by_owner(self, owner_id: str) -> List[object]:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def get_by_status(self, status: str) -> List[object]:
+        raise NotImplementedError
