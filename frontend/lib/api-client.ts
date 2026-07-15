@@ -5,6 +5,7 @@ import type {
   ProviderInfo,
   JobListItem,
   SystemHealth,
+  AnalysisResult,
 } from "@/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -98,10 +99,17 @@ export const apiService = {
       method: "POST",
     }),
 
-  uploadFile: (file: File, wavelength?: number, radiation?: string) => {
+  listProjectFiles: (projectId: string) =>
+    apiFetch<UploadListItem[]>(`/projects/${projectId}/files`),
+
+  listProjectJobs: (projectId: string) =>
+    apiFetch<{ jobs: JobListItem[]; total: number }>(`/projects/${projectId}/jobs`),
+
+  uploadFile: (file: File, wavelength?: number, radiation?: string, projectId?: string) => {
     const fields: Record<string, string> = {};
     if (wavelength !== undefined) fields.wavelength = String(wavelength);
     if (radiation) fields.radiation = radiation;
+    if (projectId) fields.project_id = projectId;
     return apiUpload("/upload", file, Object.keys(fields).length ? fields : undefined);
   },
 
@@ -112,9 +120,10 @@ export const apiService = {
 
   listProviders: () => apiFetch<ProviderInfo[]>("/providers"),
 
-  listJobs: (params?: { status?: string; limit?: number; offset?: number }) => {
+  listJobs: (params?: { status?: string; project_id?: string; limit?: number; offset?: number }) => {
     const qs = new URLSearchParams();
     if (params?.status) qs.set("status", params.status);
+    if (params?.project_id) qs.set("project_id", params.project_id);
     if (params?.limit) qs.set("limit", String(params.limit));
     if (params?.offset) qs.set("offset", String(params.offset));
     const q = qs.toString();
@@ -125,6 +134,9 @@ export const apiService = {
 
   getJob: (jobId: string) =>
     apiFetch<JobListItem>(`/jobs/${jobId}`),
+
+  getJobResult: (jobId: string) =>
+    apiFetch<AnalysisResult>(`/jobs/${jobId}/result`),
 
   executeJob: (jobId: string) =>
     apiFetch<Record<string, unknown>>(`/jobs/${jobId}/execute`, {

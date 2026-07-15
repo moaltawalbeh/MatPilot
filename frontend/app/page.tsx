@@ -1,9 +1,8 @@
 "use client";
 
 import { Page } from "@/components/ui/page";
-import { XrdChart } from "@/components/charts/xrd-chart";
 import { useProjects, useJobs, useSystemHealth } from "@/hooks/use-api";
-import { ArrowUpRight, Plus, Upload, Loader2 } from "lucide-react";
+import { Plus, Loader2, FolderKanban } from "lucide-react";
 import Link from "next/link";
 
 export default function Dashboard() {
@@ -25,16 +24,10 @@ export default function Dashboard() {
       title="Good morning, Maya"
       description="A clear view of your materials work, analyses, and new observations."
       actions={
-        <>
-          <Link href="/upload" className="button">
-            <Upload size={15} />
-            Upload
-          </Link>
-          <Link href="/projects" className="button primary">
-            <Plus size={15} />
-            New project
-          </Link>
-        </>
+        <Link href="/projects" className="button primary">
+          <Plus size={15} />
+          New project
+        </Link>
       }
     >
       <div className="grid metrics">
@@ -56,16 +49,20 @@ export default function Dashboard() {
         <section className="card">
           <div className="section">
             <div>
-              <h2>Latest diffraction pattern</h2>
-              <span className="muted">
-                {allProjects.length > 0 ? allProjects[0].name : "No projects yet"}
-              </span>
+              <h2>Quick start</h2>
+              <span className="muted">Create a project to begin analyzing diffraction data</span>
             </div>
-            <Link href="/analysis">
-              Open analysis <ArrowUpRight size={13} />
-            </Link>
           </div>
-          <XrdChart />
+          <div style={{ padding: 20, textAlign: "center" }}>
+            <Link href="/projects" className="button primary" style={{ marginBottom: 12 }}>
+              <FolderKanban size={15} />
+              Go to Projects
+            </Link>
+            <p className="muted" style={{ fontSize: 13, marginTop: 8 }}>
+              All uploads, analyses, and results live inside Projects.
+              Create a project to upload files and run analyses.
+            </p>
+          </div>
         </section>
 
         <section className="card">
@@ -104,7 +101,7 @@ export default function Dashboard() {
             ))
           ) : (
             <p className="muted" style={{ padding: 20 }}>
-              No jobs yet. Upload a file to get started.
+              No jobs yet. Create a project and upload a file to get started.
             </p>
           )}
         </section>
@@ -140,10 +137,10 @@ export default function Dashboard() {
               <tr>
                 <td colSpan={6} className="muted" style={{ textAlign: "center", padding: 20 }}>
                   No projects yet.{" "}
-                  <Link href="/upload" style={{ color: "var(--blue)" }}>
-                    Upload your first file
+                  <Link href="/projects" style={{ color: "var(--blue)" }}>
+                    Create your first project
                   </Link>{" "}
-                  to create one.
+                  to get started.
                 </td>
               </tr>
             ) : (

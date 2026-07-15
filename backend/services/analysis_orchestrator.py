@@ -2,8 +2,6 @@
 """Analysis Orchestrator.
 
 Central coordination service for all scientific workflows.
-Does NOT perform scientific calculations.
-Only coordinates: Upload → Validation → Parser → XRDExperiment → Job → Pipeline → Result → Report → Store
 """
 
 from typing import Dict, Any, Optional, List
@@ -20,30 +18,27 @@ from backend.infrastructure.config.settings import MatPilotConfig
 logger = get_logger("analysis_orchestrator")
 
 
+class AnalysisResultStore:
+    """In-memory store for analysis results."""
+
+    def __init__(self):
+        self._results: Dict[str, Dict[str, Any]] = {}
+
+    def store(self, job_id: str, result: Dict[str, Any]):
+        self._results[job_id] = result
+
+    def get(self, job_id: str) -> Optional[Dict[str, Any]]:
+        return self._results.get(job_id)
+
+    def list_by_project(self, project_id: str) -> List[Dict[str, Any]]:
+        return [r for r in self._results.values() if r.get("project_id") == project_id]
+
+
 class AnalysisOrchestrator:
     """
     Central orchestration service.
 
-    Workflow:
-        Upload
-        ↓
-        Validation
-        ↓
-        Parser
-        ↓
-        Create XRDExperiment
-        ↓
-        Create Analysis Job
-        ↓
-        Execute Analysis Pipeline
-        ↓
-        Generate Analysis Result
-        ↓
-        Generate Report
-        ↓
-        Store Results
-
-    Every future scientific algorithm becomes one pipeline step.
+    Coordinates: Upload → Validation → Parser → Job → Pipeline → Result → Store
     """
 
     def __init__(
@@ -59,32 +54,20 @@ class AnalysisOrchestrator:
         self._pipeline = pipeline
         self._storage = StorageService(storage_provider)
         self._config = config
+        self._result_store = AnalysisResultStore()
         self._logger = get_logger("analysis_orchestrator")
-
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
 
     async def process_upload(
         self,
         filename: str,
         content_type: str,
         file_data: bytes,
-        user_metadata: Optional[Dict[str, Any]] = None
+        user_metadata: Optional[Dict[str, Any]] = None,
+        project_id: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """
-        Process a file upload through the complete workflow.
-
-        Steps:
-        1. Upload & validate file
-        2. Parse to XRDExperiment
-        3. Store file
-        4. Create analysis job
-        5. Return upload result + job info
-        """
+        """Process a file upload through the complete workflow."""
         self._logger.info("Processing upload", filename=filename, size=len(file_data))
 
-        # Step 1: Upload & validate
         upload_result = await self._upload_service.upload_file(
             filename=filename,
             content_type=content_type,
@@ -93,11 +76,6 @@ class AnalysisOrchestrator:
         )
 
         if not upload_result.is_valid:
-            self._logger.error(
-                "Upload validation failed",
-                filename=filename,
-                errors=upload_result.validation.errors
-            )
             return {
                 "success": False,
                 "stage": "upload",
@@ -106,13 +84,11 @@ class AnalysisOrchestrator:
                 "warnings": upload_result.validation.warnings
             }
 
-        # Step 2: Store file
         storage_uri = await self._storage.store_upload(
             file_id=upload_result.file_id,
             data=file_data
         )
 
-        # Step 3: Create analysis job
         job = self._job_manager.create_job(
             experiment_id=upload_result.experiment.id if upload_result.experiment else None,
             job_type="analysis",
@@ -120,7 +96,8 @@ class AnalysisOrchestrator:
                 "file_id": upload_result.file_id,
                 "filename": filename,
                 "detected_format": upload_result.detected_format,
-                "storage_uri": storage_uri
+                "storage_uri": storage_uri,
+                "project_id": project_id,
             },
             provider_preferences=user_metadata.get("provider_preferences", []) if user_metadata else []
         )
@@ -148,19 +125,13 @@ class AnalysisOrchestrator:
         }
 
     async def execute_analysis(self, job_id: str) -> Dict[str, Any]:
-        """
-        Execute the analysis pipeline for a job.
-
-        This is the core orchestration method.
-        It runs the pipeline steps and manages the job lifecycle.
-        """
+        """Execute the analysis pipeline for a job."""
         job = self._job_manager.get_job(job_id)
         if not job:
             return {"success": False, "error": f"Job {job_id} not found"}
 
         self._job_manager.start_job(job_id)
 
-        # Build pipeline context
         context = PipelineContext(
             job_id=job_id,
             experiment_id=job.experiment_id,
@@ -168,41 +139,50 @@ class AnalysisOrchestrator:
             metadata=job.parameters
         )
 
-        self._logger.info("Starting analysis pipeline", job_id=job_id)
-
         try:
-            # Execute pipeline
-            pipeline_result = await self._pipeline.execute(context)
-
-            if pipeline_result["success"]:
-                self._job_manager.complete_job(job_id, result_id=f"result_{job_id}")
-                self._logger.info("Analysis completed", job_id=job_id)
-            else:
-                error_msg = "; ".join(pipeline_result.get("errors", ["Unknown pipeline error"]))
-                self._job_manager.fail_job(job_id, error_msg)
-                self._logger.error("Analysis failed", job_id=job_id, error=error_msg)
-
-            return pipeline_result
-
+            upload_result = self._upload_service.get_upload(job.parameters.get("file_id"))
+            if upload_result and upload_result.experiment:
+                context.data["experiment"] = {
+                    "two_theta": upload_result.experiment.two_theta,
+                    "intensity": upload_result.experiment.intensity,
+                    "wavelength": upload_result.experiment.wavelength.value_angstrom if upload_result.experiment.wavelength else None,
+                }
         except Exception as exc:
-            self._job_manager.fail_job(job_id, str(exc))
-            self._logger.error("Analysis exception", job_id=job_id, error=str(exc))
-            return {"success": False, "error": str(exc)}
+            self._logger.warning("Could not load experiment data", job_id=job_id, error=str(exc))
+
+        pipeline_result = await self._pipeline.execute(context)
+
+        if pipeline_result["success"]:
+            self._result_store.store(job_id, {
+                "job_id": job_id,
+                "project_id": job.parameters.get("project_id"),
+                "results": pipeline_result["results"],
+                "completed_at": datetime.utcnow().isoformat(),
+            })
+            self._job_manager.complete_job(job_id, result_id=f"result_{job_id}")
+        else:
+            error_msg = "; ".join(pipeline_result.get("errors", ["Unknown error"]))
+            self._job_manager.fail_job(job_id, error_msg)
+
+        return pipeline_result
 
     async def get_job_status(self, job_id: str) -> Optional[Dict[str, Any]]:
-        """Get complete job status including progress."""
         job = self._job_manager.get_job(job_id)
         if not job:
             return None
-        return job.to_dict()
+        d = job.to_dict()
+        d["progress"] = round(job.progress.current_progress * 100, 1)
+        d["current_step"] = job.progress.current_step
+        d["error"] = job.progress.errors[-1] if job.progress.errors else None
+        return d
 
     def list_jobs(
         self,
         status: Optional[str] = None,
+        project_id: Optional[str] = None,
         limit: int = 100,
         offset: int = 0
     ) -> List[Dict[str, Any]]:
-        """List all jobs."""
         job_status = None
         if status:
             try:
@@ -210,25 +190,33 @@ class AnalysisOrchestrator:
             except KeyError:
                 pass
 
-        jobs = self._job_manager.list_jobs(status=job_status, limit=limit, offset=offset)
-        return [j.to_dict() for j in jobs]
+        jobs = self._job_manager.list_jobs(status=job_status, limit=1000, offset=0)
+
+        if project_id:
+            jobs = [j for j in jobs if j.parameters.get("project_id") == project_id]
+
+        result = []
+        for j in jobs[offset:offset + limit]:
+            d = j.to_dict()
+            d["progress"] = round(j.progress.current_progress * 100, 1)
+            d["current_step"] = j.progress.current_step
+            d["error"] = j.progress.errors[-1] if j.progress.errors else None
+            result.append(d)
+
+        return result
+
+    def get_result(self, job_id: str) -> Optional[Dict[str, Any]]:
+        return self._result_store.get(job_id)
 
     async def cancel_job(self, job_id: str) -> Dict[str, Any]:
-        """Cancel a running or queued job."""
         try:
             job = self._job_manager.cancel_job(job_id)
             return {"success": True, "job_id": job_id, "status": job.status.name}
         except ValueError as exc:
             return {"success": False, "error": str(exc)}
 
-    # ------------------------------------------------------------------
-    # System status
-    # ------------------------------------------------------------------
-
     def get_system_status(self) -> Dict[str, Any]:
-        """Get overall system status."""
         all_jobs = self._job_manager.list_jobs()
-
         status_counts = {}
         for status in JobStatus:
             status_counts[status.name.lower()] = len(

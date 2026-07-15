@@ -3,7 +3,7 @@
 import { Page } from "@/components/ui/page";
 import { useProjects, useCreateProject } from "@/hooks/use-api";
 import Link from "next/link";
-import { Plus, Loader2 } from "lucide-react";
+import { Plus, Loader2, Upload } from "lucide-react";
 import { useState, useCallback } from "react";
 
 export default function Projects() {
@@ -17,7 +17,7 @@ export default function Projects() {
 
   const handleCreate = useCallback(async () => {
     if (!name.trim()) return;
-    await createProject.mutateAsync({ name: name.trim(), material: material.trim() });
+    const result = await createProject.mutateAsync({ name: name.trim(), material: material.trim() });
     setName("");
     setMaterial("");
     setShowForm(false);

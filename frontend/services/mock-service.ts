@@ -1,4 +1,4 @@
-import type { AnalysisJob, Match, Peak, Project } from "@/types";
+import type { AnalysisJob, ReferenceMatch, Peak, Project } from "@/types";
 
 const delay = <T,>(value: T) => new Promise<T>((resolve) => setTimeout(() => resolve(value), 120));
 
@@ -9,17 +9,11 @@ export const projects: Project[] = [
 ];
 
 export const peaks: Peak[] = [
-  { angle: 18.7, intensity: 42, hkl: "003", phase: "R-3m" },
-  { angle: 37.5, intensity: 100, hkl: "101", phase: "R-3m" },
-  { angle: 44.2, intensity: 69, hkl: "104", phase: "R-3m" },
-  { angle: 48.5, intensity: 56, hkl: "015", phase: "R-3m" },
-  { angle: 65, intensity: 38, hkl: "110", phase: "R-3m" },
-];
-
-export const matches: Match[] = [
-  { formula: "LiNi₀.₈Mn₀.₁Co₀.₁O₂", name: "Layered NMC 811", source: "COD", score: 98.4, system: "Trigonal" },
-  { formula: "LiNiO₂", name: "Lithium nickel oxide", source: "Materials Project", score: 86.2, system: "Trigonal" },
-  { formula: "LiCoO₂", name: "Lithium cobalt oxide", source: "COD", score: 72.7, system: "Trigonal" },
+  { two_theta: 18.7, intensity: 42, fwhm: 0.5, area: 21, d_spacing: 4.74, hkl: null },
+  { two_theta: 37.5, intensity: 100, fwhm: 0.4, area: 40, d_spacing: 2.40, hkl: null },
+  { two_theta: 44.2, intensity: 69, fwhm: 0.35, area: 24, d_spacing: 2.05, hkl: null },
+  { two_theta: 48.5, intensity: 56, fwhm: 0.3, area: 17, d_spacing: 1.88, hkl: null },
+  { two_theta: 65, intensity: 38, fwhm: 0.5, area: 19, d_spacing: 1.43, hkl: null },
 ];
 
 export const mockService = {
@@ -32,5 +26,4 @@ export const mockService = {
       { id: "job-388", name: "Rietveld refinement", status: "Queued", progress: 0, started: "Now" },
     ]),
   peaks: () => delay(peaks),
-  matches: () => delay(matches),
 };

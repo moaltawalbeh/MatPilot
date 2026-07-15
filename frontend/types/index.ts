@@ -16,18 +16,36 @@ export type Project = {
 };
 
 export type Peak = {
-  angle: number;
+  two_theta: number;
   intensity: number;
-  hkl: string;
-  phase: string;
+  fwhm: number | null;
+  area: number | null;
+  d_spacing: number | null;
+  hkl: string | null;
 };
 
-export type Match = {
-  formula: string;
+export type ReferenceMatch = {
+  material_name: string;
+  material_formula: string;
+  source_provider: string;
+  source_id: string;
+  match_score: number;
+  matched_peaks: number;
+  total_peaks: number;
+  experimental_peak_2theta: number;
+  reference_peak_2theta: number;
+  d_spacing_experimental: number | null;
+  d_spacing_reference: number | null;
+  confidence: string | null;
+};
+
+export type IdentifiedPhase = {
   name: string;
+  formula: string;
   source: string;
-  score: number;
-  system: string;
+  confidence: string;
+  match_score: number;
+  matched_peaks: number;
 };
 
 export type AnalysisJob = {
@@ -83,6 +101,18 @@ export type JobListItem = {
   finished_at: string | null;
   result_id: string | null;
   error: string | null;
+};
+
+export type AnalysisResult = {
+  job_id: string;
+  project_id: string | null;
+  results: {
+    peaks?: { two_theta: number; intensity: number; fwhm: number | null; area: number | null; d_spacing: number | null }[];
+    reference_matches?: { material: string; formula: string; match_score: number; matched_peaks: number }[];
+    identified_phases?: IdentifiedPhase[];
+    report?: { title: string; summary: { total_peaks: number; phases_identified: number; top_phase: string } };
+  };
+  completed_at: string;
 };
 
 export type SystemHealth = {

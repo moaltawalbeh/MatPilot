@@ -53,7 +53,7 @@ export function useProviders() {
   });
 }
 
-export function useJobs(params?: { status?: string }) {
+export function useJobs(params?: { status?: string; project_id?: string }) {
   return useQuery({
     queryKey: ["jobs", params],
     queryFn: () => apiService.listJobs(params),
@@ -73,13 +73,22 @@ export function useJob(id: string) {
   });
 }
 
+export function useJobResult(id: string) {
+  return useQuery({
+    queryKey: ["job-result", id],
+    queryFn: () => apiService.getJobResult(id),
+    enabled: !!id,
+  });
+}
+
 export function useUploadFile() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ file, wavelength, radiation }: { file: File; wavelength?: number; radiation?: string }) =>
-      apiService.uploadFile(file, wavelength, radiation),
+    mutationFn: ({ file, wavelength, radiation, projectId }: { file: File; wavelength?: number; radiation?: string; projectId?: string }) =>
+      apiService.uploadFile(file, wavelength, radiation, projectId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["uploads"] });
+      qc.invalidateQueries({ queryKey: ["projects"] });
     },
   });
 }
@@ -103,7 +112,10 @@ export function useExecuteJob() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: apiService.executeJob,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["jobs"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["jobs"] });
+      qc.invalidateQueries({ queryKey: ["job-result"] });
+    },
   });
 }
 
@@ -112,5 +124,21 @@ export function useCancelJob() {
   return useMutation({
     mutationFn: apiService.cancelJob,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["jobs"] }),
+  });
+}
+
+export function useProjectFiles(projectId: string) {
+  return useQuery({
+    queryKey: ["project-files", projectId],
+    queryFn: () => apiService.listProjectFiles(projectId),
+    enabled: !!projectId,
+  });
+}
+
+export function useProjectJobs(projectId: string) {
+  return useQuery({
+    queryKey: ["project-jobs", projectId],
+    queryFn: () => apiService.listProjectJobs(projectId),
+    enabled: !!projectId,
   });
 }

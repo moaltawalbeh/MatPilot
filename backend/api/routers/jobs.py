@@ -34,12 +34,15 @@ class JobListResponse(BaseModel):
 @router.get("", response_model=JobListResponse)
 async def list_jobs(
     status: Optional[str] = Query(None, description="Filter by status"),
+    project_id: Optional[str] = Query(None, description="Filter by project ID"),
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
     container=Depends(get_container),
 ):
     """List all analysis jobs with optional filtering."""
-    jobs = container.analysis_orchestrator.list_jobs(status=status, limit=limit, offset=offset)
+    jobs = container.analysis_orchestrator.list_jobs(
+        status=status, project_id=project_id, limit=limit, offset=offset
+    )
     return JobListResponse(
         jobs=jobs,
         total=len(jobs),
@@ -50,11 +53,20 @@ async def list_jobs(
 
 @router.get("/{job_id}")
 async def get_job(job_id: str, container=Depends(get_container)):
-    """Get a single job by ID with full status and progress."""
+    """Get a single job by ID."""
     job = await container.analysis_orchestrator.get_job_status(job_id)
     if not job:
         raise EntityNotFoundError(f"Job {job_id} not found")
     return job
+
+
+@router.get("/{job_id}/result")
+async def get_job_result(job_id: str, container=Depends(get_container)):
+    """Get analysis result for a completed job."""
+    result = container.analysis_orchestrator.get_result(job_id)
+    if not result:
+        raise EntityNotFoundError(f"Result for job {job_id} not found")
+    return result
 
 
 @router.post("/{job_id}/execute")

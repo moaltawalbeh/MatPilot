@@ -36,7 +36,7 @@ class UploadListItem(BaseModel):
 
 @router.get("", response_model=List[UploadListItem])
 async def list_uploads(container=Depends(get_container)):
-    """List all uploads in the current session."""
+    """List all uploads."""
     results = container.upload_service.list_uploads()
     return [
         UploadListItem(
@@ -55,6 +55,7 @@ async def upload_file(
     file: UploadFile = File(...),
     wavelength: Optional[float] = Form(None),
     radiation: Optional[str] = Form(None),
+    project_id: Optional[str] = Form(None),
     container=Depends(get_container),
 ):
     """Upload an experimental data file.
@@ -86,6 +87,12 @@ async def upload_file(
         raise InvalidFileException(
             f"File validation failed: {'; '.join(result.validation.errors)}"
         )
+
+    if project_id:
+        try:
+            await container.project_use_case.add_file_to_project(project_id, result.file_id)
+        except Exception:
+            pass
 
     exp = result.experiment
     two_theta_range = None

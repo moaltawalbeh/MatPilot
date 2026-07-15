@@ -7,6 +7,17 @@ from uuid import UUID, uuid4
 
 
 @dataclass
+class ProjectMetadata:
+    """Strong-typed metadata for a project."""
+    instrument: str = ""
+    radiation_type: str = ""
+    wavelength_angstrom: Optional[float] = None
+    temperature_k: Optional[float] = None
+    notes: str = ""
+    custom: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
 class Project:
     """Scientific project grouping experiments, analyses, and reports."""
 
@@ -20,7 +31,7 @@ class Project:
     job_ids: List[str] = field(default_factory=list)
     status: str = "Active"
     tags: List[str] = field(default_factory=list)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: ProjectMetadata = field(default_factory=ProjectMetadata)
     created_at: datetime = field(default_factory=datetime.utcnow)
     updated_at: datetime = field(default_factory=datetime.utcnow)
 

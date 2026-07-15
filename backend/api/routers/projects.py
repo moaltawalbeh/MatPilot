@@ -1,11 +1,11 @@
 """Project API endpoints."""
 
 from typing import Optional, List
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
 from backend.api.dependencies import get_container
-from backend.domain.exceptions.domain_exceptions import EntityNotFoundError, ValidationError
+from backend.domain.exceptions.domain_exceptions import EntityNotFoundError
 
 router = APIRouter(prefix="/projects", tags=["Projects"])
 
@@ -108,3 +108,36 @@ async def add_job_to_project(project_id: str, job_id: str, container=Depends(get
     use_case = container.project_use_case
     project = await use_case.add_job_to_project(project_id, job_id)
     return ProjectResponse(**project)
+
+
+@router.get("/{project_id}/files")
+async def list_project_files(project_id: str, container=Depends(get_container)):
+    """List all files in a project."""
+    use_case = container.project_use_case
+    project = await use_case.get_project(project_id)
+    uploads = container.upload_service.list_uploads()
+    project_files = [u for u in uploads if u.file_id in project["file_ids"]]
+    return [
+        {
+            "file_id": u.file_id,
+            "filename": u.filename,
+            "detected_format": u.detected_format,
+            "is_valid": u.is_valid,
+            "uploaded_at": str(u.uploaded_at),
+        }
+        for u in project_files
+    ]
+
+
+@router.get("/{project_id}/jobs")
+async def list_project_jobs(
+    project_id: str,
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+    container=Depends(get_container),
+):
+    """List all jobs in a project."""
+    jobs = container.analysis_orchestrator.list_jobs(
+        project_id=project_id, limit=limit, offset=offset
+    )
+    return {"jobs": jobs, "total": len(jobs)}
