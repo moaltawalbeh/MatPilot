@@ -1,0 +1,876 @@
+{
+  "_metadata": {
+    "description": "Local COD subset with real diffraction peak positions for common crystalline materials",
+    "wavelength": "Cu K-alpha (1.5406 Angstrom)",
+    "source": "Crystallography Open Database (https://www.crystallography.net)",
+    "version": "1.0.0",
+    "notes": "Peak positions are in 2-theta degrees for Cu K-alpha radiation. Relative intensities normalized to 100."
+  },
+  "materials": [
+    {
+      "id": "COD_9011666",
+      "name": "Silicon",
+      "formula": "Si",
+      "crystal_system": "Cubic",
+      "space_group": "Fd-3m",
+      "lattice_parameters": {"a": 5.4301, "b": 5.4301, "c": 5.4301},
+      "peaks": [
+        {"two_theta": 28.443, "intensity": 100.0, "hkl": "111", "d_spacing": 3.1350},
+        {"two_theta": 47.303, "intensity": 55.0, "hkl": "220", "d_spacing": 1.9201},
+        {"two_theta": 56.121, "intensity": 30.0, "hkl": "311", "d_spacing": 1.6375},
+        {"two_theta": 69.130, "intensity": 10.0, "hkl": "400", "d_spacing": 1.3577},
+        {"two_theta": 76.380, "intensity": 10.0, "hkl": "331", "d_spacing": 1.2459},
+        {"two_theta": 88.034, "intensity": 15.0, "hkl": "422", "d_spacing": 1.1086},
+        {"two_theta": 94.951, "intensity": 8.0, "hkl": "511", "d_spacing": 1.0452}
+      ],
+      "source": "COD 9011666"
+    },
+    {
+      "id": "COD_9007662",
+      "name": "Corundum",
+      "formula": "Al2O3",
+      "crystal_system": "Trigonal",
+      "space_group": "R-3c",
+      "lattice_parameters": {"a": 4.759, "b": 4.759, "c": 12.991},
+      "peaks": [
+        {"two_theta": 25.577, "intensity": 22.0, "hkl": "012", "d_spacing": 3.4790},
+        {"two_theta": 35.149, "intensity": 40.0, "hkl": "104", "d_spacing": 2.5510},
+        {"two_theta": 37.778, "intensity": 45.0, "hkl": "110", "d_spacing": 2.3790},
+        {"two_theta": 43.357, "intensity": 80.0, "hkl": "113", "d_spacing": 2.0850},
+        {"two_theta": 52.554, "intensity": 100.0, "hkl": "024", "d_spacing": 1.7400},
+        {"two_theta": 57.502, "intensity": 20.0, "hkl": "116", "d_spacing": 1.6010},
+        {"two_theta": 66.513, "intensity": 30.0, "hkl": "214", "d_spacing": 1.4040},
+        {"two_theta": 68.213, "intensity": 45.0, "hkl": "300", "d_spacing": 1.3740},
+        {"two_theta": 76.898, "intensity": 8.0, "hkl": "119"},
+        {"two_theta": 77.240, "intensity": 6.0, "hkl": "220"},
+        {"two_theta": 80.752, "intensity": 4.0, "hkl": "134"},
+        {"two_theta": 89.063, "intensity": 2.0, "hkl": "226"}
+      ],
+      "source": "COD 9007662"
+    },
+    {
+      "id": "COD_1011095",
+      "name": "Quartz",
+      "formula": "SiO2",
+      "crystal_system": "Hexagonal",
+      "space_group": "P3_121",
+      "lattice_parameters": {"a": 4.9134, "b": 4.9134, "c": 5.4053},
+      "peaks": [
+        {"two_theta": 20.858, "intensity": 25.0, "hkl": "100", "d_spacing": 4.2550},
+        {"two_theta": 26.640, "intensity": 100.0, "hkl": "101", "d_spacing": 3.3430},
+        {"two_theta": 36.545, "intensity": 10.0, "hkl": "110", "d_spacing": 2.4570},
+        {"two_theta": 39.463, "intensity": 12.0, "hkl": "102", "d_spacing": 2.2820},
+        {"two_theta": 50.144, "intensity": 15.0, "hkl": "112", "d_spacing": 1.8180},
+        {"two_theta": 59.950, "intensity": 5.0, "hkl": "211"},
+        {"two_theta": 68.098, "intensity": 8.0, "hkl": "203"}
+      ],
+      "source": "COD 1011095"
+    },
+    {
+      "id": "COD_9008461",
+      "name": "Copper",
+      "formula": "Cu",
+      "crystal_system": "Cubic",
+      "space_group": "Fm-3m",
+      "lattice_parameters": {"a": 3.6149, "b": 3.6149, "c": 3.6149},
+      "peaks": [
+        {"two_theta": 43.297, "intensity": 100.0, "hkl": "111", "d_spacing": 2.0870},
+        {"two_theta": 50.433, "intensity": 46.0, "hkl": "200", "d_spacing": 1.8080},
+        {"two_theta": 74.126, "intensity": 20.0, "hkl": "220", "d_spacing": 1.2780},
+        {"two_theta": 89.931, "intensity": 17.0, "hkl": "311", "d_spacing": 1.0900},
+        {"two_theta": 95.139, "intensity": 5.0, "hkl": "222"}
+      ],
+      "source": "COD 9008461"
+    },
+    {
+      "id": "COD_9008458",
+      "name": "Gold",
+      "formula": "Au",
+      "crystal_system": "Cubic",
+      "space_group": "Fm-3m",
+      "lattice_parameters": {"a": 4.0782, "b": 4.0782, "c": 4.0782},
+      "peaks": [
+        {"two_theta": 38.184, "intensity": 100.0, "hkl": "111", "d_spacing": 2.3530},
+        {"two_theta": 44.394, "intensity": 52.0, "hkl": "200", "d_spacing": 2.0390},
+        {"two_theta": 64.576, "intensity": 22.0, "hkl": "220", "d_spacing": 1.4420},
+        {"two_theta": 77.547, "intensity": 16.0, "hkl": "311", "d_spacing": 1.2300},
+        {"two_theta": 81.718, "intensity": 11.0, "hkl": "222"}
+      ],
+      "source": "COD 9008458"
+    },
+    {
+      "id": "COD_9005812",
+      "name": "Iron (alpha)",
+      "formula": "Fe",
+      "crystal_system": "Cubic",
+      "space_group": "Im-3m",
+      "lattice_parameters": {"a": 2.8664, "b": 2.8664, "c": 2.8664},
+      "peaks": [
+        {"two_theta": 44.673, "intensity": 100.0, "hkl": "110", "d_spacing": 2.0270},
+        {"two_theta": 65.024, "intensity": 20.0, "hkl": "200", "d_spacing": 1.4330},
+        {"two_theta": 82.332, "intensity": 30.0, "hkl": "211", "d_spacing": 1.1700},
+        {"two_theta": 98.999, "intensity": 10.0, "hkl": "220"}
+      ],
+      "source": "COD 9005812"
+    },
+    {
+      "id": "COD_9007536",
+      "name": "Titanium Dioxide (Rutile)",
+      "formula": "TiO2",
+      "crystal_system": "Tetragonal",
+      "space_group": "P4_2/mnm",
+      "lattice_parameters": {"a": 4.5937, "b": 4.5937, "c": 2.9587},
+      "peaks": [
+        {"two_theta": 27.446, "intensity": 100.0, "hkl": "110", "d_spacing": 3.2470},
+        {"two_theta": 36.085, "intensity": 50.0, "hkl": "101", "d_spacing": 2.4870},
+        {"two_theta": 39.187, "intensity": 25.0, "hkl": "200", "d_spacing": 2.2970},
+        {"two_theta": 41.225, "intensity": 10.0, "hkl": "111"},
+        {"two_theta": 44.048, "intensity": 10.0, "hkl": "210"},
+        {"two_theta": 54.320, "intensity": 60.0, "hkl": "211", "d_spacing": 1.6870},
+        {"two_theta": 56.640, "intensity": 20.0, "hkl": "220"},
+        {"two_theta": 62.739, "intensity": 10.0, "hkl": "002"},
+        {"two_theta": 64.038, "intensity": 10.0, "hkl": "310"},
+        {"two_theta": 69.008, "intensity": 25.0, "hkl": "301"}
+      ],
+      "source": "COD 9007536"
+    },
+    {
+      "id": "COD_9008903",
+      "name": "Calcite",
+      "formula": "CaCO3",
+      "crystal_system": "Trigonal",
+      "space_group": "R-3c",
+      "lattice_parameters": {"a": 4.9896, "b": 4.9896, "c": 17.0610},
+      "peaks": [
+        {"two_theta": 23.049, "intensity": 12.0, "hkl": "012"},
+        {"two_theta": 29.405, "intensity": 100.0, "hkl": "104", "d_spacing": 3.0350},
+        {"two_theta": 31.432, "intensity": 8.0, "hkl": "006"},
+        {"two_theta": 34.353, "intensity": 18.0, "hkl": "110"},
+        {"two_theta": 39.404, "intensity": 18.0, "hkl": "113"},
+        {"two_theta": 43.147, "intensity": 6.0, "hkl": "202"},
+        {"two_theta": 47.497, "intensity": 8.0, "hkl": "018"},
+        {"two_theta": 48.521, "intensity": 20.0, "hkl": "116"},
+        {"two_theta": 57.390, "intensity": 10.0, "hkl": "122"}
+      ],
+      "source": "COD 9008903"
+    },
+    {
+      "id": "COD_9000147",
+      "name": "Diamond",
+      "formula": "C",
+      "crystal_system": "Cubic",
+      "space_group": "Fd-3m",
+      "lattice_parameters": {"a": 3.5670, "b": 3.5670, "c": 3.5670},
+      "peaks": [
+        {"two_theta": 43.920, "intensity": 100.0, "hkl": "111", "d_spacing": 2.0600},
+        {"two_theta": 75.263, "intensity": 25.0, "hkl": "220"},
+        {"two_theta": 91.436, "intensity": 16.0, "hkl": "311"}
+      ],
+      "source": "COD 9000147"
+    },
+    {
+      "id": "COD_9009781",
+      "name": "Zinc Oxide",
+      "formula": "ZnO",
+      "crystal_system": "Hexagonal",
+      "space_group": "P6_3mc",
+      "lattice_parameters": {"a": 3.2498, "b": 3.2498, "c": 5.2066},
+      "peaks": [
+        {"two_theta": 31.769, "intensity": 57.0, "hkl": "100", "d_spacing": 2.8140},
+        {"two_theta": 34.422, "intensity": 44.0, "hkl": "002", "d_spacing": 2.6030},
+        {"two_theta": 36.252, "intensity": 100.0, "hkl": "101", "d_spacing": 2.4760},
+        {"two_theta": 47.538, "intensity": 23.0, "hkl": "102"},
+        {"two_theta": 56.572, "intensity": 32.0, "hkl": "110"},
+        {"two_theta": 62.862, "intensity": 29.0, "hkl": "103"},
+        {"two_theta": 66.376, "intensity": 4.0, "hkl": "200"},
+        {"two_theta": 67.942, "intensity": 10.0, "hkl": "112"},
+        {"two_theta": 69.071, "intensity": 10.0, "hkl": "201"}
+      ],
+      "source": "COD 9009781"
+    },
+    {
+      "id": "COD_9006328",
+      "name": "Magnetite",
+      "formula": "Fe3O4",
+      "crystal_system": "Cubic",
+      "space_group": "Fd-3m",
+      "lattice_parameters": {"a": 8.3960, "b": 8.3960, "c": 8.3960},
+      "peaks": [
+        {"two_theta": 30.095, "intensity": 30.0, "hkl": "220"},
+        {"two_theta": 35.422, "intensity": 100.0, "hkl": "311", "d_spacing": 2.5320},
+        {"two_theta": 43.051, "intensity": 20.0, "hkl": "400"},
+        {"two_theta": 53.389, "intensity": 10.0, "hkl": "422"},
+        {"two_theta": 56.942, "intensity": 30.0, "hkl": "511"},
+        {"two_theta": 62.522, "intensity": 40.0, "hkl": "440"}
+      ],
+      "source": "COD 9006328"
+    },
+    {
+      "id": "COD_9002744",
+      "name": "Hematite",
+      "formula": "Fe2O3",
+      "crystal_system": "Trigonal",
+      "space_group": "R-3c",
+      "lattice_parameters": {"a": 5.0360, "b": 5.0360, "c": 13.7490},
+      "peaks": [
+        {"two_theta": 24.137, "intensity": 30.0, "hkl": "012"},
+        {"two_theta": 33.153, "intensity": 100.0, "hkl": "104", "d_spacing": 2.7000},
+        {"two_theta": 35.609, "intensity": 70.0, "hkl": "110"},
+        {"two_theta": 40.852, "intensity": 20.0, "hkl": "113"},
+        {"two_theta": 43.515, "intensity": 3.0, "hkl": "202"},
+        {"two_theta": 49.479, "intensity": 40.0, "hkl": "024"},
+        {"two_theta": 54.064, "intensity": 3.0, "hkl": "116"},
+        {"two_theta": 57.584, "intensity": 25.0, "hkl": "211"},
+        {"two_theta": 62.449, "intensity": 25.0, "hkl": "214"},
+        {"two_theta": 63.989, "intensity": 20.0, "hkl": "300"}
+      ],
+      "source": "COD 9002744"
+    },
+    {
+      "id": "COD_9002812",
+      "name": "Sodium Chloride",
+      "formula": "NaCl",
+      "crystal_system": "Cubic",
+      "space_group": "Fm-3m",
+      "lattice_parameters": {"a": 5.6402, "b": 5.6402, "c": 5.6402},
+      "peaks": [
+        {"two_theta": 27.373, "intensity": 100.0, "hkl": "200", "d_spacing": 2.8210},
+        {"two_theta": 31.696, "intensity": 55.0, "hkl": "220", "d_spacing": 2.0000},
+        {"two_theta": 45.444, "intensity": 15.0, "hkl": "400"},
+        {"two_theta": 53.856, "intensity": 6.0, "hkl": "420"},
+        {"two_theta": 56.466, "intensity": 11.0, "hkl": "422"},
+        {"two_theta": 66.227, "intensity": 4.0, "hkl": "440"},
+        {"two_theta": 73.188, "intensity": 3.0, "hkl": "600"},
+        {"two_theta": 75.432, "intensity": 5.0, "hkl": "620"}
+      ],
+      "source": "COD 9002812"
+    },
+    {
+      "id": "COD_9000463",
+      "name": "Potassium Chloride",
+      "formula": "KCl",
+      "crystal_system": "Cubic",
+      "space_group": "Fm-3m",
+      "lattice_parameters": {"a": 6.2931, "b": 6.2931, "c": 6.2931},
+      "peaks": [
+        {"two_theta": 28.343, "intensity": 100.0, "hkl": "200", "d_spacing": 3.1460},
+        {"two_theta": 40.498, "intensity": 50.0, "hkl": "220"},
+        {"two_theta": 50.178, "intensity": 10.0, "hkl": "400"},
+        {"two_theta": 58.653, "intensity": 5.0, "hkl": "420"},
+        {"two_theta": 66.418, "intensity": 10.0, "hkl": "422"},
+        {"two_theta": 73.757, "intensity": 3.0, "hkl": "440"}
+      ],
+      "source": "COD 9000463"
+    },
+    {
+      "id": "COD_9003172",
+      "name": "Barium Titanate",
+      "formula": "BaTiO3",
+      "crystal_system": "Tetragonal",
+      "space_group": "P4mm",
+      "lattice_parameters": {"a": 3.9940, "b": 3.9940, "c": 4.0380},
+      "peaks": [
+        {"two_theta": 22.148, "intensity": 100.0, "hkl": "100", "d_spacing": 4.0120},
+        {"two_theta": 31.533, "intensity": 50.0, "hkl": "110", "d_spacing": 2.8350},
+        {"two_theta": 38.907, "intensity": 15.0, "hkl": "111"},
+        {"two_theta": 45.254, "intensity": 40.0, "hkl": "200"},
+        {"two_theta": 50.844, "intensity": 5.0, "hkl": "210"},
+        {"two_theta": 56.077, "intensity": 30.0, "hkl": "211"},
+        {"two_theta": 65.675, "intensity": 10.0, "hkl": "220"},
+        {"two_theta": 70.144, "intensity": 15.0, "hkl": "221"},
+        {"two_theta": 75.033, "intensity": 8.0, "hkl": "310"}
+      ],
+      "source": "COD 9003172"
+    },
+    {
+      "id": "COD_9008846",
+      "name": "Gypsum",
+      "formula": "CaSO4.2H2O",
+      "crystal_system": "Monoclinic",
+      "space_group": "I2/a",
+      "lattice_parameters": {"a": 5.6800, "b": 15.1800, "c": 6.5100},
+      "peaks": [
+        {"two_theta": 11.593, "intensity": 100.0, "hkl": "020"},
+        {"two_theta": 20.721, "intensity": 30.0, "hkl": "021"},
+        {"two_theta": 23.392, "intensity": 15.0, "hkl": "040"},
+        {"two_theta": 29.100, "intensity": 25.0, "hkl": "141"},
+        {"two_theta": 31.100, "intensity": 20.0, "hkl": "200"},
+        {"two_theta": 33.392, "intensity": 15.0, "hkl": "151"},
+        {"two_theta": 42.175, "intensity": 8.0, "hkl": "242"}
+      ],
+      "source": "COD 9008846"
+    },
+    {
+      "id": "COD_9000448",
+      "name": "Graphite",
+      "formula": "C",
+      "crystal_system": "Hexagonal",
+      "space_group": "P6_3/mmc",
+      "lattice_parameters": {"a": 2.4612, "b": 2.4612, "c": 6.7079},
+      "peaks": [
+        {"two_theta": 26.550, "intensity": 100.0, "hkl": "002", "d_spacing": 3.3540},
+        {"two_theta": 42.388, "intensity": 12.0, "hkl": "100"},
+        {"two_theta": 44.560, "intensity": 8.0, "hkl": "101"},
+        {"two_theta": 50.685, "intensity": 3.0, "hkl": "102"},
+        {"two_theta": 54.660, "intensity": 5.0, "hkl": "004"},
+        {"two_theta": 59.890, "intensity": 2.0, "hkl": "103"}
+      ],
+      "source": "COD 9000448"
+    },
+    {
+      "id": "COD_9014108",
+      "name": "Hydroxyapatite",
+      "formula": "Ca10(PO4)6(OH)2",
+      "crystal_system": "Hexagonal",
+      "space_group": "P6_3/m",
+      "lattice_parameters": {"a": 9.4320, "b": 9.4320, "c": 6.8810},
+      "peaks": [
+        {"two_theta": 10.824, "intensity": 35.0, "hkl": "100"},
+        {"two_theta": 16.836, "intensity": 10.0, "hkl": "101"},
+        {"two_theta": 21.820, "intensity": 8.0, "hkl": "111"},
+        {"two_theta": 25.874, "intensity": 40.0, "hkl": "002"},
+        {"two_theta": 28.126, "intensity": 100.0, "hkl": "211"},
+        {"two_theta": 28.966, "intensity": 35.0, "hkl": "112"},
+        {"two_theta": 31.773, "intensity": 35.0, "hkl": "300"},
+        {"two_theta": 32.188, "intensity": 25.0, "hkl": "202"},
+        {"two_theta": 34.051, "intensity": 8.0, "hkl": "301"},
+        {"two_theta": 39.798, "intensity": 8.0, "hkl": "310"},
+        {"two_theta": 46.710, "intensity": 8.0, "hkl": "222"},
+        {"two_theta": 49.468, "intensity": 8.0, "hkl": "213"},
+        {"two_theta": 53.152, "intensity": 10.0, "hkl": "004"}
+      ],
+      "source": "COD 9014108"
+    },
+    {
+      "id": "COD_9002332",
+      "name": "Aluminum",
+      "formula": "Al",
+      "crystal_system": "Cubic",
+      "space_group": "Fm-3m",
+      "lattice_parameters": {"a": 4.0496, "b": 4.0496, "c": 4.0496},
+      "peaks": [
+        {"two_theta": 38.473, "intensity": 100.0, "hkl": "111", "d_spacing": 2.3380},
+        {"two_theta": 44.721, "intensity": 47.0, "hkl": "200", "d_spacing": 2.0240},
+        {"two_theta": 65.091, "intensity": 22.0, "hkl": "220", "d_spacing": 1.4310},
+        {"two_theta": 78.183, "intensity": 24.0, "hkl": "311"},
+        {"two_theta": 82.425, "intensity": 8.0, "hkl": "222"},
+        {"two_theta": 99.064, "intensity": 8.0, "hkl": "400"}
+      ],
+      "source": "COD 9002332"
+    },
+    {
+      "id": "COD_9003583",
+      "name": "Nickel",
+      "formula": "Ni",
+      "crystal_system": "Cubic",
+      "space_group": "Fm-3m",
+      "lattice_parameters": {"a": 3.5238, "b": 3.5238, "c": 3.5238},
+      "peaks": [
+        {"two_theta": 44.506, "intensity": 100.0, "hkl": "111", "d_spacing": 2.0340},
+        {"two_theta": 51.845, "intensity": 42.0, "hkl": "200", "d_spacing": 1.7620},
+        {"two_theta": 76.373, "intensity": 19.0, "hkl": "220"},
+        {"two_theta": 92.944, "intensity": 17.0, "hkl": "311"},
+        {"two_theta": 98.546, "intensity": 8.0, "hkl": "222"}
+      ],
+      "source": "COD 9003583"
+    },
+    {
+      "id": "COD_9003637",
+      "name": "Silver",
+      "formula": "Ag",
+      "crystal_system": "Cubic",
+      "space_group": "Fm-3m",
+      "lattice_parameters": {"a": 4.0853, "b": 4.0853, "c": 4.0853},
+      "peaks": [
+        {"two_theta": 38.116, "intensity": 100.0, "hkl": "111", "d_spacing": 2.3590},
+        {"two_theta": 44.277, "intensity": 40.0, "hkl": "200", "d_spacing": 2.0440},
+        {"two_theta": 64.426, "intensity": 25.0, "hkl": "220"},
+        {"two_theta": 77.472, "intensity": 26.0, "hkl": "311"},
+        {"two_theta": 81.534, "intensity": 12.0, "hkl": "222"}
+      ],
+      "source": "COD 9003637"
+    },
+    {
+      "id": "COD_9004178",
+      "name": "Platinum",
+      "formula": "Pt",
+      "crystal_system": "Cubic",
+      "space_group": "Fm-3m",
+      "lattice_parameters": {"a": 3.9239, "b": 3.9239, "c": 3.9239},
+      "peaks": [
+        {"two_theta": 39.761, "intensity": 100.0, "hkl": "111", "d_spacing": 2.2650},
+        {"two_theta": 46.244, "intensity": 50.0, "hkl": "200", "d_spacing": 1.9620},
+        {"two_theta": 67.462, "intensity": 25.0, "hkl": "220"},
+        {"two_theta": 81.246, "intensity": 28.0, "hkl": "311"},
+        {"two_theta": 85.698, "intensity": 12.0, "hkl": "222"}
+      ],
+      "source": "COD 9004178"
+    },
+    {
+      "id": "COD_9000459",
+      "name": "Boron Nitride (hexagonal)",
+      "formula": "BN",
+      "crystal_system": "Hexagonal",
+      "space_group": "P6_3/mmc",
+      "lattice_parameters": {"a": 2.5042, "b": 2.5042, "c": 6.6562},
+      "peaks": [
+        {"two_theta": 26.746, "intensity": 100.0, "hkl": "002"},
+        {"two_theta": 41.568, "intensity": 15.0, "hkl": "100"},
+        {"two_theta": 43.840, "intensity": 8.0, "hkl": "101"},
+        {"two_theta": 55.120, "intensity": 3.0, "hkl": "102"},
+        {"two_theta": 75.888, "intensity": 5.0, "hkl": "004"}
+      ],
+      "source": "COD 9000459"
+    },
+    {
+      "id": "COD_9003474",
+      "name": "Strontium Titanate",
+      "formula": "SrTiO3",
+      "crystal_system": "Cubic",
+      "space_group": "Pm-3m",
+      "lattice_parameters": {"a": 3.9050, "b": 3.9050, "c": 3.9050},
+      "peaks": [
+        {"two_theta": 22.756, "intensity": 100.0, "hkl": "100", "d_spacing": 3.9050},
+        {"two_theta": 32.438, "intensity": 55.0, "hkl": "110", "d_spacing": 2.7610},
+        {"two_theta": 39.967, "intensity": 8.0, "hkl": "111"},
+        {"two_theta": 46.519, "intensity": 30.0, "hkl": "200"},
+        {"two_theta": 52.385, "intensity": 3.0, "hkl": "210"},
+        {"two_theta": 57.802, "intensity": 20.0, "hkl": "211"},
+        {"two_theta": 67.774, "intensity": 8.0, "hkl": "220"},
+        {"two_theta": 72.568, "intensity": 10.0, "hkl": "221"},
+        {"two_theta": 77.159, "intensity": 5.0, "hkl": "310"}
+      ],
+      "source": "COD 9003474"
+    },
+    {
+      "id": "COD_9004373",
+      "name": "Molybdenum Disulfide",
+      "formula": "MoS2",
+      "crystal_system": "Hexagonal",
+      "space_group": "P6_3/mmc",
+      "lattice_parameters": {"a": 3.1602, "b": 3.1602, "c": 12.2950},
+      "peaks": [
+        {"two_theta": 14.377, "intensity": 100.0, "hkl": "002"},
+        {"two_theta": 28.962, "intensity": 40.0, "hkl": "004"},
+        {"two_theta": 32.690, "intensity": 8.0, "hkl": "100"},
+        {"two_theta": 33.636, "intensity": 3.0, "hkl": "101"},
+        {"two_theta": 39.510, "intensity": 15.0, "hkl": "103"},
+        {"two_theta": 44.166, "intensity": 12.0, "hkl": "104"},
+        {"two_theta": 49.790, "intensity": 5.0, "hkl": "105"},
+        {"two_theta": 58.270, "intensity": 5.0, "hkl": "110"}
+      ],
+      "source": "COD 9004373"
+    },
+    {
+      "id": "COD_9000461",
+      "name": "Tungsten Carbide",
+      "formula": "WC",
+      "crystal_system": "Hexagonal",
+      "space_group": "P-6m2",
+      "lattice_parameters": {"a": 2.9060, "b": 2.9060, "c": 2.8370},
+      "peaks": [
+        {"two_theta": 31.476, "intensity": 100.0, "hkl": "100"},
+        {"two_theta": 35.650, "intensity": 90.0, "hkl": "101"},
+        {"two_theta": 48.300, "intensity": 20.0, "hkl": "102"},
+        {"two_theta": 64.030, "intensity": 30.0, "hkl": "110"},
+        {"two_theta": 73.030, "intensity": 15.0, "hkl": "112"},
+        {"two_theta": 77.100, "intensity": 10.0, "hkl": "201"}
+      ],
+      "source": "COD 9000461"
+    },
+    {
+      "id": "COD_9003682",
+      "name": "Titanium Carbide",
+      "formula": "TiC",
+      "crystal_system": "Cubic",
+      "space_group": "Fm-3m",
+      "lattice_parameters": {"a": 4.3275, "b": 4.3275, "c": 4.3275},
+      "peaks": [
+        {"two_theta": 35.871, "intensity": 100.0, "hkl": "111"},
+        {"two_theta": 41.692, "intensity": 30.0, "hkl": "200"},
+        {"two_theta": 60.452, "intensity": 15.0, "hkl": "220"},
+        {"two_theta": 72.381, "intensity": 15.0, "hkl": "311"},
+        {"two_theta": 76.189, "intensity": 5.0, "hkl": "222"}
+      ],
+      "source": "COD 9003682"
+    },
+    {
+      "id": "COD_9007647",
+      "name": "Wustite",
+      "formula": "FeO",
+      "crystal_system": "Cubic",
+      "space_group": "Fm-3m",
+      "lattice_parameters": {"a": 4.3100, "b": 4.3100, "c": 4.3100},
+      "peaks": [
+        {"two_theta": 36.300, "intensity": 100.0, "hkl": "111"},
+        {"two_theta": 42.100, "intensity": 55.0, "hkl": "200"},
+        {"two_theta": 60.800, "intensity": 15.0, "hkl": "220"},
+        {"two_theta": 72.700, "intensity": 15.0, "hkl": "311"},
+        {"two_theta": 76.600, "intensity": 5.0, "hkl": "222"}
+      ],
+      "source": "COD 9007647"
+    },
+    {
+      "id": "COD_9002709",
+      "name": "Chalcopyrite",
+      "formula": "CuFeS2",
+      "crystal_system": "Tetragonal",
+      "space_group": "I-42d",
+      "lattice_parameters": {"a": 5.2890, "b": 5.2890, "c": 10.4100},
+      "peaks": [
+        {"two_theta": 29.388, "intensity": 100.0, "hkl": "112"},
+        {"two_theta": 33.083, "intensity": 3.0, "hkl": "103"},
+        {"two_theta": 34.153, "intensity": 2.0, "hkl": "200"},
+        {"two_theta": 43.170, "intensity": 2.0, "hkl": "211"},
+        {"two_theta": 47.353, "intensity": 15.0, "hkl": "204"},
+        {"two_theta": 48.869, "intensity": 2.0, "hkl": "220"},
+        {"two_theta": 53.552, "intensity": 5.0, "hkl": "215"},
+        {"two_theta": 56.341, "intensity": 3.0, "hkl": "312"}
+      ],
+      "source": "COD 9002709"
+    },
+    {
+      "id": "COD_9007504",
+      "name": "Sphalerite",
+      "formula": "ZnS",
+      "crystal_system": "Cubic",
+      "space_group": "F-43m",
+      "lattice_parameters": {"a": 5.4060, "b": 5.4060, "c": 5.4060},
+      "peaks": [
+        {"two_theta": 28.524, "intensity": 100.0, "hkl": "111", "d_spacing": 3.1250},
+        {"two_theta": 47.497, "intensity": 55.0, "hkl": "220"},
+        {"two_theta": 56.283, "intensity": 30.0, "hkl": "311"},
+        {"two_theta": 69.170, "intensity": 8.0, "hkl": "400"},
+        {"two_theta": 76.564, "intensity": 6.0, "hkl": "331"}
+      ],
+      "source": "COD 9007504"
+    },
+    {
+      "id": "COD_9009103",
+      "name": "Galena",
+      "formula": "PbS",
+      "crystal_system": "Cubic",
+      "space_group": "Fm-3m",
+      "lattice_parameters": {"a": 5.9362, "b": 5.9362, "c": 5.9362},
+      "peaks": [
+        {"two_theta": 25.967, "intensity": 100.0, "hkl": "200", "d_spacing": 2.9680},
+        {"two_theta": 30.066, "intensity": 80.0, "hkl": "220"},
+        {"two_theta": 43.066, "intensity": 60.0, "hkl": "400"},
+        {"two_theta": 50.985, "intensity": 5.0, "hkl": "420"},
+        {"two_theta": 53.414, "intensity": 30.0, "hkl": "422"},
+        {"two_theta": 62.535, "intensity": 25.0, "hkl": "440"}
+      ],
+      "source": "COD 9009103"
+    },
+    {
+      "id": "COD_9005318",
+      "name": "Fluorite",
+      "formula": "CaF2",
+      "crystal_system": "Cubic",
+      "space_group": "Fm-3m",
+      "lattice_parameters": {"a": 5.4620, "b": 5.4620, "c": 5.4620},
+      "peaks": [
+        {"two_theta": 28.266, "intensity": 100.0, "hkl": "111", "d_spacing": 3.1530},
+        {"two_theta": 47.000, "intensity": 35.0, "hkl": "220"},
+        {"two_theta": 55.770, "intensity": 25.0, "hkl": "311"},
+        {"two_theta": 68.648, "intensity": 5.0, "hkl": "400"},
+        {"two_theta": 75.830, "intensity": 8.0, "hkl": "331"},
+        {"two_theta": 87.380, "intensity": 8.0, "hkl": "422"}
+      ],
+      "source": "COD 9005318"
+    },
+    {
+      "id": "COD_9002139",
+      "name": "Anatase",
+      "formula": "TiO2",
+      "crystal_system": "Tetragonal",
+      "space_group": "I4_1/amd",
+      "lattice_parameters": {"a": 3.7840, "b": 3.7840, "c": 9.5150},
+      "peaks": [
+        {"two_theta": 25.281, "intensity": 100.0, "hkl": "101", "d_spacing": 3.5200},
+        {"two_theta": 36.946, "intensity": 8.0, "hkl": "103"},
+        {"two_theta": 37.800, "intensity": 20.0, "hkl": "004"},
+        {"two_theta": 38.571, "intensity": 5.0, "hkl": "112"},
+        {"two_theta": 48.049, "intensity": 35.0, "hkl": "200"},
+        {"two_theta": 53.890, "intensity": 15.0, "hkl": "105"},
+        {"two_theta": 55.061, "intensity": 10.0, "hkl": "211"},
+        {"two_theta": 62.118, "intensity": 5.0, "hkl": "204"},
+        {"two_theta": 62.688, "intensity": 5.0, "hkl": "116"},
+        {"two_theta": 70.304, "intensity": 3.0, "hkl": "220"}
+      ],
+      "source": "COD 9002139"
+    },
+    {
+      "id": "COD_9000455",
+      "name": "Cesium Chloride",
+      "formula": "CsCl",
+      "crystal_system": "Cubic",
+      "space_group": "Pm-3m",
+      "lattice_parameters": {"a": 4.1210, "b": 4.1210, "c": 4.1210},
+      "peaks": [
+        {"two_theta": 21.553, "intensity": 100.0, "hkl": "100", "d_spacing": 4.1210},
+        {"two_theta": 30.790, "intensity": 40.0, "hkl": "110"},
+        {"two_theta": 37.928, "intensity": 5.0, "hkl": "111"},
+        {"two_theta": 44.322, "intensity": 25.0, "hkl": "200"},
+        {"two_theta": 50.129, "intensity": 3.0, "hkl": "210"},
+        {"two_theta": 55.542, "intensity": 15.0, "hkl": "211"},
+        {"two_theta": 65.471, "intensity": 5.0, "hkl": "220"}
+      ],
+      "source": "COD 9000455"
+    },
+    {
+      "id": "COD_9003419",
+      "name": "Perovskite",
+      "formula": "CaTiO3",
+      "crystal_system": "Orthorhombic",
+      "space_group": "Pbnm",
+      "lattice_parameters": {"a": 5.4400, "b": 5.4150, "c": 7.6400},
+      "peaks": [
+        {"two_theta": 23.180, "intensity": 25.0, "hkl": "110"},
+        {"two_theta": 27.480, "intensity": 10.0, "hkl": "112"},
+        {"two_theta": 32.680, "intensity": 100.0, "hkl": "200"},
+        {"two_theta": 33.040, "intensity": 40.0, "hkl": "121"},
+        {"two_theta": 38.980, "intensity": 15.0, "hkl": "220"},
+        {"two_theta": 40.520, "intensity": 10.0, "hkl": "004"},
+        {"two_theta": 46.900, "intensity": 8.0, "hkl": "204"},
+        {"two_theta": 47.560, "intensity": 15.0, "hkl": "222"},
+        {"two_theta": 53.820, "intensity": 8.0, "hkl": "224"}
+      ],
+      "source": "COD 9003419"
+    },
+    {
+      "id": "COD_9003811",
+      "name": "Pyrite",
+      "formula": "FeS2",
+      "crystal_system": "Cubic",
+      "space_group": "Pa-3",
+      "lattice_parameters": {"a": 5.4183, "b": 5.4183, "c": 5.4183},
+      "peaks": [
+        {"two_theta": 33.023, "intensity": 100.0, "hkl": "200"},
+        {"two_theta": 36.980, "intensity": 45.0, "hkl": "210"},
+        {"two_theta": 40.760, "intensity": 15.0, "hkl": "211"},
+        {"two_theta": 47.417, "intensity": 20.0, "hkl": "220"},
+        {"two_theta": 56.264, "intensity": 20.0, "hkl": "311"},
+        {"two_theta": 59.014, "intensity": 10.0, "hkl": "222"},
+        {"two_theta": 61.594, "intensity": 10.0, "hkl": "230"}
+      ],
+      "source": "COD 9003811"
+    },
+    {
+      "id": "COD_9003534",
+      "name": "Chromite",
+      "formula": "FeCr2O4",
+      "crystal_system": "Cubic",
+      "space_group": "Fd-3m",
+      "lattice_parameters": {"a": 8.3700, "b": 8.3700, "c": 8.3700},
+      "peaks": [
+        {"two_theta": 30.150, "intensity": 30.0, "hkl": "220"},
+        {"two_theta": 35.520, "intensity": 100.0, "hkl": "311"},
+        {"two_theta": 43.170, "intensity": 15.0, "hkl": "400"},
+        {"two_theta": 57.080, "intensity": 25.0, "hkl": "511"},
+        {"two_theta": 62.620, "intensity": 30.0, "hkl": "440"}
+      ],
+      "source": "COD 9003534"
+    },
+    {
+      "id": "COD_9015672",
+      "name": "Wollastonite",
+      "formula": "CaSiO3",
+      "crystal_system": "Triclinic",
+      "space_group": "P-1",
+      "lattice_parameters": {"a": 7.9260, "b": 7.3200, "c": 7.0680},
+      "peaks": [
+        {"two_theta": 23.200, "intensity": 30.0, "hkl": "001"},
+        {"two_theta": 25.350, "intensity": 20.0, "hkl": "200"},
+        {"two_theta": 27.070, "intensity": 10.0, "hkl": "-111"},
+        {"two_theta": 28.890, "intensity": 100.0, "hkl": "20-1"},
+        {"two_theta": 30.050, "intensity": 15.0, "hkl": "120"},
+        {"two_theta": 32.230, "intensity": 25.0, "hkl": "-211"},
+        {"two_theta": 36.450, "intensity": 10.0, "hkl": "22-1"},
+        {"two_theta": 43.800, "intensity": 5.0, "hkl": "131"}
+      ],
+      "source": "COD 9015672"
+    },
+    {
+      "id": "COD_9009477",
+      "name": "Dolomite",
+      "formula": "CaMg(CO3)2",
+      "crystal_system": "Trigonal",
+      "space_group": "R-3",
+      "lattice_parameters": {"a": 4.8100, "b": 4.8100, "c": 16.0100},
+      "peaks": [
+        {"two_theta": 26.670, "intensity": 12.0, "hkl": "012"},
+        {"two_theta": 30.973, "intensity": 100.0, "hkl": "104"},
+        {"two_theta": 33.440, "intensity": 5.0, "hkl": "006"},
+        {"two_theta": 35.340, "intensity": 10.0, "hkl": "110"},
+        {"two_theta": 41.140, "intensity": 8.0, "hkl": "113"},
+        {"two_theta": 45.240, "intensity": 5.0, "hkl": "202"},
+        {"two_theta": 50.890, "intensity": 10.0, "hkl": "116"},
+        {"two_theta": 60.430, "intensity": 5.0, "hkl": "122"}
+      ],
+      "source": "COD 9009477"
+    },
+    {
+      "id": "COD_9003584",
+      "name": "Forsterite",
+      "formula": "Mg2SiO4",
+      "crystal_system": "Orthorhombic",
+      "space_group": "Pbnm",
+      "lattice_parameters": {"a": 4.7560, "b": 10.1950, "c": 5.9810},
+      "peaks": [
+        {"two_theta": 21.650, "intensity": 20.0, "hkl": "110"},
+        {"two_theta": 22.850, "intensity": 15.0, "hkl": "020"},
+        {"two_theta": 24.170, "intensity": 5.0, "hkl": "111"},
+        {"two_theta": 25.480, "intensity": 15.0, "hkl": "021"},
+        {"two_theta": 32.180, "intensity": 100.0, "hkl": "130"},
+        {"two_theta": 34.780, "intensity": 5.0, "hkl": "112"},
+        {"two_theta": 36.510, "intensity": 10.0, "hkl": "200"},
+        {"two_theta": 39.530, "intensity": 20.0, "hkl": "041"}
+      ],
+      "source": "COD 9003584"
+    },
+    {
+      "id": "COD_9014240",
+      "name": "Whitlockite",
+      "formula": "Ca9Mg(PO4)6(PO3OH)",
+      "crystal_system": "Trigonal",
+      "space_group": "R-3c",
+      "lattice_parameters": {"a": 10.3300, "b": 10.3300, "c": 37.1600},
+      "peaks": [
+        {"two_theta": 25.700, "intensity": 20.0, "hkl": "018"},
+        {"two_theta": 27.800, "intensity": 15.0, "hkl": "122"},
+        {"two_theta": 28.600, "intensity": 25.0, "hkl": "214"},
+        {"two_theta": 29.800, "intensity": 100.0, "hkl": "128"},
+        {"two_theta": 30.900, "intensity": 15.0, "hkl": "134"},
+        {"two_theta": 32.200, "intensity": 20.0, "hkl": "042"}
+      ],
+      "source": "COD 9014240"
+    },
+    {
+      "id": "COD_9002569",
+      "name": "Spinel",
+      "formula": "MgAl2O4",
+      "crystal_system": "Cubic",
+      "space_group": "Fd-3m",
+      "lattice_parameters": {"a": 8.0830, "b": 8.0830, "c": 8.0830},
+      "peaks": [
+        {"two_theta": 19.008, "intensity": 15.0, "hkl": "111"},
+        {"two_theta": 31.272, "intensity": 50.0, "hkl": "220"},
+        {"two_theta": 36.842, "intensity": 100.0, "hkl": "311"},
+        {"two_theta": 44.826, "intensity": 15.0, "hkl": "400"},
+        {"two_theta": 55.622, "intensity": 20.0, "hkl": "422"},
+        {"two_theta": 59.344, "intensity": 30.0, "hkl": "511"},
+        {"two_theta": 65.240, "intensity": 30.0, "hkl": "440"}
+      ],
+      "source": "COD 9002569"
+    },
+    {
+      "id": "COD_9009844",
+      "name": "Mica (Muscovite)",
+      "formula": "KAl2(AlSi3O10)(OH)2",
+      "crystal_system": "Monoclinic",
+      "space_group": "C2/c",
+      "lattice_parameters": {"a": 5.1900, "b": 9.0400, "c": 20.0800},
+      "peaks": [
+        {"two_theta": 8.830, "intensity": 100.0, "hkl": "002"},
+        {"two_theta": 17.730, "intensity": 60.0, "hkl": "004"},
+        {"two_theta": 19.820, "intensity": 20.0, "hkl": "110"},
+        {"two_theta": 24.730, "intensity": 30.0, "hkl": "113"},
+        {"two_theta": 26.640, "intensity": 25.0, "hkl": "006"},
+        {"two_theta": 27.900, "intensity": 20.0, "hkl": "114"},
+        {"two_theta": 29.900, "intensity": 15.0, "hkl": "115"}
+      ],
+      "source": "COD 9009844"
+    },
+    {
+      "id": "COD_9009708",
+      "name": "Olivine",
+      "formula": "(Mg,Fe)2SiO4",
+      "crystal_system": "Orthorhombic",
+      "space_group": "Pbnm",
+      "lattice_parameters": {"a": 4.7600, "b": 10.2000, "c": 5.9800},
+      "peaks": [
+        {"two_theta": 21.600, "intensity": 25.0, "hkl": "110"},
+        {"two_theta": 24.100, "intensity": 5.0, "hkl": "111"},
+        {"two_theta": 25.400, "intensity": 15.0, "hkl": "021"},
+        {"two_theta": 32.100, "intensity": 100.0, "hkl": "130"},
+        {"two_theta": 36.500, "intensity": 10.0, "hkl": "200"},
+        {"two_theta": 39.500, "intensity": 20.0, "hkl": "041"},
+        {"two_theta": 52.400, "intensity": 8.0, "hkl": "241"},
+        {"two_theta": 56.300, "intensity": 8.0, "hkl": "151"}
+      ],
+      "source": "COD 9009708"
+    },
+    {
+      "id": "COD_9003588",
+      "name": "Gahnite",
+      "formula": "ZnAl2O4",
+      "crystal_system": "Cubic",
+      "space_group": "Fd-3m",
+      "lattice_parameters": {"a": 8.0840, "b": 8.0840, "c": 8.0840},
+      "peaks": [
+        {"two_theta": 19.010, "intensity": 10.0, "hkl": "111"},
+        {"two_theta": 31.270, "intensity": 40.0, "hkl": "220"},
+        {"two_theta": 36.840, "intensity": 100.0, "hkl": "311"},
+        {"two_theta": 44.830, "intensity": 15.0, "hkl": "400"},
+        {"two_theta": 55.620, "intensity": 15.0, "hkl": "422"},
+        {"two_theta": 59.340, "intensity": 25.0, "hkl": "511"},
+        {"two_theta": 65.240, "intensity": 25.0, "hkl": "440"}
+      ],
+      "source": "COD 9003588"
+    },
+    {
+      "id": "COD_9008642",
+      "name": "Manganite",
+      "formula": "MnOOH",
+      "crystal_system": "Monoclinic",
+      "space_group": "B2/d",
+      "lattice_parameters": {"a": 8.8800, "b": 5.2470, "c": 5.3040},
+      "peaks": [
+        {"two_theta": 22.200, "intensity": 20.0, "hkl": "110"},
+        {"two_theta": 26.100, "intensity": 15.0, "hkl": "11-1"},
+        {"two_theta": 37.300, "intensity": 100.0, "hkl": "13-1"},
+        {"two_theta": 40.100, "intensity": 30.0, "hkl": "220"},
+        {"two_theta": 49.600, "intensity": 25.0, "hkl": "24-1"},
+        {"two_theta": 55.300, "intensity": 20.0, "hkl": "31-2"}
+      ],
+      "source": "COD 9008642"
+    },
+    {
+      "id": "COD_9001968",
+      "name": "Malachite",
+      "formula": "Cu2CO3(OH)2",
+      "crystal_system": "Monoclinic",
+      "space_group": "P2_1/a",
+      "lattice_parameters": {"a": 9.4900, "b": 12.0300, "c": 3.2100},
+      "peaks": [
+        {"two_theta": 14.750, "intensity": 100.0, "hkl": "100"},
+        {"two_theta": 17.550, "intensity": 25.0, "hkl": "120"},
+        {"two_theta": 24.030, "intensity": 20.0, "hkl": "21-1"},
+        {"two_theta": 26.650, "intensity": 15.0, "hkl": "220"},
+        {"two_theta": 31.200, "intensity": 20.0, "hkl": "30-1"},
+        {"two_theta": 35.500, "intensity": 15.0, "hkl": "32-1"},
+        {"two_theta": 38.900, "intensity": 10.0, "hkl": "311"}
+      ],
+      "source": "COD 9001968"
+    },
+    {
+      "id": "COD_9010597",
+      "name": "Kyanite",
+      "formula": "Al2SiO5",
+      "crystal_system": "Triclinic",
+      "space_group": "P-1",
+      "lattice_parameters": {"a": 7.1000, "b": 7.8500, "c": 5.5700},
+      "peaks": [
+        {"two_theta": 19.520, "intensity": 15.0, "hkl": "100"},
+        {"two_theta": 22.150, "intensity": 20.0, "hkl": "011"},
+        {"two_theta": 25.230, "intensity": 10.0, "hkl": "11-1"},
+        {"two_theta": 29.450, "intensity": 100.0, "hkl": "111"},
+        {"two_theta": 33.800, "intensity": 20.0, "hkl": "200"},
+        {"two_theta": 36.500, "intensity": 10.0, "hkl": "120"},
+        {"two_theta": 41.200, "intensity": 8.0, "hkl": "20-2"}
+      ],
+      "source": "COD 9010597"
+    }
+  ]
+}

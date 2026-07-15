@@ -84,6 +84,8 @@ export type UploadResponse = {
   validation_warnings: string[];
   message: string;
   experiment_id: string | null;
+  job_id: string | null;
+  analysis_started: boolean;
 };
 
 export type UploadListItem = {
@@ -125,7 +127,7 @@ export type AnalysisResult = {
     peaks?: { two_theta: number; intensity: number; fwhm: number | null; area: number | null; d_spacing: number | null }[];
     reference_matches?: { material: string; formula: string; match_score: number; matched_peaks: number }[];
     identified_phases?: IdentifiedPhase[];
-    report?: { title: string; summary: { total_peaks: number; phases_identified: number; top_phase: string } };
+    report?: { title: string; generated_at?: string; summary: { total_peaks: number; phases_identified: number; top_phase: string }; methodology?: Record<string, string> };
   };
   completed_at: string;
 };

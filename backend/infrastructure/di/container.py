@@ -23,6 +23,7 @@ from backend.reference.providers.pubchem_provider import PubChemProvider
 from backend.reference.providers.user_private_provider import UserPrivateProvider
 from backend.reference.providers.org_private_provider import OrgPrivateProvider
 from backend.reference.providers.local_cache_provider import LocalCacheProvider
+from backend.reference.providers.local_cod_provider import LocalCODProvider
 from backend.parsers.parser_factory import ParserFactory
 from backend.parsers.xy_parser import XYParser
 from backend.parsers.xrdml_parser import XRDMLParser
@@ -70,8 +71,8 @@ class DIContainer:
         # Job Manager
         self.job_manager = JobManager()
 
-        # Analysis Pipeline
-        self.pipeline = AnalysisPipeline()
+        # Analysis Pipeline (uses reference engine for real searches)
+        self.pipeline = AnalysisPipeline(reference_engine=self.reference_engine)
 
         # Analysis Orchestrator
         self.analysis_orchestrator = AnalysisOrchestrator(
@@ -116,6 +117,7 @@ class DIContainer:
             return LocalStorageProvider(self.config.storage.local_base_path)
 
     def _register_providers(self):
+        self.reference_engine.register_provider(LocalCODProvider())
         self.reference_engine.register_provider(CODProvider())
         self.reference_engine.register_provider(MaterialsProjectProvider())
         self.reference_engine.register_provider(OQMDProvider())

@@ -89,6 +89,9 @@ export function useUploadFile() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["uploads"] });
       qc.invalidateQueries({ queryKey: ["projects"] });
+      qc.invalidateQueries({ queryKey: ["project-experiments"] });
+      qc.invalidateQueries({ queryKey: ["project-jobs"] });
+      qc.invalidateQueries({ queryKey: ["project-files"] });
     },
   });
 }

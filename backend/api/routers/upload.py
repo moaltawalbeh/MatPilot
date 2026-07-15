@@ -29,6 +29,8 @@ class UploadResponse(BaseModel):
     validation_warnings: List[str]
     message: str
     experiment_id: Optional[str] = None
+    job_id: Optional[str] = None
+    analysis_started: bool = False
 
 
 class UploadListItem(BaseModel):
@@ -87,45 +89,43 @@ async def upload_file(
         user_metadata["radiation"] = radiation
 
     upload_service = container.upload_service
-    result = await upload_service.upload_file(
+    orchestrator = container.analysis_orchestrator
+    result = await orchestrator.process_upload_and_analyze(
         filename=file.filename,
         content_type=file.content_type or "application/octet-stream",
         file_data=content,
         user_metadata=user_metadata,
+        project_id=project_id,
     )
 
-    if not result.is_valid:
+    if not result["success"]:
         raise InvalidFileException(
-            f"File validation failed: {'; '.join(result.validation.errors)}"
+            f"File validation failed: {'; '.join(result.get('errors', ['Unknown error']))}"
         )
 
-    exp = result.experiment
-    two_theta_range = None
-    if exp and exp.two_theta:
-        two_theta_range = [min(exp.two_theta), max(exp.two_theta)]
-
-    is_cif = file.filename and file.filename.lower().endswith(".cif")
-    data_points = exp.data_points if exp else 0
-
     created_experiment_id = None
+    job_id = result.get("job_id")
     try:
         from backend.domain.entities.experiment import Experiment, ExperimentMetadata
         from uuid import UUID
+
+        data_points = result.get("data_points", 0)
+        is_cif = file.filename and file.filename.lower().endswith(".cif")
 
         experiment = Experiment(
             project_id=UUID(project_id),
             name=file.filename or "Untitled Experiment",
             material="",
-            status="Uploaded",
-            file_ids=[result.file_id],
-            primary_file_id=result.file_id,
+            status="Analyzing" if result.get("analysis_started") else "Uploaded",
+            file_ids=[result["file_id"]],
+            primary_file_id=result["file_id"],
             has_pattern_data=not is_cif and data_points > 0,
             has_crystal_structure=is_cif,
             data_points=data_points,
-            two_theta_range=two_theta_range,
-            wavelength_angstrom=exp.wavelength.value_angstrom if exp and exp.wavelength else None,
+            two_theta_range=result.get("metadata", {}).get("two_theta_range"),
+            wavelength_angstrom=result.get("metadata", {}).get("wavelength_angstrom"),
             metadata=ExperimentMetadata(
-                wavelength_angstrom=exp.wavelength.value_angstrom if exp and exp.wavelength else None,
+                wavelength_angstrom=result.get("metadata", {}).get("wavelength_angstrom"),
             ),
         )
 
@@ -136,25 +136,36 @@ async def upload_file(
         await container.uow.experiments.add(experiment)
         created_experiment_id = str(experiment.id)
 
-        await container.project_use_case.add_file_to_project(project_id, result.file_id)
+        if job_id:
+            experiment.job_ids.append(UUID(job_id))
+            await container.project_use_case.add_job_to_project(project_id, job_id)
+
+        await container.project_use_case.add_file_to_project(project_id, result["file_id"])
     except Exception:
         pass
 
+    upload_metadata = result.get("metadata", {})
+    two_theta_range = upload_metadata.get("two_theta_range")
+    if two_theta_range and (two_theta_range[0] is None or two_theta_range[1] is None):
+        two_theta_range = None
+
     return UploadResponse(
-        file_id=result.file_id,
-        filename=result.filename,
-        detected_format=result.detected_format,
-        is_valid=result.is_valid,
-        file_size_bytes=result.validation.file_size_bytes,
-        data_points=data_points,
+        file_id=result["file_id"],
+        filename=upload_metadata.get("original_filename", file.filename),
+        detected_format=result.get("detected_format", "unknown"),
+        is_valid=True,
+        file_size_bytes=len(content),
+        data_points=result.get("data_points", 0),
         two_theta_range=two_theta_range,
-        has_wavelength=exp.wavelength is not None if exp else False,
-        wavelength_angstrom=exp.wavelength.value_angstrom if exp and exp.wavelength else None,
-        metadata=result.metadata,
-        validation_errors=result.validation.errors,
-        validation_warnings=result.validation.warnings,
-        message=f"File uploaded and parsed as {result.detected_format}",
+        has_wavelength=result.get("has_wavelength", False),
+        wavelength_angstrom=upload_metadata.get("wavelength_angstrom"),
+        metadata=upload_metadata,
+        validation_errors=[],
+        validation_warnings=[],
+        message=f"File uploaded and analysis started: {result.get('detected_format', 'unknown')}",
         experiment_id=created_experiment_id,
+        job_id=result.get("job_id"),
+        analysis_started=result.get("analysis_started", False),
     )
 
 

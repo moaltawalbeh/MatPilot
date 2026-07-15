@@ -165,7 +165,7 @@ class JobManager:
             status=job.status.name,
             step=step,
             progress=progress,
-            message=message
+            msg=message
         )
         return job
 

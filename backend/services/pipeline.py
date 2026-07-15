@@ -219,7 +219,10 @@ class PeakDetectionStep(PipelineStep):
 
 
 class ReferenceSearchStep(PipelineStep):
-    """Search reference databases for matching patterns."""
+    """Search reference databases for matching patterns using ReferenceEngine."""
+
+    def __init__(self, reference_engine=None):
+        self._reference_engine = reference_engine
 
     @property
     def name(self) -> str:
@@ -244,67 +247,58 @@ class ReferenceSearchStep(PipelineStep):
                 )
 
             from backend.services.phase_identifier import (
-                compute_d_spacing, calculate_match_score
+                calculate_match_score
             )
 
             wavelength = context.metadata.get("wavelength", 1.5406)
 
-            known_materials = [
-                {
-                    "material_name": "Silicon",
-                    "material_formula": "Si",
-                    "source_provider": "COD",
-                    "source_id": "9011666",
-                    "peaks": [28.44, 47.30, 56.12, 69.13, 76.38, 88.03, 94.95],
-                },
-                {
-                    "material_name": "Corundum (Al2O3)",
-                    "material_formula": "Al2O3",
-                    "source_provider": "COD",
-                    "source_id": "9007662",
-                    "peaks": [25.58, 35.15, 37.78, 43.36, 52.55, 57.50, 66.51, 68.21],
-                },
-                {
-                    "material_name": "Quartz (SiO2)",
-                    "material_formula": "SiO2",
-                    "source_provider": "COD",
-                    "source_id": "1011095",
-                    "peaks": [20.86, 26.64, 36.54, 39.47, 50.14, 59.95, 68.10],
-                },
-                {
-                    "material_name": "Copper",
-                    "material_formula": "Cu",
-                    "source_provider": "COD",
-                    "source_id": "9008461",
-                    "peaks": [43.30, 50.43, 74.13, 89.93, 95.14],
-                },
-                {
-                    "material_name": "Gold",
-                    "material_formula": "Au",
-                    "source_provider": "COD",
-                    "source_id": "9008458",
-                    "peaks": [38.18, 44.39, 64.58, 77.55, 81.72],
-                },
+            reference_entries = []
+            if self._reference_engine:
+                local_cod = self._reference_engine.get_provider("LocalCOD")
+                if local_cod and hasattr(local_cod, "get_all_reference_entries"):
+                    reference_entries = local_cod.get_all_reference_entries()
+
+            if not reference_entries:
+                reference_entries = [
+                    {
+                        "material_name": "Silicon",
+                        "material_formula": "Si",
+                        "source_provider": "COD",
+                        "source_id": "9011666",
+                        "peaks": [28.44, 47.30, 56.12, 69.13, 76.38, 88.03, 94.95],
+                    },
+                ]
+
+            exp_peaks = [
+                type('Peak', (), {'two_theta': p['two_theta'], 'intensity': p['intensity']})()
+                for p in peaks_data
             ]
 
             reference_results = []
-            for material in known_materials:
+            for entry in reference_entries:
+                ref_peaks = entry.get("peaks", [])
+                if not ref_peaks:
+                    continue
+
                 score, matched, correspondences = calculate_match_score(
-                    experimental_peaks=[type('Peak', (), {'two_theta': p['two_theta'], 'intensity': p['intensity']})() for p in peaks_data],
-                    reference_peaks=material["peaks"],
+                    experimental_peaks=exp_peaks,
+                    reference_peaks=ref_peaks,
                     tolerance_deg=0.3,
                     wavelength=wavelength,
                 )
-                if score > 0.2:
+                if score > 0.15:
                     reference_results.append({
-                        "material": material["material_name"],
-                        "formula": material["material_formula"],
-                        "provider": material["source_provider"],
-                        "source_id": material["source_id"],
+                        "material": entry["material_name"],
+                        "formula": entry["material_formula"],
+                        "provider": entry["source_provider"],
+                        "source_id": entry["source_id"],
                         "match_score": score,
                         "matched_peaks": matched,
-                        "total_peaks": len(material["peaks"]),
+                        "total_peaks": len(ref_peaks),
                         "correspondences": correspondences,
+                        "space_group": entry.get("space_group", ""),
+                        "crystal_system": entry.get("crystal_system", ""),
+                        "peak_details": entry.get("peak_details", []),
                     })
 
             reference_results.sort(key=lambda x: x["match_score"], reverse=True)
@@ -317,9 +311,9 @@ class ReferenceSearchStep(PipelineStep):
                 output={
                     "matches_found": len(reference_results),
                     "top_match": reference_results[0] if reference_results else None,
-                    "all_matches": reference_results[:5],
+                    "all_matches": reference_results[:10],
                 },
-                message=f"Found {len(reference_results)} reference matches"
+                message=f"Found {len(reference_results)} reference matches from {len(reference_entries)} candidates"
             )
 
         except Exception as exc:
@@ -477,7 +471,8 @@ class AnalysisPipeline:
     Executes a sequence of PipelineSteps in order.
     """
 
-    def __init__(self, steps: Optional[List[PipelineStep]] = None):
+    def __init__(self, steps: Optional[List[PipelineStep]] = None, reference_engine=None):
+        self._reference_engine = reference_engine
         self._steps = steps or self._default_steps()
         self._logger = get_logger("pipeline")
 
@@ -486,7 +481,7 @@ class AnalysisPipeline:
             ValidationStep(),
             ParsingStep(),
             PeakDetectionStep(),
-            ReferenceSearchStep(),
+            ReferenceSearchStep(reference_engine=self._reference_engine),
             PhaseIdentificationStep(),
             ReportStep(),
         ]
@@ -501,7 +496,7 @@ class AnalysisPipeline:
                 return step
         return None
 
-    async def execute(self, context: PipelineContext) -> Dict[str, Any]:
+    async def execute(self, context: PipelineContext, progress_callback=None) -> Dict[str, Any]:
         self._logger.info(
             "Pipeline started",
             job_id=context.job_id,
@@ -511,10 +506,13 @@ class AnalysisPipeline:
 
         results = []
         all_success = True
+        enabled_steps = [s for s in self._steps if s.enabled]
+        total_steps = len(enabled_steps)
 
-        for step in self._steps:
-            if not step.enabled:
-                continue
+        for step_idx, step in enumerate(enabled_steps):
+            step_progress = (step_idx + 0.5) / total_steps
+            if progress_callback:
+                progress_callback(step.name, step_progress, f"Running {step.name}...")
 
             try:
                 result = await step.execute(context)
@@ -530,6 +528,9 @@ class AnalysisPipeline:
                 all_success = False
                 context.errors.append(f"Step {step.name} exception: {str(exc)}")
                 break
+
+        if progress_callback:
+            progress_callback("completed", 1.0, "Pipeline finished")
 
         self._logger.info(
             "Pipeline finished",

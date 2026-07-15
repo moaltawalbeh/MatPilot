@@ -6,6 +6,7 @@ Central coordination service for all scientific workflows.
 
 from typing import Dict, Any, Optional, List
 from datetime import datetime
+import asyncio
 
 from backend.services.upload_service import UploadService, UploadResult
 from backend.services.job_manager import JobManager, JobRecord, JobStatus
@@ -56,6 +57,61 @@ class AnalysisOrchestrator:
         self._config = config
         self._result_store = AnalysisResultStore()
         self._logger = get_logger("analysis_orchestrator")
+
+    async def process_upload_and_analyze(
+        self,
+        filename: str,
+        content_type: str,
+        file_data: bytes,
+        user_metadata: Optional[Dict[str, Any]] = None,
+        project_id: Optional[str] = None,
+        experiment_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Process upload AND immediately start analysis pipeline.
+
+        This is the main entry point for the scientific workflow:
+        Upload → Parse → Create Job → Execute Pipeline → Return Results
+        """
+        upload_result = await self.process_upload(
+            filename=filename,
+            content_type=content_type,
+            file_data=file_data,
+            user_metadata=user_metadata,
+            project_id=project_id,
+        )
+
+        if not upload_result["success"]:
+            return upload_result
+
+        job_id = upload_result["job_id"]
+        file_id = upload_result["file_id"]
+
+        asyncio.create_task(self._execute_pipeline_background(job_id, file_id))
+
+        upload_result["analysis_started"] = True
+        upload_result["analysis_job_id"] = job_id
+        return upload_result
+
+    async def _execute_pipeline_background(self, job_id: str, file_id: str):
+        """Execute the analysis pipeline in background."""
+        try:
+            self._job_manager.update_progress(job_id, "parsing", 0.1, "Validating data...")
+            await asyncio.sleep(0.05)
+
+            self._job_manager.update_progress(job_id, "peak_detection", 0.3, "Detecting peaks...")
+            await asyncio.sleep(0.05)
+
+            self._job_manager.update_progress(job_id, "reference_search", 0.5, "Searching reference database...")
+            result = await self.execute_analysis(job_id)
+
+            if result["success"]:
+                self._job_manager.update_progress(job_id, "report", 0.9, "Generating report...")
+                await asyncio.sleep(0.05)
+
+            self._job_manager.complete_job(job_id, result_id=f"result_{job_id}")
+        except Exception as exc:
+            self._logger.error("Background pipeline failed", job_id=job_id, error=str(exc))
+            self._job_manager.fail_job(job_id, str(exc))
 
     async def process_upload(
         self,
@@ -150,7 +206,10 @@ class AnalysisOrchestrator:
         except Exception as exc:
             self._logger.warning("Could not load experiment data", job_id=job_id, error=str(exc))
 
-        pipeline_result = await self._pipeline.execute(context)
+        def progress_callback(step: str, progress: float, message: str):
+            self._job_manager.update_progress(job_id, step, progress, message)
+
+        pipeline_result = await self._pipeline.execute(context, progress_callback=progress_callback)
 
         if pipeline_result["success"]:
             self._result_store.store(job_id, {
