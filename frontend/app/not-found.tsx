@@ -1,0 +1,2 @@
+import Link from "next/link"; import { AppShell } from "@/components/layout/app-shell";
+export default function NotFound(){return <AppShell><main className="content" style={{textAlign:'center',paddingTop:150}}><p className="eyebrow">404 · Lost in the lattice</p><h1>This page has no diffraction pattern.</h1><p className="muted">The address may have moved, or the resource is no longer available.</p><Link className="button primary" href="/">Return to workspace</Link></main></AppShell>}
