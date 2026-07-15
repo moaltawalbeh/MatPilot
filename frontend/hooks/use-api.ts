@@ -84,8 +84,8 @@ export function useJobResult(id: string) {
 export function useUploadFile() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ file, wavelength, radiation, projectId }: { file: File; wavelength?: number; radiation?: string; projectId?: string }) =>
-      apiService.uploadFile(file, wavelength, radiation, projectId),
+    mutationFn: ({ file, wavelength, radiation, projectId, experimentId }: { file: File; wavelength?: number; radiation?: string; projectId?: string; experimentId?: string }) =>
+      apiService.uploadFile(file, wavelength, radiation, projectId, experimentId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["uploads"] });
       qc.invalidateQueries({ queryKey: ["projects"] });
@@ -139,6 +139,22 @@ export function useProjectJobs(projectId: string) {
   return useQuery({
     queryKey: ["project-jobs", projectId],
     queryFn: () => apiService.listProjectJobs(projectId),
+    enabled: !!projectId,
+  });
+}
+
+export function useProjectExperiments(projectId: string) {
+  return useQuery({
+    queryKey: ["project-experiments", projectId],
+    queryFn: () => apiService.listProjectExperiments(projectId),
+    enabled: !!projectId,
+  });
+}
+
+export function useProjectStats(projectId: string) {
+  return useQuery({
+    queryKey: ["project-stats", projectId],
+    queryFn: () => apiService.getProjectStats(projectId),
     enabled: !!projectId,
   });
 }

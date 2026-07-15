@@ -41,6 +41,12 @@ class MemoryExperimentRepository(IExperimentRepository):
     async def get_by_dataset(self, dataset_id: UUID) -> List[object]:
         return []
 
+    async def get_by_project_id(self, project_id) -> List[object]:
+        from uuid import UUID
+        if isinstance(project_id, str):
+            project_id = UUID(project_id)
+        return [e for e in self._data.values() if getattr(e, "project_id", None) == project_id]
+
 
 class MemoryAnalysisJobRepository(IAnalysisJobRepository):
     def __init__(self):

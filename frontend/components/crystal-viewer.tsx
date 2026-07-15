@@ -1,4 +1,58 @@
 "use client";
-import { Canvas } from "@react-three/fiber"; import { OrbitControls } from "@react-three/drei"; import { RotateCcw } from "lucide-react"; import { useState } from "react";
-function Structure({bonds}:{bonds:boolean}){return <group rotation={[0.3,0.5,0]}>{[[0,0,0,'#e2b74d'],[1.5,.7,-.4,'#58aef4'],[-1.4,-.6,.5,'#58aef4'],[.3,1.5,.8,'#67d3b9']].map(([x,y,z,color],i)=><mesh key={i} position={[Number(x),Number(y),Number(z)]}><sphereGeometry args={[i?0.28:0.42,32,32]}/><meshStandardMaterial color={String(color)} metalness={.25} roughness={.3}/></mesh>)}{bonds&&<mesh rotation={[0,0,.45]}><cylinderGeometry args={[.045,.045,3,12]}/><meshStandardMaterial color="#9bc4d7"/></mesh>}</group>}
-export function CrystalViewer(){const [bonds,setBonds]=useState(true);const [unit,setUnit]=useState(true);return <><div className="viewer"><Canvas camera={{position:[4,3,5],fov:45}}><ambientLight intensity={1.2}/><pointLight position={[4,4,4]} intensity={30}/><Structure bonds={bonds}/>{unit&&<gridHelper args={[5,5,'#35506b','#24384c']}/>}<OrbitControls enablePan enableZoom enableRotate/></Canvas></div><div className="actions" style={{marginTop:10}}><button className="button" onClick={()=>setUnit(!unit)}>Unit cell</button><button className="button" onClick={()=>setBonds(!bonds)}>Bonds</button><button className="button" onClick={()=>window.location.reload()}><RotateCcw size={14}/> Reset</button></div></>}
+import { Box } from "lucide-react";
+
+type CrystalViewerProps = {
+  hasData?: boolean;
+  emptyTitle?: string;
+  emptyDescription?: string;
+  emptyAction?: React.ReactNode;
+};
+
+export function CrystalViewer({ hasData = false, emptyTitle, emptyDescription, emptyAction }: CrystalViewerProps) {
+  if (!hasData) {
+    return (
+      <div style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 40,
+        minHeight: 250,
+        background: "#0d1520",
+        borderRadius: 8,
+        border: "1px solid #263545",
+      }}>
+        <Box size={48} color="#36516b" style={{ marginBottom: 16 }} />
+        <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>
+          {emptyTitle || "No crystal structure data"}
+        </h3>
+        <p className="muted" style={{ fontSize: 13, textAlign: "center", maxWidth: 300, marginBottom: 16 }}>
+          {emptyDescription || "Upload a CIF file to visualize the 3D crystal structure here."}
+        </p>
+        {emptyAction}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: 40,
+      minHeight: 250,
+      background: "#0d1520",
+      borderRadius: 8,
+      border: "1px solid #263545",
+    }}>
+      <Box size={48} color="#36516b" style={{ marginBottom: 16 }} />
+      <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>
+        Crystal structure loaded
+      </h3>
+      <p className="muted" style={{ fontSize: 13, textAlign: "center", maxWidth: 300 }}>
+        3D visualization will be available once the CIF data is processed.
+      </p>
+    </div>
+  );
+}

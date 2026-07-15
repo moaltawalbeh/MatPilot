@@ -6,6 +6,7 @@ import type {
   JobListItem,
   SystemHealth,
   AnalysisResult,
+  Experiment,
 } from "@/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -105,11 +106,25 @@ export const apiService = {
   listProjectJobs: (projectId: string) =>
     apiFetch<{ jobs: JobListItem[]; total: number }>(`/projects/${projectId}/jobs`),
 
-  uploadFile: (file: File, wavelength?: number, radiation?: string, projectId?: string) => {
+  listProjectExperiments: (projectId: string) =>
+    apiFetch<Experiment[]>(`/projects/${projectId}/experiments`),
+
+  getProjectStats: (projectId: string) =>
+    apiFetch<{
+      experiment_count: number;
+      file_count: number;
+      job_count: number;
+      completed_job_count: number;
+      has_data: boolean;
+      has_results: boolean;
+    }>(`/projects/${projectId}/stats`),
+
+  uploadFile: (file: File, wavelength?: number, radiation?: string, projectId?: string, experimentId?: string) => {
     const fields: Record<string, string> = {};
     if (wavelength !== undefined) fields.wavelength = String(wavelength);
     if (radiation) fields.radiation = radiation;
     if (projectId) fields.project_id = projectId;
+    if (experimentId) fields.experiment_id = experimentId;
     return apiUpload("/upload", file, Object.keys(fields).length ? fields : undefined);
   },
 

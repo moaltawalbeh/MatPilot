@@ -1,4 +1,8 @@
-"""Upload API endpoints."""
+"""Upload API endpoints.
+
+All uploads must happen inside a Project.
+When a file is uploaded, an Experiment is automatically created.
+"""
 
 from typing import List, Optional
 from fastapi import APIRouter, UploadFile, File, Form, Depends
@@ -24,6 +28,7 @@ class UploadResponse(BaseModel):
     validation_errors: List[str]
     validation_warnings: List[str]
     message: str
+    experiment_id: Optional[str] = None
 
 
 class UploadListItem(BaseModel):
@@ -32,6 +37,7 @@ class UploadListItem(BaseModel):
     detected_format: str
     is_valid: bool
     uploaded_at: str
+    experiment_id: Optional[str] = None
 
 
 @router.get("", response_model=List[UploadListItem])
@@ -56,12 +62,17 @@ async def upload_file(
     wavelength: Optional[float] = Form(None),
     radiation: Optional[str] = Form(None),
     project_id: Optional[str] = Form(None),
+    experiment_id: Optional[str] = Form(None),
     container=Depends(get_container),
 ):
     """Upload an experimental data file.
 
     Accepts: .xrdml, .raw, .xy, .csv, .dat, .txt, .cif
+    Requires project_id. Creates an Experiment automatically if experiment_id not provided.
     """
+    if not project_id:
+        raise InvalidFileException("project_id is required. Uploads must happen inside a Project.")
+
     content = await file.read()
 
     if len(content) > container.config.upload.max_file_size_bytes:
@@ -88,16 +99,46 @@ async def upload_file(
             f"File validation failed: {'; '.join(result.validation.errors)}"
         )
 
-    if project_id:
-        try:
-            await container.project_use_case.add_file_to_project(project_id, result.file_id)
-        except Exception:
-            pass
-
     exp = result.experiment
     two_theta_range = None
     if exp and exp.two_theta:
         two_theta_range = [min(exp.two_theta), max(exp.two_theta)]
+
+    is_cif = file.filename and file.filename.lower().endswith(".cif")
+    data_points = exp.data_points if exp else 0
+
+    created_experiment_id = None
+    try:
+        from backend.domain.entities.experiment import Experiment, ExperimentMetadata
+        from uuid import UUID
+
+        experiment = Experiment(
+            project_id=UUID(project_id),
+            name=file.filename or "Untitled Experiment",
+            material="",
+            status="Uploaded",
+            file_ids=[result.file_id],
+            primary_file_id=result.file_id,
+            has_pattern_data=not is_cif and data_points > 0,
+            has_crystal_structure=is_cif,
+            data_points=data_points,
+            two_theta_range=two_theta_range,
+            wavelength_angstrom=exp.wavelength.value_angstrom if exp and exp.wavelength else None,
+            metadata=ExperimentMetadata(
+                wavelength_angstrom=exp.wavelength.value_angstrom if exp and exp.wavelength else None,
+            ),
+        )
+
+        if experiment_id:
+            experiment.id = UUID(experiment_id)
+            experiment.project_id = UUID(project_id)
+
+        await container.uow.experiments.add(experiment)
+        created_experiment_id = str(experiment.id)
+
+        await container.project_use_case.add_file_to_project(project_id, result.file_id)
+    except Exception:
+        pass
 
     return UploadResponse(
         file_id=result.file_id,
@@ -105,7 +146,7 @@ async def upload_file(
         detected_format=result.detected_format,
         is_valid=result.is_valid,
         file_size_bytes=result.validation.file_size_bytes,
-        data_points=exp.data_points if exp else 0,
+        data_points=data_points,
         two_theta_range=two_theta_range,
         has_wavelength=exp.wavelength is not None if exp else False,
         wavelength_angstrom=exp.wavelength.value_angstrom if exp and exp.wavelength else None,
@@ -113,6 +154,7 @@ async def upload_file(
         validation_errors=result.validation.errors,
         validation_warnings=result.validation.warnings,
         message=f"File uploaded and parsed as {result.detected_format}",
+        experiment_id=created_experiment_id,
     )
 
 

@@ -13,6 +13,27 @@ export type Project = {
   updated_at: string;
   files: number;
   analyses: number;
+  experiments: number;
+};
+
+export type Experiment = {
+  id: string;
+  project_id: string;
+  name: string;
+  description: string;
+  material: string;
+  status: string;
+  file_ids: string[];
+  primary_file_id: string | null;
+  has_pattern_data: boolean;
+  has_crystal_structure: boolean;
+  data_points: number;
+  two_theta_range: number[] | null;
+  wavelength_angstrom: number | null;
+  job_ids: string[];
+  has_results: boolean;
+  created_at: string;
+  updated_at: string;
 };
 
 export type Peak = {
@@ -48,14 +69,6 @@ export type IdentifiedPhase = {
   matched_peaks: number;
 };
 
-export type AnalysisJob = {
-  id: string;
-  name: string;
-  status: "Running" | "Complete" | "Queued" | "Failed";
-  progress: number;
-  started: string;
-};
-
 export type UploadResponse = {
   file_id: string;
   filename: string;
@@ -70,6 +83,7 @@ export type UploadResponse = {
   validation_errors: string[];
   validation_warnings: string[];
   message: string;
+  experiment_id: string | null;
 };
 
 export type UploadListItem = {
@@ -78,6 +92,7 @@ export type UploadListItem = {
   detected_format: string;
   is_valid: boolean;
   uploaded_at: string;
+  experiment_id?: string | null;
 };
 
 export type ProviderInfo = {

@@ -1,5 +1,6 @@
 "use client";
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, ReferenceLine } from "recharts";
+import { FileBarChart } from "lucide-react";
 
 type Peak = { two_theta: number; intensity: number };
 
@@ -8,24 +9,26 @@ type XrdChartProps = {
   peaks?: Peak[];
   referenceLines?: { angle: number; label: string; color?: string }[];
   title?: string;
+  emptyTitle?: string;
+  emptyDescription?: string;
+  emptyAction?: React.ReactNode;
 };
 
-function generateDefaultData() {
-  return Array.from({ length: 71 }, (_, i) => {
-    const x = 10 + i;
-    const p = (at: number, h: number, w: number) => h * Math.exp(-Math.pow((x - at) / w, 2));
-    const calc = 3 + p(18.7, 43, 1.35) + p(37.5, 100, 1.7) + p(44.2, 67, 1.3) + p(48.5, 54, 1.3) + p(65, 38, 1.8);
-    return {
-      angle: x,
-      Experimental: Math.round(calc + (i % 5)),
-      Calculated: Math.round(calc * 0.94),
-      Difference: Math.round((i % 5) - 2),
-    };
-  });
-}
-
-export function XrdChart({ data, peaks, referenceLines, title }: XrdChartProps) {
-  const chartData = data || generateDefaultData();
+export function XrdChart({ data, peaks, referenceLines, title, emptyTitle, emptyDescription, emptyAction }: XrdChartProps) {
+  if (!data || data.length === 0) {
+    return (
+      <div className="chart" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 40, minHeight: 250 }}>
+        <FileBarChart size={48} color="#36516b" style={{ marginBottom: 16 }} />
+        <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>
+          {emptyTitle || "No diffraction data yet"}
+        </h3>
+        <p className="muted" style={{ fontSize: 13, textAlign: "center", maxWidth: 300, marginBottom: 16 }}>
+          {emptyDescription || "Upload an XRD pattern file to visualize the diffraction data here."}
+        </p>
+        {emptyAction}
+      </div>
+    );
+  }
 
   return (
     <div className="chart">
@@ -35,7 +38,7 @@ export function XrdChart({ data, peaks, referenceLines, title }: XrdChartProps) 
         </div>
       )}
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={chartData} margin={{ top: 8, right: 8, left: -18 }}>
+        <LineChart data={data} margin={{ top: 8, right: 8, left: -18 }}>
           <CartesianGrid stroke="#263545" strokeDasharray="2 4" vertical={false} />
           <XAxis
             dataKey="angle"
@@ -60,10 +63,10 @@ export function XrdChart({ data, peaks, referenceLines, title }: XrdChartProps) 
           />
           <Legend wrapperStyle={{ fontSize: 11 }} />
           <Line dataKey="Experimental" stroke="#70bdff" strokeWidth={2} dot={false} />
-          {chartData[0]?.Calculated !== undefined && (
+          {data[0]?.Calculated !== undefined && (
             <Line dataKey="Calculated" stroke="#60d2b5" strokeWidth={1.5} dot={false} />
           )}
-          {chartData[0]?.Difference !== undefined && (
+          {data[0]?.Difference !== undefined && (
             <Line dataKey="Difference" stroke="#8897a8" strokeWidth={1} dot={false} />
           )}
           {peaks?.map((peak, i) => (
