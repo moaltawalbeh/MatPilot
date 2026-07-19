@@ -69,5 +69,10 @@ class LocalStorageProvider(IStorageProvider):
         """Convert local://folder/file_id to filesystem path."""
         if uri.startswith("local://"):
             relative = uri[8:]  # Remove "local://"
-            return os.path.join(self._base_path, relative)
-        return os.path.join(self._base_path, uri)
+        else:
+            relative = uri
+        path = os.path.normpath(os.path.join(self._base_path, relative))
+        # Path containment validation — prevent directory traversal
+        if not path.startswith(self._base_path):
+            raise StorageException(f"Invalid storage path: {uri}")
+        return path

@@ -7,20 +7,37 @@ import type {
   SystemHealth,
   AnalysisResult,
   Experiment,
+  PhaseIdRequest,
+  PhaseIdResponse,
+  RietveldRequest,
+  RietveldResults,
+  CIFFile,
+  PipelineRequest,
+  PipelineResponse,
+  PipelineStage,
 } from "@/types";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+if (!process.env.NEXT_PUBLIC_API_URL && process.env.NODE_ENV === "production") {
+  console.warn("[MatPilot] NEXT_PUBLIC_API_URL is not set. API requests will fail in production.");
+}
 
 async function apiFetch<T>(
   path: string,
   init?: RequestInit,
 ): Promise<T> {
+  const isFormData = init?.body instanceof FormData;
+  const headers: Record<string, string> = {};
+  if (!isFormData) {
+    headers["Content-Type"] = "application/json";
+  }
+  if (init?.headers) {
+    Object.assign(headers, init.headers);
+  }
   const res = await fetch(`${API_URL}${path}`, {
     ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...init?.headers,
-    },
+    headers,
   });
   if (!res.ok) {
     const body = await res.json().catch(() => null);
@@ -119,6 +136,15 @@ export const apiService = {
       has_results: boolean;
     }>(`/projects/${projectId}/stats`),
 
+  getExperimentData: (projectId: string, experimentId: string) =>
+    apiFetch<{
+      experiment_id: string;
+      two_theta: number[];
+      intensity: number[];
+      data_points: number;
+      two_theta_range: number[] | null;
+    }>(`/projects/${projectId}/experiments/${experimentId}/data`),
+
   uploadFile: (file: File, wavelength?: number, radiation?: string, projectId?: string, experimentId?: string) => {
     const fields: Record<string, string> = {};
     if (wavelength !== undefined) fields.wavelength = String(wavelength);
@@ -184,4 +210,44 @@ export const apiService = {
 
   getConfig: () =>
     apiFetch<Record<string, unknown>>("/config"),
+
+  // ── Experiment Workspace ──────────────────────────────────────
+
+  getExperiment: (experimentId: string) =>
+    apiFetch<Experiment>(`/experiments/${experimentId}`),
+
+  runPhaseIdentification: (experimentId: string, data: PhaseIdRequest) =>
+    apiFetch<PhaseIdResponse>(`/experiments/${experimentId}/phase-identification`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  listExperimentCIFs: (experimentId: string) =>
+    apiFetch<{ cif_files: CIFFile[] }>(`/experiments/${experimentId}/cifs`),
+
+  uploadCIFFiles: (experimentId: string, files: File[]) => {
+    const form = new FormData();
+    files.forEach((f) => form.append("files", f));
+    return apiFetch<{ success: boolean; message: string; cif_files: CIFFile[] }>(
+      `/experiments/${experimentId}/cifs`,
+      { method: "POST", body: form },
+    );
+  },
+
+  runRietveld: (experimentId: string, data: RietveldRequest) =>
+    apiFetch<{ success: boolean; message: string; phases_used: Record<string, unknown>[]; rietveld_results: RietveldResults | null }>(
+      `/experiments/${experimentId}/rietveld`,
+      { method: "POST", body: JSON.stringify(data) },
+    ),
+
+  // ── Pipeline ─────────────────────────────────────────────────
+
+  runPipeline: (experimentId: string, data: PipelineRequest) =>
+    apiFetch<PipelineResponse>(`/experiments/${experimentId}/pipeline`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  getPipelineStages: (experimentId: string) =>
+    apiFetch<{ stages: PipelineStage[] }>(`/experiments/${experimentId}/pipeline/stages`),
 };

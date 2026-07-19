@@ -7,26 +7,31 @@ Entry point for the backend API server.
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.api.routers import upload, analysis, providers, report, health, jobs, config, system, projects
+from backend.api.routers import upload, analysis, providers, report, health, jobs, config, system, projects, experiments
 from backend.api.middleware.error_handler import register_exception_handlers
+from backend.infrastructure.config.settings import load_config
 from backend.infrastructure.di.container import DIContainer
 
 
 def create_app() -> FastAPI:
+    cfg = load_config()
+
     app = FastAPI(
         title="MatPilot API",
-        version="0.3.0",
-        description="Cloud platform for Materials Characterization"
+        version=cfg.version,
+        description="Cloud platform for Materials Characterization",
     )
 
     # Register exception handlers (must be before routes)
     register_exception_handlers(app)
 
-    # CORS
+    # CORS — read from config (env-backed MATPILOT_CORS_ORIGINS)
+    origins = cfg.api.cors_origins
+    allow_credentials = origins != ["*"]
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
+        allow_origins=origins,
+        allow_credentials=allow_credentials,
         allow_methods=["*"],
         allow_headers=["*"],
     )
@@ -45,6 +50,7 @@ def create_app() -> FastAPI:
     app.include_router(config.router)
     app.include_router(system.router)
     app.include_router(projects.router)
+    app.include_router(experiments.router)
 
     return app
 
@@ -54,4 +60,10 @@ app = create_app()
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("backend.main:app", host="0.0.0.0", port=8000, reload=True)
+    cfg = load_config()
+    uvicorn.run(
+        "backend.main:app",
+        host=cfg.api.host,
+        port=cfg.api.port,
+        reload=(cfg.environment == "development"),
+    )

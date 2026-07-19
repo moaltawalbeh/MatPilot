@@ -18,11 +18,11 @@ export function CrystalViewer({ hasData = false, emptyTitle, emptyDescription, e
         justifyContent: "center",
         padding: 40,
         minHeight: 250,
-        background: "#0d1520",
+        background: "var(--bg-elevated)",
         borderRadius: 8,
-        border: "1px solid #263545",
+        border: "1px solid var(--border-subtle)",
       }}>
-        <Box size={48} color="#36516b" style={{ marginBottom: 16 }} />
+        <Box size={48} style={{ color: "var(--text-muted)", marginBottom: 16 }} />
         <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>
           {emptyTitle || "No crystal structure data"}
         </h3>
@@ -42,11 +42,11 @@ export function CrystalViewer({ hasData = false, emptyTitle, emptyDescription, e
       justifyContent: "center",
       padding: 40,
       minHeight: 250,
-      background: "#0d1520",
+      background: "var(--bg-elevated)",
       borderRadius: 8,
-      border: "1px solid #263545",
+      border: "1px solid var(--border-subtle)",
     }}>
-      <Box size={48} color="#36516b" style={{ marginBottom: 16 }} />
+      <Box size={48} style={{ color: "var(--text-muted)", marginBottom: 16 }} />
       <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>
         Crystal structure loaded
       </h3>

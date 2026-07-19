@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class Peak:
     """
     Value object representing a detected diffraction peak.
@@ -25,3 +25,7 @@ class Peak:
         if not isinstance(other, Peak):
             return NotImplemented
         return abs(self.two_theta - other.two_theta) < 0.01
+
+    def __hash__(self) -> int:
+        # Round to 0.01 precision to match __eq__ tolerance
+        return hash((round(self.two_theta, 2), round(self.intensity, 2)))

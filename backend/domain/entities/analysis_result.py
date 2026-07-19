@@ -7,6 +7,8 @@ from uuid import UUID, uuid4
 from backend.domain.entities.analysis_job import AnalysisType
 from backend.domain.value_objects.peak import Peak
 from backend.domain.value_objects.reference_match import ReferenceMatch
+from backend.domain.value_objects.identified_phase import IdentifiedPhase, SimulatedPattern
+from backend.domain.value_objects.lattice_parameters import LatticeParameters
 
 
 @dataclass(frozen=True)
@@ -24,15 +26,15 @@ class AnalysisResult:
     # Core outputs
     peaks: List[Peak] = field(default_factory=list)
     matches: List[ReferenceMatch] = field(default_factory=list)
-    identified_phases: List['IdentifiedPhase'] = field(default_factory=list)
+    identified_phases: List[IdentifiedPhase] = field(default_factory=list)
 
     # Quantitative results
-    lattice_parameters: Optional['LatticeParameters'] = None
+    lattice_parameters: Optional[LatticeParameters] = None
     crystallite_size_nm: Optional[float] = None
     microstrain_percent: Optional[float] = None
 
     # Simulation output
-    simulated_pattern: Optional['SimulatedPattern'] = None
+    simulated_pattern: Optional[SimulatedPattern] = None
 
     # Metadata
     parameters_used: Dict[str, Any] = field(default_factory=dict)

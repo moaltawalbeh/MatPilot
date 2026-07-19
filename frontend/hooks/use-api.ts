@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiService } from "@/lib/api-client";
+import { apiService, API_URL } from "@/lib/api-client";
 
 export function useProjects() {
   return useQuery({
@@ -159,5 +159,112 @@ export function useProjectStats(projectId: string) {
     queryKey: ["project-stats", projectId],
     queryFn: () => apiService.getProjectStats(projectId),
     enabled: !!projectId,
+  });
+}
+
+export function useExperimentData(projectId: string, experimentId: string) {
+  return useQuery({
+    queryKey: ["experiment-data", projectId, experimentId],
+    queryFn: () => apiService.getExperimentData(projectId, experimentId),
+    enabled: !!projectId && !!experimentId,
+  });
+}
+
+// ── Experiment Workspace Hooks ─────────────────────────────────────
+
+export function useExperiment(experimentId: string) {
+  return useQuery({
+    queryKey: ["experiment", experimentId],
+    queryFn: () => apiService.getExperiment(experimentId),
+    enabled: !!experimentId,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      if (status === "Analyzing" || status === "Processing") return 2000;
+      return false;
+    },
+  });
+}
+
+export function usePhaseIdentification() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ experimentId, data }: { experimentId: string; data: { query: string; elements?: string[]; limit?: number } }) =>
+      apiService.runPhaseIdentification(experimentId, data),
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ["experiment", variables.experimentId] });
+    },
+  });
+}
+
+export function useExperimentCIFs(experimentId: string) {
+  return useQuery({
+    queryKey: ["experiment-cifs", experimentId],
+    queryFn: () => apiService.listExperimentCIFs(experimentId),
+    enabled: !!experimentId,
+  });
+}
+
+export function useUploadCIFFiles() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ experimentId, files }: { experimentId: string; files: File[] }) =>
+      apiService.uploadCIFFiles(experimentId, files),
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ["experiment", variables.experimentId] });
+      qc.invalidateQueries({ queryKey: ["experiment-cifs", variables.experimentId] });
+    },
+  });
+}
+
+export function useRunRietveld() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ experimentId, data }: { experimentId: string; data: { workflow: "auto" | "upload"; selected_cif_ids?: string[] } }) =>
+      apiService.runRietveld(experimentId, data),
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ["experiment", variables.experimentId] });
+    },
+  });
+}
+
+export function useRunPipeline() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ experimentId, data }: { experimentId: string; data: { stages?: string[]; stage_params?: Record<string, Record<string, unknown>> } }) =>
+      apiService.runPipeline(experimentId, data),
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ["experiment", variables.experimentId] });
+      qc.invalidateQueries({ queryKey: ["pipeline-stages", variables.experimentId] });
+    },
+  });
+}
+
+export function usePipelineStages(experimentId: string) {
+  return useQuery({
+    queryKey: ["pipeline-stages", experimentId],
+    queryFn: () => apiService.getPipelineStages(experimentId),
+    enabled: !!experimentId,
+  });
+}
+
+export function useDownloadPDFReport() {
+  return useMutation({
+    mutationFn: async (experimentId: string) => {
+      const response = await fetch(`${API_URL}/report/generate/${experimentId}`, { method: "POST" });
+      if (!response.ok) throw new Error("Failed to generate report");
+      const blob = await response.blob();
+      const disposition = response.headers.get("content-disposition") || "";
+      const filenameMatch = disposition.match(/filename="?([^"]+)"?/);
+      const filename = filenameMatch ? filenameMatch[1] : "report.pdf";
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      return filename;
+    },
   });
 }

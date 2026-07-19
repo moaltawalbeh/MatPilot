@@ -58,6 +58,32 @@ class Experiment:
     job_ids: List[str] = field(default_factory=list)
     has_results: bool = False
 
+    # Phase identification results
+    candidate_phases: List[Dict[str, Any]] = field(default_factory=list)
+
+    # CIF files (auto-downloaded or user-uploaded)
+    cif_files: List[Dict[str, Any]] = field(default_factory=list)
+
+    # Raw pattern data (stored directly on entity for persistence)
+    raw_two_theta: Optional[List[float]] = None
+    raw_intensity: Optional[List[float]] = None
+
+    # Detected peaks (from peak detection stage)
+    detected_peaks: List[Dict[str, Any]] = field(default_factory=list)
+
+    # Rietveld refinement
+    selected_refinement_phases: List[Dict[str, Any]] = field(default_factory=list)
+    rietveld_results: Optional[Dict[str, Any]] = None
+
+    # Pipeline stage tracking
+    pipeline_stages: List[Dict[str, Any]] = field(default_factory=list)
+
+    # Processed pattern data (output of each processing stage)
+    _processed_pattern: Optional[Dict[str, Any]] = None
+
+    # Analysis history (every action taken on this experiment)
+    analysis_history: List[Dict[str, Any]] = field(default_factory=list)
+
     # Metadata
     metadata: ExperimentMetadata = field(default_factory=ExperimentMetadata)
 
@@ -67,6 +93,17 @@ class Experiment:
 
     def touch(self):
         self.updated_at = datetime.utcnow()
+
+    def add_history(self, action: str, details: Optional[Dict[str, Any]] = None):
+        """Record an action in the experiment history."""
+        from datetime import datetime as dt
+        entry = {
+            "action": action,
+            "timestamp": dt.utcnow().isoformat(),
+            "details": details or {},
+        }
+        self.analysis_history.append(entry)
+        self.touch()
 
     @property
     def file_count(self) -> int:

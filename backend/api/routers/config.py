@@ -12,14 +12,11 @@ router = APIRouter(prefix="/config", tags=["Configuration"])
 class ConfigResponse(BaseModel):
     app_name: str
     version: str
-    environment: str
     upload_max_file_size_mb: float
     upload_supported_extensions: List[str]
-    storage_backend: str
     analysis_max_concurrent_jobs: int
     analysis_default_wavelength: float
     reference_cache_ttl_seconds: int
-    api_port: int
 
 
 @router.get("", response_model=ConfigResponse)
@@ -29,12 +26,9 @@ async def get_config(container=Depends(get_container)):
     return ConfigResponse(
         app_name=cfg.app_name,
         version=cfg.version,
-        environment=cfg.environment,
         upload_max_file_size_mb=cfg.upload.max_file_size_bytes / (1024 * 1024),
         upload_supported_extensions=cfg.upload.supported_extensions,
-        storage_backend=cfg.storage.backend,
         analysis_max_concurrent_jobs=cfg.analysis.max_concurrent_jobs,
         analysis_default_wavelength=cfg.analysis.default_wavelength,
         reference_cache_ttl_seconds=cfg.reference.cache_ttl_seconds,
-        api_port=cfg.api.port,
     )

@@ -88,7 +88,7 @@ export default function Upload() {
           add(e.dataTransfer.files);
         }}
       >
-        <FileUp size={30} color="#80c4ff" />
+        <FileUp size={30} style={{ color: "var(--accent-cyan)" }} />
         <h2>Drop files here</h2>
         <p>
           Drag XRD data or CIF files into this workspace, or select files from
@@ -126,7 +126,7 @@ export default function Upload() {
                 display: "flex",
                 alignItems: "center",
                 gap: 10,
-                borderTop: "1px solid #263545",
+                borderTop: "1px solid var(--border-subtle)",
                 padding: "12px 0",
               }}
             >
@@ -148,7 +148,7 @@ export default function Upload() {
                     </span>
                   )}
                   {item.status === "error" && (
-                    <span style={{ color: "#ff6b6b" }}>
+                    <span style={{ color: "var(--error)" }}>
                       <AlertTriangle size={12} style={{ display: "inline", verticalAlign: "middle" }} />{" "}
                       {item.error}
                     </span>

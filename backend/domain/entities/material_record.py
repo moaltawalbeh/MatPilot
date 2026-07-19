@@ -5,6 +5,7 @@ from uuid import UUID, uuid4
 
 from backend.domain.value_objects.crystal_system import CrystalSystem
 from backend.domain.value_objects.lattice_parameters import LatticeParameters
+from backend.domain.value_objects.diffraction_pattern import DiffractionPattern
 
 
 @dataclass(frozen=True)
@@ -28,7 +29,7 @@ class MaterialRecord:
     lattice_parameters: Optional[LatticeParameters] = None
 
     # Reference data
-    diffraction_pattern: Optional['DiffractionPattern'] = None
+    diffraction_pattern: Optional[DiffractionPattern] = None
     reference_intensities: List[float] = field(default_factory=list)
     d_spacings: List[float] = field(default_factory=list)
     hkl_indices: List[tuple] = field(default_factory=list)

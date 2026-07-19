@@ -1,17 +1,33 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { Providers } from "@/components/providers";
+import { ThemeProvider } from "@/components/theme-provider";
+import { LanguageProvider } from "@/components/language-provider";
 
 export const metadata: Metadata = {
-  title: "MatPilot",
-  description: "Materials characterization workspace",
+  title: "MatPilot — Scientific Analysis Platform",
+  description: "Advanced X-ray diffraction analysis and materials characterization platform",
 };
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className="dark" suppressHydrationWarning>
+      <head>
+        <link
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;450;500;550;600;700;800&display=swap"
+          rel="stylesheet"
+        />
+        <link
+          href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap"
+          rel="stylesheet"
+        />
+      </head>
       <body>
-        <Providers>{children}</Providers>
+        <ThemeProvider>
+          <LanguageProvider>
+            <Providers>{children}</Providers>
+          </LanguageProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

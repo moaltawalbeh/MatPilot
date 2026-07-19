@@ -45,3 +45,11 @@ Thumbs.db
 # Build
 # =========================
 coverage/
+
+# =========================
+# Runtime Data
+# =========================
+storage/
+data/
+*.db
+*.sqlite

@@ -1,6 +1,6 @@
 """Project API endpoints."""
 
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
@@ -58,6 +58,9 @@ class ExperimentResponse(BaseModel):
     wavelength_angstrom: Optional[float]
     job_ids: List[str]
     has_results: bool
+    detected_peaks: List[Dict[str, Any]] = []
+    candidate_phases: List[Dict[str, Any]] = []
+    rietveld_results: Optional[Dict[str, Any]] = None
     created_at: str
     updated_at: str
 
@@ -186,15 +189,18 @@ async def list_project_experiments(project_id: str, container=Depends(get_contai
             description=e.description,
             material=e.material,
             status=e.status,
-            file_ids=e.file_ids,
+            file_ids=[str(fid) for fid in e.file_ids],
             primary_file_id=e.primary_file_id,
             has_pattern_data=e.has_pattern_data,
             has_crystal_structure=e.has_crystal_structure,
             data_points=e.data_points,
             two_theta_range=e.two_theta_range,
             wavelength_angstrom=e.wavelength_angstrom,
-            job_ids=e.job_ids,
+            job_ids=[str(jid) for jid in e.job_ids],
             has_results=e.has_results,
+            detected_peaks=getattr(e, "detected_peaks", []),
+            candidate_phases=getattr(e, "candidate_phases", []),
+            rietveld_results=getattr(e, "rietveld_results", None),
             created_at=e.created_at.isoformat(),
             updated_at=e.updated_at.isoformat(),
         )
@@ -222,4 +228,56 @@ async def get_project_stats(project_id: str, container=Depends(get_container)):
         "completed_job_count": len(completed_jobs),
         "has_data": len(project_files) > 0,
         "has_results": len(completed_jobs) > 0,
+    }
+
+
+@router.get("/{project_id}/experiments/{experiment_id}/data")
+async def get_experiment_data(
+    project_id: str,
+    experiment_id: str,
+    container=Depends(get_container),
+):
+    """Get parsed diffraction data (two_theta, intensity) for an experiment."""
+    import math
+
+    experiment_list = await container.uow.experiments.get_by_project_id(project_id)
+    experiment = None
+    for e in experiment_list:
+        if str(e.id) == experiment_id:
+            experiment = e
+            break
+
+    if not experiment:
+        raise EntityNotFoundError(f"Experiment {experiment_id} not found in project {project_id}")
+
+    # Primary source: raw data stored directly on the experiment entity
+    two_theta = getattr(experiment, "raw_two_theta", None)
+    intensity = getattr(experiment, "raw_intensity", None)
+
+    # Fallback: look up from in-memory upload registry
+    if not two_theta or not intensity:
+        upload = None
+        for u in container.upload_service.list_uploads():
+            if experiment.primary_file_id and u.file_id == experiment.primary_file_id:
+                upload = u
+                break
+
+        if upload and upload.experiment:
+            two_theta = upload.experiment.two_theta or []
+            intensity = upload.experiment.intensity or []
+
+    if not two_theta or not intensity:
+        raise EntityNotFoundError(f"No parsed data found for experiment {experiment_id}")
+
+    if two_theta and len(two_theta) > 10000:
+        step = max(1, len(two_theta) // 10000)
+        two_theta = [two_theta[i] for i in range(0, len(two_theta), step)]
+        intensity = [intensity[i] for i in range(0, len(intensity), step)]
+
+    return {
+        "experiment_id": experiment_id,
+        "two_theta": two_theta,
+        "intensity": intensity,
+        "data_points": len(two_theta),
+        "two_theta_range": [min(two_theta), max(two_theta)] if two_theta else None,
     }

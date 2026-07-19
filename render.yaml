@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: matpilot-api
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: MATPILOT_ENV
+        value: production
+      - key: MATPILOT_API_HOST
+        value: 0.0.0.0
+      - key: MATPILOT_API_PORT
+        sync: false
+      - key: MATPILOT_CORS_ORIGINS
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: MATPILOT_STORAGE_BACKEND
+        value: local
+      - key: MATPILOT_STORAGE_PATH
+        value: /data/storage
+      - key: MATPILOT_CIF_CACHE_DIR
+        value: /data/cif_cache
+      - key: MATPILOT_LOG_LEVEL
+        value: INFO
+      - key: MATPILOT_MAX_JOBS
+        value: 2

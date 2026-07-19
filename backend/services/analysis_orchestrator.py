@@ -95,23 +95,13 @@ class AnalysisOrchestrator:
     async def _execute_pipeline_background(self, job_id: str, file_id: str):
         """Execute the analysis pipeline in background."""
         try:
-            self._job_manager.update_progress(job_id, "parsing", 0.1, "Validating data...")
-            await asyncio.sleep(0.05)
-
-            self._job_manager.update_progress(job_id, "peak_detection", 0.3, "Detecting peaks...")
-            await asyncio.sleep(0.05)
-
-            self._job_manager.update_progress(job_id, "reference_search", 0.5, "Searching reference database...")
-            result = await self.execute_analysis(job_id)
-
-            if result["success"]:
-                self._job_manager.update_progress(job_id, "report", 0.9, "Generating report...")
-                await asyncio.sleep(0.05)
-
-            self._job_manager.complete_job(job_id, result_id=f"result_{job_id}")
+            await self.execute_analysis(job_id)
         except Exception as exc:
             self._logger.error("Background pipeline failed", job_id=job_id, error=str(exc))
-            self._job_manager.fail_job(job_id, str(exc))
+            try:
+                self._job_manager.fail_job(job_id, str(exc))
+            except Exception:
+                pass
 
     async def process_upload(
         self,
@@ -165,7 +155,7 @@ class AnalysisOrchestrator:
             format=upload_result.detected_format
         )
 
-        return {
+        result: Dict[str, Any] = {
             "success": True,
             "stage": "upload_complete",
             "file_id": upload_result.file_id,
@@ -179,6 +169,12 @@ class AnalysisOrchestrator:
                 "warnings": upload_result.validation.warnings
             }
         }
+
+        if upload_result.experiment and upload_result.experiment.two_theta:
+            result["two_theta"] = upload_result.experiment.two_theta
+            result["intensity"] = upload_result.experiment.intensity
+
+        return result
 
     async def execute_analysis(self, job_id: str) -> Dict[str, Any]:
         """Execute the analysis pipeline for a job."""
@@ -230,7 +226,7 @@ class AnalysisOrchestrator:
         if not job:
             return None
         d = job.to_dict()
-        d["progress"] = round(job.progress.current_progress * 100, 1)
+        d["progress_percent"] = round(job.progress.current_progress * 100, 1)
         d["current_step"] = job.progress.current_step
         d["error"] = job.progress.errors[-1] if job.progress.errors else None
         return d

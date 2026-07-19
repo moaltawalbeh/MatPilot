@@ -24,6 +24,9 @@ from backend.reference.providers.user_private_provider import UserPrivateProvide
 from backend.reference.providers.org_private_provider import OrgPrivateProvider
 from backend.reference.providers.local_cache_provider import LocalCacheProvider
 from backend.reference.providers.local_cod_provider import LocalCODProvider
+from backend.reference.providers.pubchem_provider import PubChemProvider
+from backend.reference.providers.user_private_provider import UserPrivateProvider
+from backend.reference.providers.org_private_provider import OrgPrivateProvider
 from backend.parsers.parser_factory import ParserFactory
 from backend.parsers.xy_parser import XYParser
 from backend.parsers.xrdml_parser import XRDMLParser
@@ -54,8 +57,11 @@ class DIContainer:
         self.storage_provider = self._create_storage_provider()
         self.storage_service = StorageService(self.storage_provider)
 
-        # Reference Engine
-        self.reference_engine = ReferenceEngine()
+        # Reference Engine (Sprint 6: with CIF cache + theoretical pattern generation)
+        self.reference_engine = ReferenceEngine(
+            cif_cache_dir=self.config.reference.cif_cache_dir,
+            wavelength=self.config.reference.wavelength,
+        )
         self._register_providers()
 
         # Parser Factory
@@ -93,7 +99,11 @@ class DIContainer:
         self.generate_report_use_case = GenerateReportUseCase(self.uow)
         self.project_use_case = ProjectUseCase(self.uow)
 
-        self.logger.info("DI Container initialized", version=self.config.version)
+        self.logger.info(
+            "DI Container initialized",
+            version=self.config.version,
+            cif_cache_size=self.reference_engine.cif_cache.cache_size(),
+        )
 
     def _create_storage_provider(self) -> IStorageProvider:
         backend = self.config.storage.backend
@@ -118,7 +128,7 @@ class DIContainer:
 
     def _register_providers(self):
         self.reference_engine.register_provider(LocalCODProvider())
-        self.reference_engine.register_provider(CODProvider())
+        self.reference_engine.register_provider(CODProvider(api_base_url=self.config.reference.cod_api_url))
         self.reference_engine.register_provider(MaterialsProjectProvider())
         self.reference_engine.register_provider(OQMDProvider())
         self.reference_engine.register_provider(AFLOWProvider())
@@ -127,7 +137,8 @@ class DIContainer:
         self.reference_engine.register_provider(PubChemProvider())
         self.reference_engine.register_provider(UserPrivateProvider())
         self.reference_engine.register_provider(OrgPrivateProvider())
-        self.reference_engine.register_provider(LocalCacheProvider())
+        # Sprint 6: LocalCache backed by CIFCache for persistent CIF storage
+        self.reference_engine.register_provider(LocalCacheProvider(cache_dir=self.config.reference.cif_cache_dir))
 
     def _register_parsers(self):
         self.parser_factory.register_parser(XYParser())

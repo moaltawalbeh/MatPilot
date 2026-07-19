@@ -3,7 +3,8 @@
 import { Page } from "@/components/ui/page";
 import { CrystalViewer } from "@/components/crystal-viewer";
 import { XrdChart } from "@/components/charts/xrd-chart";
-import { useProject, useDeleteProject, useUploadFile, useProjectFiles, useProjectJobs, useExecuteJob, useProjectExperiments, useJobResult, useJob } from "@/hooks/use-api";
+import { useProject, useDeleteProject, useUploadFile, useProjectFiles, useProjectJobs, useProjectExperiments, useJobResult } from "@/hooks/use-api";
+import type { UploadResponse } from "@/types";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Loader2, Trash2, Play, FileUp, X, Check, AlertTriangle, Clock, FileText, Box, FlaskConical, Upload, Database, FileBarChart, BarChart3, BookOpen, StickyNote, Settings, Activity } from "lucide-react";
@@ -27,12 +28,12 @@ const TABS: { key: Tab; label: string; icon: React.ReactNode }[] = [
 type QueuedFile = {
   file: File;
   status: "pending" | "uploading" | "analyzing" | "done" | "error";
-  result?: { file_id: string; detected_format: string; data_points: number; experiment_id: string | null; job_id: string | null; message: string };
+  result?: UploadResponse;
   error?: string;
   jobId?: string | null;
 };
 
-function UploadZone({ projectId, onUploadComplete }: { projectId: string; onUploadComplete?: () => void }) {
+function UploadZone({ projectId, onUploadComplete, onUploadData }: { projectId: string; onUploadComplete?: () => void; onUploadData?: (data: UploadResponse) => void }) {
   const input = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<QueuedFile[]>([]);
   const uploadMutation = useUploadFile();
@@ -65,6 +66,7 @@ function UploadZone({ projectId, onUploadComplete }: { projectId: string; onUplo
             jobId: result.job_id,
           } : f),
         );
+        onUploadData?.(result);
         onUploadComplete?.();
       } catch (err) {
         setFiles((current) =>
@@ -72,7 +74,7 @@ function UploadZone({ projectId, onUploadComplete }: { projectId: string; onUplo
         );
       }
     }
-  }, [files, uploadMutation, projectId, onUploadComplete]);
+  }, [files, uploadMutation, projectId, onUploadComplete, onUploadData]);
 
   const pendingCount = files.filter((f) => f.status === "pending").length;
 
@@ -91,7 +93,7 @@ function UploadZone({ projectId, onUploadComplete }: { projectId: string; onUplo
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => { e.preventDefault(); add(e.dataTransfer.files); }}
       >
-        <FileUp size={30} color="#80c4ff" />
+        <FileUp size={30} color="var(--accent-cyan)" />
         <h2>Drop files here</h2>
         <p>Drag XRD data or CIF files into this project, or select files from your computer.</p>
         <button className="button primary" onClick={() => input.current?.click()}>
@@ -120,7 +122,7 @@ function UploadZone({ projectId, onUploadComplete }: { projectId: string; onUplo
           {files.map((item, idx) => (
             <div
               key={item.file.name + idx}
-              style={{ display: "flex", alignItems: "center", gap: 10, borderTop: "1px solid #263545", padding: "12px 0" }}
+              style={{ display: "flex", alignItems: "center", gap: 10, borderTop: "1px solid var(--border-subtle)", padding: "12px 0" }}
             >
               <FileUp size={17} />
               <div style={{ flex: 1 }}>
@@ -129,24 +131,24 @@ function UploadZone({ projectId, onUploadComplete }: { projectId: string; onUplo
                   {(item.file.size / 1024).toFixed(1)} KB ·{" "}
                   {item.status === "pending" && "Ready"}
                   {item.status === "uploading" && (
-                    <span style={{ color: "var(--blue)" }}>
+                    <span style={{ color: "var(--accent-orange)" }}>
                       <Loader2 size={12} className="spin" style={{ display: "inline", verticalAlign: "middle" }} /> Uploading...
                     </span>
                   )}
                   {item.status === "analyzing" && item.jobId && (
-                    <span style={{ color: "var(--blue)" }}>
+                    <span style={{ color: "var(--accent-orange)" }}>
                       <Activity size={12} style={{ display: "inline", verticalAlign: "middle" }} />{" "}
                       Analysis running — {item.result?.detected_format} · {item.result?.data_points} points
                     </span>
                   )}
                   {item.status === "done" && item.result && (
-                    <span style={{ color: "var(--mint)" }}>
+                    <span style={{ color: "var(--success)" }}>
                       <Check size={12} style={{ display: "inline", verticalAlign: "middle" }} />{" "}
                       {item.result.detected_format} · {item.result.data_points} points
                     </span>
                   )}
                   {item.status === "error" && (
-                    <span style={{ color: "#ff6b6b" }}>
+                    <span style={{ color: "var(--error)" }}>
                       <AlertTriangle size={12} style={{ display: "inline", verticalAlign: "middle" }} /> {item.error}
                     </span>
                   )}
@@ -173,7 +175,7 @@ function EmptyState({ title, description, action, icon }: { title: string; descr
       padding: 60,
       textAlign: "center",
     }}>
-      {icon && <div style={{ marginBottom: 16, color: "#36516b" }}>{icon}</div>}
+      {icon && <div style={{ marginBottom: 16, color: "var(--text-muted)" }}>{icon}</div>}
       <h3 style={{ fontSize: 18, fontWeight: 600, marginBottom: 8 }}>{title}</h3>
       <p className="muted" style={{ fontSize: 14, maxWidth: 400, marginBottom: 16 }}>{description}</p>
       {action}
@@ -181,28 +183,44 @@ function EmptyState({ title, description, action, icon }: { title: string; descr
   );
 }
 
-function OverviewTab({ projectId, experiments, files, jobs, latestResult, onNavigate }: {
+function OverviewTab({ projectId, experiments, files, jobs, latestResult, uploadedPattern, onNavigate }: {
   projectId: string; experiments: any[]; files: any[]; jobs: any[];
-  latestResult: any | null; onNavigate: (tab: Tab) => void
+  latestResult: any | null; uploadedPattern: { two_theta: number[]; intensity: number[] } | null;
+  onNavigate: (tab: Tab) => void
 }) {
   const hasData = files.length > 0;
   const runningJobs = jobs.filter((j) => j.status === "RUNNING" || j.status === "QUEUED");
   const completedJobs = jobs.filter((j) => j.status === "COMPLETED");
 
-  const chartData = latestResult?.results?.peaks ? (() => {
-    const peaks = latestResult.results.peaks || [];
-    if (peaks.length === 0) return undefined;
-    const minAngle = Math.min(...peaks.map((p: any) => p.two_theta)) - 5;
-    const maxAngle = Math.max(...peaks.map((p: any) => p.two_theta)) + 5;
-    return peaks.map((p: any) => ({
-      angle: p.two_theta,
-      Experimental: p.intensity,
-    }));
-  })() : undefined;
+  const patternData = (() => {
+    if (latestResult?.results?.parsed_data?.two_theta) {
+      const pd = latestResult.results.parsed_data;
+      return pd.two_theta.map((t: number, i: number) => ({
+        angle: t,
+        Experimental: pd.intensity[i],
+      }));
+    }
+    if (uploadedPattern?.two_theta) {
+      return uploadedPattern.two_theta.map((t: number, i: number) => ({
+        angle: t,
+        Experimental: uploadedPattern.intensity[i],
+      }));
+    }
+    return undefined;
+  })();
+
+  const chartData = patternData;
 
   const peakMarkers = latestResult?.results?.peaks?.map((p: any) => ({
     two_theta: p.two_theta,
     intensity: p.intensity,
+  })) || [];
+
+  const topPhase = latestResult?.results?.identified_phases?.[0];
+  const theoreticalPeakMarkers = topPhase?.theoretical_peaks?.map((tp: any) => ({
+    two_theta: tp.two_theta,
+    intensity: tp.intensity,
+    hkl: tp.hkl,
   })) || [];
 
   return (
@@ -227,7 +245,7 @@ function OverviewTab({ projectId, experiments, files, jobs, latestResult, onNavi
           <span className="muted">Status</span>
           <div className="number" style={{ fontSize: 14 }}>
             {runningJobs.length > 0 ? (
-              <span style={{ color: "var(--blue)" }}>
+              <span style={{ color: "var(--accent-orange)" }}>
                 <Loader2 size={14} className="spin" style={{ display: "inline", verticalAlign: "middle" }} /> Analyzing
               </span>
             ) : hasData ? "Ready" : "No data"}
@@ -241,20 +259,20 @@ function OverviewTab({ projectId, experiments, files, jobs, latestResult, onNavi
           <div className="section">
             <div>
               <h2 style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <Loader2 size={16} className="spin" style={{ color: "var(--blue)" }} />
+                <Loader2 size={16} className="spin" style={{ color: "var(--accent-orange)" }} />
                 Analysis in progress
               </h2>
               <span className="muted">Real-time pipeline progress</span>
             </div>
           </div>
           {runningJobs.map((j) => (
-            <div key={j.job_id} style={{ borderTop: "1px solid #263545", padding: "12px 0" }}>
+            <div key={j.job_id} style={{ borderTop: "1px solid var(--border-subtle)", padding: "12px 0" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span className="muted">Job {j.job_id.slice(0, 8)}</span>
                 <span className="muted">{Math.round(j.progress)}%</span>
               </div>
-              <div style={{ marginTop: 6, height: 4, background: "#263545", borderRadius: 2 }}>
-                <div style={{ height: "100%", width: `${j.progress}%`, background: "var(--blue)", borderRadius: 2, transition: "width 0.3s" }} />
+              <div style={{ marginTop: 6, height: 4, background: "var(--border-subtle)", borderRadius: "var(--radius-xs)" }}>
+                <div style={{ height: "100%", width: `${j.progress}%`, background: "var(--accent-orange)", borderRadius: "var(--radius-xs)", transition: "width 0.3s" }} />
               </div>
               {j.current_step && (
                 <div className="muted" style={{ marginTop: 4, fontSize: 12 }}>
@@ -271,12 +289,13 @@ function OverviewTab({ projectId, experiments, files, jobs, latestResult, onNavi
           <div className="section">
             <div>
               <h2>Diffraction pattern</h2>
-              <span className="muted">{chartData ? `${chartData.length} peaks detected` : "No data uploaded"}</span>
+              <span className="muted">{chartData ? `${chartData.length} data points` : "No data uploaded"}</span>
             </div>
           </div>
           <XrdChart
             data={chartData}
             peaks={peakMarkers.length > 0 ? peakMarkers : undefined}
+            theoreticalPeaks={theoreticalPeakMarkers.length > 0 ? theoreticalPeakMarkers : undefined}
             emptyTitle="No diffraction data yet"
             emptyDescription="Upload an XRD pattern file to visualize the diffraction data here."
             emptyAction={
@@ -295,9 +314,9 @@ function OverviewTab({ projectId, experiments, files, jobs, latestResult, onNavi
             </div>
           </div>
           <CrystalViewer
-            hasData={false}
+            hasData={Boolean(latestResult?.results?.identified_phases?.length || files.some((f: any) => f.detected_format === "CIF"))}
             emptyTitle="No crystal structure data"
-            emptyDescription="Upload a CIF file to visualize the 3D crystal structure here."
+            emptyDescription="Upload a CIF file or run phase identification to view crystal structure data."
             emptyAction={
               <button className="button primary" onClick={() => onNavigate("files")}>
                 <Upload size={15} /> Upload CIF
@@ -350,7 +369,7 @@ function OverviewTab({ projectId, experiments, files, jobs, latestResult, onNavi
   );
 }
 
-function ExperimentsTab({ experiments, jobs, onUploadClick }: { experiments: any[]; jobs: any[]; onUploadClick: () => void }) {
+function ExperimentsTab({ experiments, jobs, projectId, onUploadClick }: { experiments: any[]; jobs: any[]; projectId: string; onUploadClick: () => void }) {
   if (experiments.length === 0) {
     return (
       <section className="card">
@@ -408,7 +427,14 @@ function ExperimentsTab({ experiments, jobs, onUploadClick }: { experiments: any
             const hasResults = expJobs.some((j) => j.status === "COMPLETED");
             return (
               <tr key={exp.id}>
-                <td><strong>{exp.name}</strong></td>
+                <td>
+                  <Link
+                    href={`/projects/${projectId}/experiments/${exp.id}`}
+                    style={{ color: "var(--accent-orange)", textDecoration: "none" }}
+                  >
+                    <strong>{exp.name}</strong>
+                  </Link>
+                </td>
                 <td>
                   <span className={`badge ${hasResults ? "good" : exp.status === "Analyzing" ? "warn" : ""}`}>
                     {hasResults ? "Complete" : exp.status}
@@ -534,7 +560,7 @@ function AnalysisTab({ jobs, experiments, onUploadClick }: { jobs: any[]; experi
         };
         return (
           <div
-            style={{ borderTop: "1px solid #263545", padding: "14px 0" }}
+            style={{ borderTop: "1px solid var(--border-subtle)", padding: "14px 0" }}
             key={j.job_id}
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -552,18 +578,18 @@ function AnalysisTab({ jobs, experiments, onUploadClick }: { jobs: any[]; experi
               {isRunning && (
                 <div style={{ textAlign: "right" }}>
                   <div className="muted" style={{ fontSize: 12 }}>
-                    {stepNames[j.current_step] || j.current_step} — {Math.round(j.progress)}%
+                    {stepNames[j.current_step] || j.current_step || "Processing"} — {Math.round(j.progress)}%
                   </div>
                 </div>
               )}
             </div>
             {isRunning && (
-              <div style={{ marginTop: 8, height: 4, background: "#263545", borderRadius: 2 }}>
-                <div style={{ height: "100%", width: `${j.progress}%`, background: "var(--blue)", borderRadius: 2, transition: "width 0.3s" }} />
-              </div>
-            )}
-            {j.error && (
-              <div style={{ marginTop: 6, color: "#ff6b6b", fontSize: 12 }}>
+              <div style={{ marginTop: 8, height: 4, background: "var(--border-subtle)", borderRadius: "var(--radius-xs)" }}>
+              <div style={{ height: "100%", width: `${j.progress}%`, background: "var(--accent-orange)", borderRadius: "var(--radius-xs)", transition: "width 0.3s" }} />
+            </div>
+          )}
+          {j.error && (
+              <div style={{ marginTop: 6, color: "var(--error)", fontSize: 12 }}>
                 {j.error}
               </div>
             )}
@@ -612,7 +638,7 @@ function ResultCard({ jobId }: { jobId: string }) {
 
   if (isLoading) {
     return (
-      <div style={{ borderTop: "1px solid #263545", padding: "16px 0" }}>
+      <div style={{ borderTop: "1px solid var(--border-subtle)", padding: "16px 0" }}>
         <Loader2 size={16} className="spin" />
       </div>
     );
@@ -623,15 +649,23 @@ function ResultCard({ jobId }: { jobId: string }) {
   const phases = result.results?.identified_phases || [];
   const peaks = result.results?.peaks || [];
   const matches = result.results?.reference_matches || [];
+  const theoreticalPatterns = result.results?.theoretical_patterns || [];
 
   return (
-    <div style={{ borderTop: "1px solid #263545", padding: "16px 0" }}>
+    <div style={{ borderTop: "1px solid var(--border-subtle)", padding: "16px 0" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
         <div>
           <strong>Analysis {jobId.slice(0, 8)}</strong>
           <div className="muted" style={{ fontSize: 12 }}>Completed {result.completed_at?.slice(0, 19).replace("T", " ")}</div>
         </div>
-        <span className="badge good">Complete</span>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {matches.length > 0 && matches[0]?.provider && (
+            <span className="badge" style={{ fontSize: 10 }}>
+              {matches[0].provider === "COD" ? "COD API" : "Local DB"}
+            </span>
+          )}
+          <span className="badge good">Complete</span>
+        </div>
       </div>
 
       <div className="grid metrics" style={{ marginBottom: 12, gap: 8 }}>
@@ -647,6 +681,12 @@ function ResultCard({ jobId }: { jobId: string }) {
           <span className="muted" style={{ fontSize: 11 }}>References</span>
           <div className="number" style={{ fontSize: 20 }}>{matches.length}</div>
         </div>
+        {theoreticalPatterns.length > 0 && (
+          <div className="card" style={{ padding: "8px 12px" }}>
+            <span className="muted" style={{ fontSize: 11 }}>Theoretical</span>
+            <div className="number" style={{ fontSize: 20 }}>{theoreticalPatterns.length}</div>
+          </div>
+        )}
       </div>
 
       {phases.length > 0 && (
@@ -660,6 +700,9 @@ function ResultCard({ jobId }: { jobId: string }) {
                 <th>Confidence</th>
                 <th>Score</th>
                 <th>Peaks</th>
+                <th>FOM</th>
+                <th>RMSE</th>
+                <th>Cosine</th>
               </tr>
             </thead>
             <tbody>
@@ -673,7 +716,38 @@ function ResultCard({ jobId }: { jobId: string }) {
                     </span>
                   </td>
                   <td>{(phase.match_score * 100).toFixed(1)}%</td>
-                  <td>{phase.matched_peaks}</td>
+                  <td>{phase.matched_peaks}/{phase.total_peaks || "-"}</td>
+                  <td>{phase.fom !== undefined ? phase.fom.toFixed(2) : "-"}</td>
+                  <td>{phase.rmse_2theta !== undefined ? phase.rmse_2theta.toFixed(3) : "-"}</td>
+                  <td>{phase.cosine_similarity !== undefined ? phase.cosine_similarity.toFixed(3) : "-"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {theoreticalPatterns.length > 0 && (
+        <div style={{ marginTop: 12 }}>
+          <h3 style={{ fontSize: 13, marginBottom: 8 }}>Theoretical Patterns (from CIF)</h3>
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Material</th>
+                <th>Formula</th>
+                <th>Peaks</th>
+                <th>Match</th>
+                <th>Source</th>
+              </tr>
+            </thead>
+            <tbody>
+              {theoreticalPatterns.map((tp: any, i: number) => (
+                <tr key={i}>
+                  <td><strong>{tp.material}</strong></td>
+                  <td>{tp.formula}</td>
+                  <td>{tp.peaks.length}</td>
+                  <td>{(tp.match_score * 100).toFixed(1)}%</td>
+                  <td><span className="badge">COD {tp.source_id}</span></td>
                 </tr>
               ))}
             </tbody>
@@ -719,9 +793,22 @@ function ResultCard({ jobId }: { jobId: string }) {
           <h3 style={{ fontSize: 13, marginBottom: 8 }}>Report Summary</h3>
           <div className="muted" style={{ fontSize: 13 }}>
             {result.results.report.summary?.top_phase && result.results.report.summary.top_phase !== "Unknown" ? (
-              <div>Top identified phase: <strong>{result.results.report.summary.top_phase}</strong></div>
+              <div>
+                Top identified phase: <strong>{result.results.report.summary.top_phase}</strong>
+                {result.results.report.summary.top_formula && (
+                  <span> ({result.results.report.summary.top_formula})</span>
+                )}
+                {result.results.report.summary.top_match_score !== undefined && (
+                  <span> — {(result.results.report.summary.top_match_score * 100).toFixed(1)}% match</span>
+                )}
+              </div>
             ) : (
               <div>No clear phase identification — review reference matches above</div>
+            )}
+            {result.results.report.summary?.reference_source && (
+              <div style={{ marginTop: 4, fontSize: 12 }}>
+                Source: {result.results.report.summary.reference_source === "cod_api" ? "Crystallography Open Database (API)" : "Local Reference Database"}
+              </div>
             )}
           </div>
         </div>
@@ -768,7 +855,7 @@ function ReportCard({ jobId }: { jobId: string }) {
   if (!report) return null;
 
   return (
-    <div style={{ borderTop: "1px solid #263545", padding: "16px 0" }}>
+    <div style={{ borderTop: "1px solid var(--border-subtle)", padding: "16px 0" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
           <strong>{report.title}</strong>
@@ -796,22 +883,47 @@ function ReferencesTab() {
       <div className="section">
         <div>
           <h2>Reference search</h2>
-          <span className="muted">Search 50+ crystallographic materials in local COD database</span>
+          <span className="muted">Real COD API + local database with CIF caching</span>
         </div>
         <Link href="/database" className="button">
           <Database size={15} /> Open database
         </Link>
       </div>
-      <EmptyState
-        title="Local COD Reference Database"
-        description="Contains real diffraction peaks for 50+ common crystalline materials including metals, oxides, carbides, silicates, and more. All peak positions calculated for Cu K-alpha radiation."
-        icon={<Database size={48} />}
-        action={
+      <div style={{ padding: "20px" }}>
+        <div className="grid two" style={{ gap: 16 }}>
+          <div className="card" style={{ padding: 16 }}>
+            <h3 style={{ fontSize: 14, marginBottom: 8 }}>Crystallography Open Database (API)</h3>
+            <p className="muted" style={{ fontSize: 13, marginBottom: 12 }}>
+              Searches 500,000+ crystal structures in real-time via the COD REST API.
+              Downloads CIF files, generates theoretical patterns from crystal data,
+              and compares against your experimental pattern.
+            </p>
+            <div className="formats" style={{ marginBottom: 8 }}>
+              {["Formula Search", "Element Search", "CIF Download", "Pattern Generation"].map((f) => (
+                <span className="badge good" key={f}>{f}</span>
+              ))}
+            </div>
+          </div>
+          <div className="card" style={{ padding: 16 }}>
+            <h3 style={{ fontSize: 14, marginBottom: 8 }}>Local Reference Database</h3>
+            <p className="muted" style={{ fontSize: 13, marginBottom: 12 }}>
+              50+ common crystalline materials with pre-computed diffraction peaks.
+              Always available as fallback when API is unreachable. Cached CIF files
+              reduce redundant downloads.
+            </p>
+            <div className="formats" style={{ marginBottom: 8 }}>
+              {["50+ Materials", "Cu K-alpha", "Offline Fallback", "CIF Cache"].map((f) => (
+                <span className="badge" key={f}>{f}</span>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div style={{ marginTop: 16 }}>
           <Link href="/database" className="button primary" style={{ textDecoration: "none" }}>
-            <Database size={15} /> Search database
+            <Database size={15} /> Browse reference database
           </Link>
-        }
-      />
+        </div>
+      </div>
     </section>
   );
 }
@@ -828,7 +940,7 @@ function HistoryTab({ project, jobs }: { project: any; jobs: any[] }) {
       <div style={{ padding: "16px 20px" }}>
         {project && (
           <div style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "8px 0" }}>
-            <Clock size={16} color="#80c4ff" style={{ marginTop: 2, flexShrink: 0 }} />
+            <Clock size={16} color="var(--accent-cyan)" style={{ marginTop: 2, flexShrink: 0 }} />
             <div>
               <div>Project created</div>
               <div className="muted" style={{ fontSize: 12 }}>{project.created_at.slice(0, 19).replace("T", " ")}</div>
@@ -839,9 +951,9 @@ function HistoryTab({ project, jobs }: { project: any; jobs: any[] }) {
           <p className="muted" style={{ padding: "16px 0" }}>No activity yet. Upload data to get started.</p>
         ) : (
           jobs.map((j) => {
-            const statusColor = j.status === "COMPLETED" ? "var(--mint)" : j.status === "RUNNING" ? "var(--blue)" : j.status === "FAILED" ? "#ff6b6b" : "#80c4ff";
+            const statusColor = j.status === "COMPLETED" ? "var(--success)" : j.status === "RUNNING" ? "var(--accent-orange)" : j.status === "FAILED" ? "var(--error)" : "var(--accent-cyan)";
             return (
-              <div key={j.job_id} style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "8px 0", borderTop: "1px solid #263545" }}>
+              <div key={j.job_id} style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "8px 0", borderTop: "1px solid var(--border-subtle)" }}>
                 <Clock size={16} color={statusColor} style={{ marginTop: 2, flexShrink: 0 }} />
                 <div>
                   <div>Analysis {j.job_id.slice(0, 8)}: <span className={`badge ${j.status === "COMPLETED" ? "good" : ""}`}>{j.status}</span></div>
@@ -856,8 +968,18 @@ function HistoryTab({ project, jobs }: { project: any; jobs: any[] }) {
   );
 }
 
-function NotesTab() {
-  const [notes, setNotes] = useState("");
+function NotesTab({ projectId }: { projectId: string }) {
+  const storageKey = `matpilot-notes-${projectId}`;
+  const [notes, setNotes] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return localStorage.getItem(storageKey) || "";
+  });
+
+  const handleChange = (value: string) => {
+    setNotes(value);
+    localStorage.setItem(storageKey, value);
+  };
+
   return (
     <section className="card">
       <div className="section">
@@ -869,16 +991,16 @@ function NotesTab() {
       <div style={{ padding: "0 20px 20px" }}>
         <textarea
           value={notes}
-          onChange={(e) => setNotes(e.target.value)}
+          onChange={(e) => handleChange(e.target.value)}
           placeholder="Add notes about this project, methodology, observations..."
           style={{
             width: "100%",
             minHeight: 300,
             padding: 16,
-            background: "#0d1520",
-            border: "1px solid #263545",
-            borderRadius: 8,
-            color: "var(--text)",
+            background: "var(--bg-primary)",
+            border: "1px solid var(--border-subtle)",
+            borderRadius: "var(--radius-md)",
+            color: "var(--text-primary)",
             fontFamily: "inherit",
             fontSize: 14,
             resize: "vertical",
@@ -905,9 +1027,9 @@ function SettingsTab({ project }: { project: any }) {
             <tr><td>Material</td><td>{project?.material || "-"}</td></tr>
             <tr><td>Description</td><td>{project?.description || "-"}</td></tr>
             <tr><td>Status</td><td><span className={`badge ${project?.status === "Complete" ? "good" : ""}`}>{project?.status}</span></td></tr>
-            <tr><td>Tags</td><td>{project?.tags.length ? project.tags.join(", ") : "-"}</td></tr>
-            <tr><td>Created</td><td className="muted">{project?.created_at.slice(0, 19).replace("T", " ")}</td></tr>
-            <tr><td>Updated</td><td className="muted">{project?.updated_at.slice(0, 19).replace("T", " ")}</td></tr>
+            <tr><td>Tags</td><td>{project?.tags?.length ? project.tags.join(", ") : "-"}</td></tr>
+            <tr><td>Created</td><td className="muted">{project?.created_at?.slice(0, 19).replace("T", " ")}</td></tr>
+            <tr><td>Updated</td><td className="muted">{project?.updated_at?.slice(0, 19).replace("T", " ")}</td></tr>
           </tbody>
         </table>
       </div>
@@ -926,6 +1048,7 @@ export default function ProjectDetail() {
   const { data: experimentsData, refetch: refetchExperiments } = useProjectExperiments(id);
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [showUpload, setShowUpload] = useState(false);
+  const [uploadedPattern, setUploadedPattern] = useState<{ two_theta: number[]; intensity: number[] } | null>(null);
 
   const files = filesData ?? [];
   const jobs = jobsData?.jobs ?? [];
@@ -948,6 +1071,12 @@ export default function ProjectDetail() {
     refetchExperiments();
     refetchProject();
   }, [refetchFiles, refetchJobs, refetchExperiments, refetchProject]);
+
+  const handleUploadData = useCallback((data: UploadResponse) => {
+    if (data.two_theta && data.intensity) {
+      setUploadedPattern({ two_theta: data.two_theta, intensity: data.intensity });
+    }
+  }, []);
 
   useEffect(() => {
     if (runningJobs.length > 0) {
@@ -982,7 +1111,7 @@ export default function ProjectDetail() {
       title={project.name}
       description={`${project.material || "No material"} · Updated ${project.updated_at.slice(0, 10)}`}
       actions={
-        <button className="button" onClick={handleDelete} style={{ color: "#ff6b6b" }}>
+        <button className="button" onClick={handleDelete} style={{ color: "var(--error)" }}>
           <Trash2 size={15} /> Delete
         </button>
       }
@@ -995,17 +1124,14 @@ export default function ProjectDetail() {
             className={activeTab === tab.key ? "active" : ""}
             onClick={() => {
               setActiveTab(tab.key);
-              if (tab.key === "files" || tab.key === "experiments") {
-                setShowUpload(true);
-              }
             }}
             style={{
               background: "none",
               border: "none",
               padding: "8px 16px",
               cursor: "pointer",
-              color: activeTab === tab.key ? "var(--text)" : "var(--muted)",
-              borderBottom: activeTab === tab.key ? "2px solid var(--blue)" : "2px solid transparent",
+              color: activeTab === tab.key ? "var(--text-primary)" : "var(--text-muted)",
+              borderBottom: activeTab === tab.key ? "2px solid var(--accent-orange)" : "2px solid transparent",
               fontFamily: "inherit",
               fontSize: 14,
               display: "flex",
@@ -1016,7 +1142,7 @@ export default function ProjectDetail() {
             {tab.icon}
             {tab.label}
             {tab.key === "analysis" && runningJobs.length > 0 && (
-              <Loader2 size={12} className="spin" style={{ color: "var(--blue)" }} />
+              <Loader2 size={12} className="spin" style={{ color: "var(--accent-orange)" }} />
             )}
           </button>
         ))}
@@ -1024,12 +1150,13 @@ export default function ProjectDetail() {
 
       <div style={{ marginTop: 16 }}>
         {activeTab === "overview" && (
-          <OverviewTab projectId={id} experiments={experiments} files={files} jobs={jobs} latestResult={latestResult} onNavigate={setActiveTab} />
+          <OverviewTab projectId={id} experiments={experiments} files={files} jobs={jobs} latestResult={latestResult} uploadedPattern={uploadedPattern} onNavigate={setActiveTab} />
         )}
         {activeTab === "experiments" && (
           <ExperimentsTab
             experiments={experiments}
             jobs={jobs}
+            projectId={id}
             onUploadClick={() => { setActiveTab("files"); setShowUpload(true); }}
           />
         )}
@@ -1055,7 +1182,7 @@ export default function ProjectDetail() {
         )}
         {activeTab === "references" && <ReferencesTab />}
         {activeTab === "history" && <HistoryTab project={project} jobs={jobs} />}
-        {activeTab === "notes" && <NotesTab />}
+        {activeTab === "notes" && <NotesTab projectId={id} />}
         {activeTab === "settings" && <SettingsTab project={project} />}
       </div>
 
@@ -1066,7 +1193,7 @@ export default function ProjectDetail() {
           left: 0,
           right: 0,
           bottom: 0,
-          background: "rgba(0,0,0,0.7)",
+          background: "rgba(0,0,0,0.6)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -1074,14 +1201,15 @@ export default function ProjectDetail() {
           padding: 20,
         }}>
           <div style={{
-            background: "#101a24",
-            border: "1px solid #263545",
-            borderRadius: 12,
+            background: "var(--bg-primary)",
+            border: "1px solid var(--border-subtle)",
+            borderRadius: "var(--radius-lg)",
             width: "100%",
             maxWidth: 600,
             maxHeight: "80vh",
             overflow: "auto",
             padding: 24,
+            boxShadow: "var(--shadow-md)",
           }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
               <h2>Upload to {project.name}</h2>
@@ -1089,7 +1217,7 @@ export default function ProjectDetail() {
                 <X size={16} />
               </button>
             </div>
-            <UploadZone projectId={id} onUploadComplete={handleUploadComplete} />
+            <UploadZone projectId={id} onUploadComplete={handleUploadComplete} onUploadData={handleUploadData} />
           </div>
         </div>
       )}

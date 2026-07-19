@@ -1,171 +1,289 @@
 "use client";
 
-import { Page } from "@/components/ui/page";
-import { useProjects, useJobs, useSystemHealth } from "@/hooks/use-api";
-import { Plus, Loader2, FolderKanban } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { Zap, ArrowRight, FlaskConical, Database, Target, BarChart3, FileText, FileBarChart, ChevronRight, Check, Globe, Sun, Moon } from "lucide-react";
+import { useTheme } from "@/components/theme-provider";
+import { useLanguage } from "@/components/language-provider";
+import { LOCALES } from "@/lib/i18n";
+import type { Locale } from "@/lib/i18n";
 
-export default function Dashboard() {
-  const { data: projects, isLoading: loadingProjects } = useProjects();
-  const { data: jobsData, isLoading: loadingJobs } = useJobs();
-  const { data: health, isLoading: loadingHealth } = useSystemHealth();
+const FEATURES = [
+  { icon: FileBarChart, titleKey: "feature_xrd" as const, descKey: "feature_xrd_desc" as const, color: "var(--accent-orange)" },
+  { icon: Database, titleKey: "feature_reference" as const, descKey: "feature_reference_desc" as const, color: "var(--accent-cyan)" },
+  { icon: FlaskConical, titleKey: "feature_phase_id" as const, descKey: "feature_phase_id_desc" as const, color: "var(--accent-emerald)" },
+  { icon: Target, titleKey: "feature_rietveld" as const, descKey: "feature_rietveld_desc" as const, color: "var(--accent-violet)" },
+  { icon: FileText, titleKey: "feature_reports" as const, descKey: "feature_reports_desc" as const, color: "var(--accent-rose)" },
+  { icon: BarChart3, titleKey: "feature_charts" as const, descKey: "feature_charts_desc" as const, color: "var(--accent-amber)" },
+];
 
-  const allProjects = projects ?? [];
-  const jobs = jobsData?.jobs ?? [];
+const WORKFLOW_STEPS = [
+  { icon: "↑", labelKey: "wf_upload" as const },
+  { icon: "🧹", labelKey: "wf_background" as const },
+  { icon: "🔍", labelKey: "wf_peak" as const },
+  { icon: "🧪", labelKey: "wf_phase" as const },
+  { icon: "🌐", labelKey: "wf_cod" as const },
+  { icon: "📐", labelKey: "wf_rietveld" as const },
+  { icon: "📄", labelKey: "wf_report" as const },
+];
 
-  const activeCount = allProjects.filter((p) => p.status === "Active").length;
-  const totalCount = allProjects.length;
-  const runningJobs = jobs.filter((j) => j.status === "RUNNING").length;
-  const completedJobs = jobs.filter((j) => j.status === "COMPLETED").length;
+const TECH = ["Python", "FastAPI", "Next.js", "React", "TypeScript", "NumPy", "SciPy", "pymatgen", "Materials Science"];
+
+export default function LandingPage() {
+  const { theme, toggle } = useTheme();
+  const { t, locale, setLocale, dir } = useLanguage();
+  const [langOpen, setLangOpen] = useState(false);
+  const langRef = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    setVisible(true);
+  }, []);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (langRef.current && !langRef.current.contains(e.target as Node)) {
+        setLangOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
 
   return (
-    <Page
-      eyebrow="Characterization workspace"
-      title="Good morning, Maya"
-      description="A clear view of your materials work, analyses, and new observations."
-      actions={
-        <Link href="/projects" className="button primary">
-          <Plus size={15} />
-          New project
-        </Link>
-      }
-    >
-      <div className="grid metrics">
-        {[
-          ["Active projects", loadingHealth ? "..." : String(activeCount), `${totalCount} total`],
-          ["System version", health?.version ?? "...", health?.environment ?? ""],
-          ["Running jobs", loadingJobs ? "..." : String(runningJobs), `${completedJobs} complete`],
-          ["Pipeline", health?.components?.pipeline ? "Ready" : "Standby", health?.components?.storage ? "Storage OK" : ""],
-        ].map(([l, n, s]) => (
-          <div className="card" key={l}>
-            <span className="muted">{l}</span>
-            <div className="number">{n}</div>
-            <span className="muted good">{s}</span>
+    <div style={{ minHeight: "100vh", background: "var(--bg-primary)", color: "var(--text-primary)" }}>
+      {/* Top Nav */}
+      <nav style={{
+        position: "fixed", top: 0, left: 0, right: 0, zIndex: 50,
+        background: "color-mix(in srgb, var(--bg-primary) 85%, transparent)",
+        backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)",
+        borderBottom: "1px solid var(--border-subtle)",
+        padding: "0 32px",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", height: 56, maxWidth: 1200, margin: "0 auto" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: "var(--radius-md)",
+              background: "linear-gradient(135deg, var(--accent-orange), #fb923c)",
+              display: "grid", placeItems: "center",
+              fontSize: 14, fontWeight: 800, color: "white",
+            }}>M</div>
+            <span style={{ fontSize: 16, fontWeight: 750 }}>MatPilot</span>
           </div>
-        ))}
-      </div>
-
-      <div className="grid two" style={{ marginTop: 16 }}>
-        <section className="card">
-          <div className="section">
-            <div>
-              <h2>Quick start</h2>
-              <span className="muted">Create a project to begin analyzing diffraction data</span>
-            </div>
-          </div>
-          <div style={{ padding: 20, textAlign: "center" }}>
-            <Link href="/projects" className="button primary" style={{ marginBottom: 12 }}>
-              <FolderKanban size={15} />
-              Go to Projects
+          <div style={{ display: "flex", alignItems: "center", gap: 4, marginLeft: 24 }}>
+            <Link href="/services" style={{ padding: "6px 14px", borderRadius: "var(--radius-sm)", fontSize: 13, fontWeight: 500, color: "var(--text-secondary)", textDecoration: "none", transition: "all 0.15s" }}>
+              {t.nav_services}
             </Link>
-            <p className="muted" style={{ fontSize: 13, marginTop: 8 }}>
-              All uploads, analyses, and results live inside Projects.
-              Create a project to upload files and run analyses.
-            </p>
+            <Link href="/about" style={{ padding: "6px 14px", borderRadius: "var(--radius-sm)", fontSize: 13, fontWeight: 500, color: "var(--text-secondary)", textDecoration: "none", transition: "all 0.15s" }}>
+              {t.nav_about}
+            </Link>
           </div>
-        </section>
-
-        <section className="card">
-          <div className="section">
-            <div>
-              <h2>Analysis activity</h2>
-              <span className="muted">Recent jobs</span>
-            </div>
-          </div>
-          {loadingJobs ? (
-            <div style={{ padding: 20, textAlign: "center" }}>
-              <Loader2 size={20} className="spin" />
-            </div>
-          ) : jobs.length > 0 ? (
-            jobs.slice(0, 5).map((j) => (
-              <div
-                style={{
-                  borderTop: "1px solid #263545",
-                  padding: "14px 0",
-                }}
-                key={j.job_id}
-              >
-                <strong>
-                  {j.job_type}{" "}
-                  <span
-                    className={`badge ${j.status === "COMPLETED" ? "good" : ""}`}
-                  >
-                    {j.status}
-                  </span>
-                </strong>
-                <div className="muted" style={{ marginTop: 4 }}>
-                  {j.created_at.slice(0, 16).replace("T", " ")}{" "}
-                  {j.status === "RUNNING" ? `${Math.round(j.progress)}% complete` : ""}
+          <div style={{ flex: 1 }} />
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div ref={langRef} style={{ position: "relative" }}>
+              <button onClick={() => setLangOpen(!langOpen)} style={{
+                display: "flex", alignItems: "center", gap: 5,
+                padding: "5px 10px", borderRadius: "var(--radius-sm)",
+                border: "1px solid var(--border-subtle)", background: "var(--surface-1)",
+                color: "var(--text-secondary)", fontSize: 12, fontWeight: 500, cursor: "pointer",
+              }}>
+                <Globe size={14} /> {locale.toUpperCase()}
+              </button>
+              {langOpen && (
+                <div style={{
+                  position: "absolute", top: "100%", right: 0, marginTop: 4,
+                  background: "var(--surface-1)", border: "1px solid var(--border-subtle)",
+                  borderRadius: "var(--radius-md)", padding: 4, minWidth: 140,
+                  boxShadow: "0 8px 24px rgba(0,0,0,0.2)", zIndex: 100,
+                }}>
+                  {LOCALES.map((l) => (
+                    <button key={l.code} onClick={() => { setLocale(l.code); setLangOpen(false); }} style={{
+                      display: "block", width: "100%", padding: "8px 12px",
+                      borderRadius: "var(--radius-sm)", border: "none", cursor: "pointer",
+                      background: locale === l.code ? "var(--accent-orange-bg)" : "transparent",
+                      color: locale === l.code ? "var(--accent-orange)" : "var(--text-primary)",
+                      fontSize: 13, fontWeight: locale === l.code ? 600 : 450, textAlign: "left",
+                    }}>
+                      {l.label}
+                    </button>
+                  ))}
                 </div>
-              </div>
-            ))
-          ) : (
-            <p className="muted" style={{ padding: 20 }}>
-              No jobs yet. Create a project and upload a file to get started.
-            </p>
-          )}
-        </section>
-      </div>
-
-      <section className="card" style={{ marginTop: 16 }}>
-        <div className="section">
-          <div>
-            <h2>Recent projects</h2>
-            <span className="muted">Your active characterization work</span>
+              )}
+            </div>
+            <button onClick={toggle} style={{
+              display: "grid", placeItems: "center", width: 32, height: 32,
+              borderRadius: "var(--radius-sm)", border: "1px solid var(--border-subtle)",
+              background: "var(--surface-1)", color: "var(--text-secondary)", cursor: "pointer",
+            }}>
+              {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
+            </button>
+            <Link href="/dashboard" style={{
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "7px 16px", borderRadius: "var(--radius-sm)",
+              background: "var(--accent-orange)", color: "white",
+              fontSize: 13, fontWeight: 600, textDecoration: "none",
+            }}>
+              <Zap size={14} /> {t.nav_launch}
+            </Link>
           </div>
-          <Link href="/projects">View all</Link>
         </div>
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Project</th>
-              <th>Material</th>
-              <th>Files</th>
-              <th>Analyses</th>
-              <th>Updated</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loadingProjects ? (
-              <tr>
-                <td colSpan={6} style={{ textAlign: "center", padding: 20 }}>
-                  <Loader2 size={20} className="spin" />
-                </td>
-              </tr>
-            ) : allProjects.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="muted" style={{ textAlign: "center", padding: 20 }}>
-                  No projects yet.{" "}
-                  <Link href="/projects" style={{ color: "var(--blue)" }}>
-                    Create your first project
-                  </Link>{" "}
-                  to get started.
-                </td>
-              </tr>
-            ) : (
-              allProjects.slice(0, 5).map((p) => (
-                <tr key={p.id}>
-                  <td>
-                    <Link href={`/projects/${p.id}`} style={{ color: "var(--text)", textDecoration: "none" }}>
-                      <strong>{p.name}</strong>
-                    </Link>
-                  </td>
-                  <td>{p.material || "-"}</td>
-                  <td>{p.files}</td>
-                  <td>{p.analyses}</td>
-                  <td className="muted">{p.updated_at.slice(0, 10)}</td>
-                  <td>
-                    <span className={`badge ${p.status === "Complete" ? "good" : ""}`}>
-                      {p.status}
-                    </span>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+      </nav>
+
+      {/* Hero Section */}
+      <section style={{
+        paddingTop: 140, paddingBottom: 80,
+        textAlign: "center", padding: "140px 32px 80px",
+        maxWidth: 800, margin: "0 auto",
+        opacity: visible ? 1 : 0, transform: visible ? "translateY(0)" : "translateY(20px)",
+        transition: "all 0.8s cubic-bezier(0.16, 1, 0.3, 1)",
+      }}>
+        <div style={{
+          width: 72, height: 72, borderRadius: 18, margin: "0 auto 24px",
+          background: "linear-gradient(135deg, var(--accent-orange), #fb923c)",
+          display: "grid", placeItems: "center",
+          fontSize: 30, fontWeight: 800, color: "white",
+          boxShadow: "0 8px 32px rgba(249,115,22,0.3)",
+        }}>M</div>
+        <h1 style={{
+          fontSize: 56, fontWeight: 800, letterSpacing: "-1.5px",
+          lineHeight: 1.1, marginBottom: 16,
+          background: "linear-gradient(135deg, var(--text-primary) 0%, var(--accent-orange) 100%)",
+          WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
+          backgroundClip: "text",
+        }}>{t.landing_title}</h1>
+        <p style={{
+          fontSize: 20, color: "var(--text-secondary)", lineHeight: 1.5,
+          marginBottom: 8, fontWeight: 400,
+        }}>{t.landing_subtitle}</p>
+        <p style={{
+          fontSize: 14, color: "var(--text-muted)", marginBottom: 40,
+        }}>{t.landing_developer}</p>
+        <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
+          <Link href="/dashboard" style={{
+            display: "inline-flex", alignItems: "center", gap: 8,
+            padding: "12px 28px", borderRadius: "var(--radius-md)",
+            background: "var(--accent-orange)", color: "white",
+            fontSize: 15, fontWeight: 650, textDecoration: "none",
+            boxShadow: "0 4px 16px rgba(249,115,22,0.3)",
+            transition: "all 0.2s",
+          }}>
+            {t.landing_launch} <ArrowRight size={16} />
+          </Link>
+          <a href="#features" style={{
+            display: "inline-flex", alignItems: "center", gap: 8,
+            padding: "12px 28px", borderRadius: "var(--radius-md)",
+            border: "1px solid var(--border-default)", background: "var(--surface-1)",
+            color: "var(--text-primary)", fontSize: 15, fontWeight: 550,
+            textDecoration: "none", transition: "all 0.2s",
+          }}>
+            {t.landing_learn_more}
+          </a>
+        </div>
       </section>
-    </Page>
+
+      {/* What is MatPilot */}
+      <section style={{ padding: "60px 32px", maxWidth: 900, margin: "0 auto", textAlign: "center" }}>
+        <h2 style={{ fontSize: 32, fontWeight: 750, marginBottom: 16, letterSpacing: "-0.5px" }}>{t.landing_what_is}</h2>
+        <p style={{ fontSize: 16, color: "var(--text-secondary)", lineHeight: 1.7, maxWidth: 700, margin: "0 auto" }}>
+          {t.landing_what_is_desc}
+        </p>
+      </section>
+
+      {/* Workflow */}
+      <section style={{ padding: "60px 32px", maxWidth: 1000, margin: "0 auto" }}>
+        <h2 style={{ fontSize: 32, fontWeight: 750, textAlign: "center", marginBottom: 40, letterSpacing: "-0.5px" }}>{t.landing_workflow_title}</h2>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, flexWrap: "wrap" }}>
+          {WORKFLOW_STEPS.map((step, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{
+                display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
+                padding: "16px 14px", borderRadius: "var(--radius-md)",
+                background: "var(--surface-1)", border: "1px solid var(--border-subtle)",
+                minWidth: 110, textAlign: "center",
+              }}>
+                <div style={{ fontSize: 22 }}>{step.icon}</div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)" }}>{t[step.labelKey]}</div>
+              </div>
+              {i < WORKFLOW_STEPS.length - 1 && (
+                <ChevronRight size={18} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
+              )}
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Features */}
+      <section id="features" style={{ padding: "60px 32px", maxWidth: 1100, margin: "0 auto" }}>
+        <h2 style={{ fontSize: 32, fontWeight: 750, textAlign: "center", marginBottom: 40, letterSpacing: "-0.5px" }}>{t.landing_features_title}</h2>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16 }}>
+          {FEATURES.map((f) => (
+            <div key={f.titleKey} style={{
+              padding: 24, borderRadius: "var(--radius-lg)",
+              background: "var(--surface-1)", border: "1px solid var(--border-subtle)",
+              transition: "all 0.2s",
+            }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = f.color; e.currentTarget.style.transform = "translateY(-2px)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border-subtle)"; e.currentTarget.style.transform = "none"; }}
+            >
+              <div style={{ width: 40, height: 40, borderRadius: "var(--radius-md)", background: `${f.color}15`, display: "grid", placeItems: "center", marginBottom: 14 }}>
+                <f.icon size={20} style={{ color: f.color }} />
+              </div>
+              <h3 style={{ fontSize: 15, fontWeight: 650, marginBottom: 6 }}>{t[f.titleKey]}</h3>
+              <p style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.6 }}>{t[f.descKey]}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Technology */}
+      <section style={{ padding: "60px 32px", maxWidth: 900, margin: "0 auto", textAlign: "center" }}>
+        <h2 style={{ fontSize: 32, fontWeight: 750, marginBottom: 24, letterSpacing: "-0.5px" }}>{t.landing_tech_title}</h2>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 10, justifyContent: "center" }}>
+          {TECH.map((tech) => (
+            <span key={tech} style={{
+              padding: "8px 18px", borderRadius: 20,
+              background: "var(--surface-1)", border: "1px solid var(--border-subtle)",
+              fontSize: 13, fontWeight: 500, color: "var(--text-secondary)",
+            }}>{tech}</span>
+          ))}
+        </div>
+      </section>
+
+      {/* CTA */}
+      <section style={{ padding: "60px 32px 80px", textAlign: "center" }}>
+        <div style={{
+          maxWidth: 600, margin: "0 auto", padding: 48,
+          borderRadius: "var(--radius-xl)",
+          background: "linear-gradient(135deg, var(--accent-orange-bg, rgba(249,115,22,0.08)), var(--surface-1))",
+          border: "1px solid var(--border-subtle)",
+        }}>
+          <h2 style={{ fontSize: 26, fontWeight: 750, marginBottom: 12 }}>Ready to start analyzing?</h2>
+          <p style={{ fontSize: 14, color: "var(--text-secondary)", marginBottom: 24 }}>Launch your workspace and begin your first XRD analysis in minutes.</p>
+          <Link href="/dashboard" style={{
+            display: "inline-flex", alignItems: "center", gap: 8,
+            padding: "12px 32px", borderRadius: "var(--radius-md)",
+            background: "var(--accent-orange)", color: "white",
+            fontSize: 15, fontWeight: 650, textDecoration: "none",
+            boxShadow: "0 4px 16px rgba(249,115,22,0.3)",
+          }}>
+            <Zap size={16} /> {t.landing_launch}
+          </Link>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer style={{
+        padding: "24px 32px", borderTop: "1px solid var(--border-subtle)",
+        display: "flex", justifyContent: "space-between", alignItems: "center",
+        fontSize: 12, color: "var(--text-muted)", maxWidth: 1100, margin: "0 auto",
+        flexWrap: "wrap", gap: 12,
+      }}>
+        <span>{t.landing_footer_copy}</span>
+        <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+          <span>{t.landing_footer_version}</span>
+          <a href="https://github.com/Altawalbeh" target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent-orange)", textDecoration: "none" }}>GitHub</a>
+        </div>
+      </footer>
+    </div>
   );
 }

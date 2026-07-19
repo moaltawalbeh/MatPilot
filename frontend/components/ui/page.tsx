@@ -1,2 +1,27 @@
 import { AppShell } from "@/components/layout/app-shell";
-export function Page({title,description,eyebrow,actions,children}:{title:string;description:string;eyebrow?:string;actions?:React.ReactNode;children:React.ReactNode}){return <AppShell><main className="content"><header className="head"><div>{eyebrow&&<p className="eyebrow">{eyebrow}</p>}<h1>{title}</h1><p>{description}</p></div>{actions&&<div className="actions">{actions}</div>}</header>{children}</main></AppShell>}
+
+type PageProps = {
+  title: string;
+  description: string;
+  eyebrow?: string;
+  actions?: React.ReactNode;
+  children: React.ReactNode;
+};
+
+export function Page({ title, description, eyebrow, actions, children }: PageProps) {
+  return (
+    <AppShell>
+      <main className="content">
+        <header className="head">
+          <div>
+            {eyebrow && <p className="eyebrow">{eyebrow}</p>}
+            <h1>{title}</h1>
+            <p>{description}</p>
+          </div>
+          {actions && <div className="actions">{actions}</div>}
+        </header>
+        {children}
+      </main>
+    </AppShell>
+  );
+}

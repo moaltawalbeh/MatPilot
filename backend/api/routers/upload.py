@@ -31,6 +31,8 @@ class UploadResponse(BaseModel):
     experiment_id: Optional[str] = None
     job_id: Optional[str] = None
     analysis_started: bool = False
+    two_theta: Optional[List[float]] = None
+    intensity: Optional[List[float]] = None
 
 
 class UploadListItem(BaseModel):
@@ -112,6 +114,9 @@ async def upload_file(
         data_points = result.get("data_points", 0)
         is_cif = file.filename and file.filename.lower().endswith(".cif")
 
+        raw_tt = result.get("two_theta")
+        raw_int = result.get("intensity")
+
         experiment = Experiment(
             project_id=UUID(project_id),
             name=file.filename or "Untitled Experiment",
@@ -124,6 +129,8 @@ async def upload_file(
             data_points=data_points,
             two_theta_range=result.get("metadata", {}).get("two_theta_range"),
             wavelength_angstrom=result.get("metadata", {}).get("wavelength_angstrom"),
+            raw_two_theta=raw_tt,
+            raw_intensity=raw_int,
             metadata=ExperimentMetadata(
                 wavelength_angstrom=result.get("metadata", {}).get("wavelength_angstrom"),
             ),
@@ -141,13 +148,24 @@ async def upload_file(
             await container.project_use_case.add_job_to_project(project_id, job_id)
 
         await container.project_use_case.add_file_to_project(project_id, result["file_id"])
-    except Exception:
-        pass
+    except Exception as exc:
+        import logging
+        logging.getLogger("upload").warning(
+            "Failed to create experiment entity for %s: %s",
+            result.get("file_id"), exc,
+        )
 
     upload_metadata = result.get("metadata", {})
     two_theta_range = upload_metadata.get("two_theta_range")
     if two_theta_range and (two_theta_range[0] is None or two_theta_range[1] is None):
         two_theta_range = None
+
+    two_theta = result.get("two_theta")
+    intensity = result.get("intensity")
+    if two_theta and len(two_theta) > 10000:
+        step = max(1, len(two_theta) // 10000)
+        two_theta = [two_theta[i] for i in range(0, len(two_theta), step)]
+        intensity = [intensity[i] for i in range(0, len(intensity), step)]
 
     return UploadResponse(
         file_id=result["file_id"],
@@ -166,6 +184,8 @@ async def upload_file(
         experiment_id=created_experiment_id,
         job_id=result.get("job_id"),
         analysis_started=result.get("analysis_started", False),
+        two_theta=two_theta,
+        intensity=intensity,
     )
 
 

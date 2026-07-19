@@ -192,16 +192,17 @@ class LocalCODProvider(IReferenceProvider):
         return None
 
     def _matches_query(self, mat: Dict[str, Any], query: str, filters: Dict[str, Any]) -> bool:
-        formula = mat.get("formula", "").lower()
+        formula = mat.get("formula", "")
+        formula_lower = formula.lower()
         name = mat.get("name", "").lower()
         elements_in_formula = self._extract_elements(formula)
 
-        if query in formula or query in name:
+        if query.lower() in formula_lower or query.lower() in name:
             if self._matches_filters(mat, filters):
                 return True
 
         for elem in elements_in_formula:
-            if query in elem.lower():
+            if query.lower() in elem.lower():
                 if self._matches_filters(mat, filters):
                     return True
 

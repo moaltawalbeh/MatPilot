@@ -23,7 +23,7 @@ export default function Analysis() {
       }
       actions={
         <>
-          <button className="button">
+          <button className="button" onClick={() => window.location.href = "/settings"}>
             <SlidersHorizontal size={15} />
             Parameters
           </button>
@@ -119,7 +119,7 @@ export default function Analysis() {
                   {activeJob.error && (
                     <tr>
                       <td>Error</td>
-                      <td style={{ color: "#ff6b6b" }}>{activeJob.error}</td>
+                      <td style={{ color: "var(--error)" }}>{activeJob.error}</td>
                     </tr>
                   )}
                 </tbody>
@@ -135,7 +135,7 @@ export default function Analysis() {
                   <div
                     style={{
                       padding: "13px 0",
-                      borderTop: "1px solid #263545",
+                      borderTop: "1px solid var(--border-subtle)",
                     }}
                     key={j.job_id}
                   >

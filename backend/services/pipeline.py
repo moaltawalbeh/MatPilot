@@ -98,12 +98,8 @@ class ValidationStep(PipelineStep):
         if len(two_theta) < 10:
             context.warnings.append("Very few data points; results may be unreliable")
 
-        warnings = []
         if len(two_theta) > 10000:
-            warnings.append("Large dataset; peak detection may be slow")
-
-        step_warnings = context.warnings.copy()
-        context.warnings.extend(step_warnings)
+            context.warnings.append("Large dataset; peak detection may be slow")
 
         return StepResult(
             step_name=self.name,
@@ -171,7 +167,7 @@ class PeakDetectionStep(PipelineStep):
             two_theta = exp_data.get("two_theta", [])
             intensity = exp_data.get("intensity", [])
 
-            wavelength = context.metadata.get("wavelength")
+            wavelength = exp_data.get("wavelength")
 
             params = context.metadata.get("parameters", {})
             min_prominence = params.get("min_prominence_ratio", 0.02)
@@ -219,7 +215,13 @@ class PeakDetectionStep(PipelineStep):
 
 
 class ReferenceSearchStep(PipelineStep):
-    """Search reference databases for matching patterns using ReferenceEngine."""
+    """
+    Search reference databases for matching patterns using ReferenceEngine.
+
+    Sprint 6: Full pipeline integration:
+    1. Try real COD API search → download CIF → generate theoretical pattern → compare
+    2. Fall back to local 50-material database if COD is unreachable
+    """
 
     def __init__(self, reference_engine=None):
         self._reference_engine = reference_engine
@@ -246,11 +248,79 @@ class ReferenceSearchStep(PipelineStep):
                     message="No peaks to search against"
                 )
 
-            from backend.services.phase_identifier import (
-                calculate_match_score
-            )
-
             wavelength = context.metadata.get("wavelength", 1.5406)
+
+            # ── Strategy 1: Use ReferenceEngine.identify_phases (real COD API) ──
+            if self._reference_engine and hasattr(self._reference_engine, "identify_phases"):
+                try:
+                    # Build search query from metadata or filename
+                    filename = context.metadata.get("filename", "")
+                    query = filename.replace(".xy", "").replace(".raw", "").replace(".xrdml", "").replace(".csv", "").replace(".txt", "")
+                    if not query:
+                        query = context.metadata.get("formula", "")
+
+                    logger.info(f"Attempting COD API search with query: {query}")
+
+                    sim_results = await self._reference_engine.identify_phases(
+                        experimental_peaks=peaks_data,
+                        query=query,
+                        limit=30,
+                        max_two_theta=120.0,
+                    )
+
+                    if sim_results:
+                        reference_results = []
+                        for sr in sim_results:
+                            if sr.match_score > 0.1:
+                                reference_results.append({
+                                    "material": sr.material_name,
+                                    "formula": sr.material_formula,
+                                    "provider": sr.source_provider,
+                                    "source_id": sr.source_id,
+                                    "match_score": sr.match_score,
+                                    "matched_peaks": sr.matched_peaks,
+                                    "total_peaks": sr.total_reference_peaks,
+                                    "fom": sr.fom,
+                                    "rmse_2theta": sr.rmse_2theta,
+                                    "cosine_similarity": sr.cosine_similarity,
+                                    "confidence": sr.confidence,
+                                    "theoretical_peaks": sr.theoretical_peaks,
+                                    "correspondences": sr.correspondences,
+                                })
+
+                        context.results["reference_matches"] = reference_results
+
+                        # Store theoretical patterns for overlay display
+                        top_patterns = []
+                        for sr in sim_results[:5]:
+                            if sr.theoretical_peaks:
+                                top_patterns.append({
+                                    "material": sr.material_name,
+                                    "formula": sr.material_formula,
+                                    "source_id": sr.source_id,
+                                    "peaks": sr.theoretical_peaks,
+                                    "match_score": sr.match_score,
+                                })
+                        context.results["theoretical_patterns"] = top_patterns
+
+                        return StepResult(
+                            step_name=self.name,
+                            success=True,
+                            output={
+                                "matches_found": len(reference_results),
+                                "top_match": reference_results[0] if reference_results else None,
+                                "all_matches": reference_results[:10],
+                                "source": "cod_api",
+                            },
+                            message=f"Found {len(reference_results)} reference matches via COD API"
+                        )
+                except Exception as cod_exc:
+                    logger.warning(f"COD API search failed, falling back to local: {cod_exc}")
+
+            # ── Strategy 2: Fallback to local database ──
+            logger.info("Using local COD database for reference search")
+
+            from backend.services.phase_identifier import calculate_match_score
 
             reference_entries = []
             if self._reference_engine:
@@ -312,8 +382,9 @@ class ReferenceSearchStep(PipelineStep):
                     "matches_found": len(reference_results),
                     "top_match": reference_results[0] if reference_results else None,
                     "all_matches": reference_results[:10],
+                    "source": "local_database",
                 },
-                message=f"Found {len(reference_results)} reference matches from {len(reference_entries)} candidates"
+                message=f"Found {len(reference_results)} reference matches from {len(reference_entries)} local candidates"
             )
 
         except Exception as exc:
@@ -326,7 +397,7 @@ class ReferenceSearchStep(PipelineStep):
 
 
 class PhaseIdentificationStep(PipelineStep):
-    """Identify crystalline phases from peak matches."""
+    """Identify crystalline phases from peak matches, including theoretical patterns."""
 
     @property
     def name(self) -> str:
@@ -352,21 +423,40 @@ class PhaseIdentificationStep(PipelineStep):
                 )
 
             phases = []
-            for match in reference_matches[:3]:
-                confidence = "Low"
-                if match["match_score"] >= 0.8:
-                    confidence = "High"
-                elif match["match_score"] >= 0.6:
-                    confidence = "Medium"
+            for match in reference_matches[:5]:
+                confidence = match.get("confidence", "Low")
+                if confidence == "Low" and not match.get("confidence"):
+                    if match["match_score"] >= 0.8:
+                        confidence = "High"
+                    elif match["match_score"] >= 0.6:
+                        confidence = "Medium"
 
-                phases.append({
+                phase = {
                     "name": match["material"],
                     "formula": match["formula"],
                     "source": match["provider"],
+                    "source_id": match.get("source_id", ""),
                     "confidence": confidence,
                     "match_score": match["match_score"],
                     "matched_peaks": match["matched_peaks"],
-                })
+                    "total_peaks": match.get("total_peaks", 0),
+                }
+
+                # Include similarity metrics if available (Sprint 6)
+                if "fom" in match:
+                    phase["fom"] = match["fom"]
+                if "rmse_2theta" in match:
+                    phase["rmse_2theta"] = match["rmse_2theta"]
+                if "cosine_similarity" in match:
+                    phase["cosine_similarity"] = match["cosine_similarity"]
+                if "theoretical_peaks" in match:
+                    phase["theoretical_peaks"] = match["theoretical_peaks"]
+                if "space_group" in match:
+                    phase["space_group"] = match["space_group"]
+                if "crystal_system" in match:
+                    phase["crystal_system"] = match["crystal_system"]
+
+                phases.append(phase)
 
             context.results["identified_phases"] = phases
 
@@ -390,7 +480,7 @@ class PhaseIdentificationStep(PipelineStep):
 
 
 class RietveldStep(PipelineStep):
-    """Rietveld refinement (placeholder - complex algorithm)."""
+    """Rietveld refinement using scipy least-squares."""
 
     @property
     def name(self) -> str:
@@ -398,19 +488,106 @@ class RietveldStep(PipelineStep):
 
     @property
     def enabled(self) -> bool:
-        return False
+        return True
 
     async def execute(self, context: PipelineContext) -> StepResult:
-        return StepResult(
-            step_name=self.name,
-            success=True,
-            output={"rietveld": "placeholder"},
-            message="Rietveld refinement not yet implemented"
-        )
+        logger.log_pipeline(context.job_id, self.name, "running")
+
+        try:
+            import numpy as np
+            from backend.services.rietveld_service import RietveldService
+
+            two_theta = context.results.get("parsed_data", {}).get("two_theta", [])
+            intensity = context.results.get("parsed_data", {}).get("intensity", [])
+
+            if not two_theta or len(two_theta) < 10:
+                return StepResult(
+                    step_name=self.name,
+                    success=False,
+                    message="Insufficient data points for Rietveld refinement",
+                )
+
+            identified_phases = context.results.get("identified_phases", [])
+            reference_matches = context.results.get("reference_matches", [])
+
+            phase_cifs = []
+            for phase in identified_phases[:5]:
+                parsed_data = phase.get("parsed_data")
+                if parsed_data:
+                    phase_dict = dict(parsed_data)
+                    cif_content = phase.get("_cif_content")
+                    if cif_content:
+                        phase_dict["_cif_content"] = cif_content
+                    theoretical = phase.get("theoretical_peaks") or phase.get("_theoretical_peaks")
+                    if theoretical:
+                        phase_dict["_theoretical_peaks"] = theoretical
+                    phase_cifs.append(phase_dict)
+
+            if not phase_cifs and reference_matches:
+                for match in reference_matches[:5]:
+                    parsed_data = match.get("parsed_data")
+                    if parsed_data:
+                        phase_cifs.append(dict(parsed_data))
+
+            if not phase_cifs:
+                return StepResult(
+                    step_name=self.name,
+                    success=False,
+                    message="No phase CIF data available for refinement",
+                )
+
+            wavelength = context.metadata.get("wavelength", 1.5406)
+            rietveld = RietveldService(wavelength=wavelength)
+
+            result = rietveld.refine(
+                two_theta_obs=np.array(two_theta),
+                intensity_obs=np.array(intensity),
+                phase_cifs=phase_cifs,
+                wavelength=wavelength,
+            )
+
+            if not result.success:
+                return StepResult(
+                    step_name=self.name,
+                    success=False,
+                    message=result.message,
+                )
+
+            context.results["rietveld"] = {
+                "r_wp": result.r_wp,
+                "r_p": result.r_p,
+                "r_exp": result.r_exp,
+                "chi_squared": result.chi_squared,
+                "gof": result.gof,
+                "iterations": result.iterations,
+                "phases_used": result.phases_used,
+                "patterns": {
+                    "two_theta": result.two_theta,
+                    "observed": result.observed,
+                    "calculated": result.calculated,
+                    "difference": result.difference,
+                    "background": result.background,
+                },
+            }
+
+            return StepResult(
+                step_name=self.name,
+                success=True,
+                output=context.results["rietveld"],
+                message=f"Rietveld completed: Rwp={result.r_wp:.2f}%, GoF={result.gof:.4f}",
+            )
+
+        except Exception as exc:
+            logger.error("Rietveld step failed: %s", exc, exc_info=True)
+            return StepResult(
+                step_name=self.name,
+                success=False,
+                message=f"Rietveld failed: {str(exc)}",
+            )
 
 
 class ReportStep(PipelineStep):
-    """Generate analysis report."""
+    """Generate analysis report with theoretical patterns and CIF metadata."""
 
     @property
     def name(self) -> str:
@@ -427,6 +604,7 @@ class ReportStep(PipelineStep):
             peaks_data = context.results.get("peaks", [])
             phases = context.results.get("identified_phases", [])
             reference_matches = context.results.get("reference_matches", [])
+            theoretical_patterns = context.results.get("theoretical_patterns", [])
 
             report = {
                 "title": "XRD Analysis Report",
@@ -436,13 +614,20 @@ class ReportStep(PipelineStep):
                     "total_peaks": len(peaks_data),
                     "phases_identified": len(phases),
                     "top_phase": phases[0]["name"] if phases else "Unknown",
+                    "top_formula": phases[0].get("formula", "") if phases else "",
+                    "top_match_score": phases[0].get("match_score", 0) if phases else 0,
+                    "top_confidence": phases[0].get("confidence", "Unknown") if phases else "Unknown",
+                    "reference_source": reference_matches[0].get("provider", "unknown") if reference_matches else "unknown",
                 },
-                "peaks": peaks_data[:10],
+                "peaks": peaks_data[:20],
                 "phases": phases,
+                "theoretical_patterns": theoretical_patterns,
                 "methodology": {
                     "peak_detection": "Second-derivative method",
-                    "reference_search": "Pattern matching against COD database",
+                    "reference_search": "Pattern matching against COD database (API + local)",
                     "tolerance": "0.3 degrees 2-theta",
+                    "wavelength": "Cu K-alpha (1.5406 A)",
+                    "similarity_metrics": "FOM, RMSE, cosine similarity, combined score",
                 },
             }
 
