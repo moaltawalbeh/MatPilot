@@ -2,7 +2,7 @@
 
 import { Page } from "@/components/ui/page";
 import { useProjects, useDownloadPDFReport } from "@/hooks/use-api";
-import { apiService, API_URL } from "@/lib/api-client";
+import { apiService } from "@/lib/api-client";
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { FileText, Download, Printer, Share2, FileCode, FileJson, FileSpreadsheet, CheckCircle2, Loader2, ChevronDown, ChevronRight, FlaskConical, Clock } from "lucide-react";
@@ -65,12 +65,9 @@ export default function ReportsPage() {
           try {
             const experiments: { id: string }[] = await apiService.listProjectExperiments(projectId) as unknown as { id: string }[];
             if (experiments && experiments.length > 0) {
-              const response = await fetch(`${API_URL}/report/generate/${experiments[0].id}`, { method: "POST" });
-              if (!response.ok) throw new Error("Failed to generate PDF");
-              const blob = await response.blob();
-              const disposition = response.headers.get("content-disposition") || "";
-              const filenameMatch = disposition.match(/filename="?([^"]+)"?/);
-              const filename = filenameMatch ? filenameMatch[1] : `${safeName}_report.pdf`;
+              const blob = await apiService.downloadReport(experiments[0].id);
+              const disposition = ""; // server doesn't set it for this endpoint
+              const filename = `${safeName}_report.pdf`;
               downloadBlob(blob, filename);
             } else {
               throw new Error("No experiments found in this project");

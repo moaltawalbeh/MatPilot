@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiService, API_URL } from "@/lib/api-client";
+import { apiService } from "@/lib/api-client";
 import type { RefinementParameter, ManualRefinementSession } from "@/types";
 
 export function useProjects() {
@@ -251,12 +251,8 @@ export function usePipelineStages(experimentId: string) {
 export function useDownloadPDFReport() {
   return useMutation({
     mutationFn: async (experimentId: string) => {
-      const response = await fetch(`${API_URL}/report/generate/${experimentId}`, { method: "POST" });
-      if (!response.ok) throw new Error("Failed to generate report");
-      const blob = await response.blob();
-      const disposition = response.headers.get("content-disposition") || "";
-      const filenameMatch = disposition.match(/filename="?([^"]+)"?/);
-      const filename = filenameMatch ? filenameMatch[1] : "report.pdf";
+      const blob = await apiService.downloadReport(experimentId);
+      const filename = "report.pdf";
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;

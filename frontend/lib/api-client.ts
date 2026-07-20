@@ -31,18 +31,27 @@ import type {
   ManualRefinementSession,
 } from "@/types";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL;  if (!API_URL) {   throw new Error(     "NEXT_PUBLIC_API_URL is not defined. Please configure it in your environment."   ); }  export { API_URL };
+function resolveApiUrl(): string {
+  const url = process.env.NEXT_PUBLIC_API_URL;
+  if (url) return url;
 
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "[MatPilot] NEXT_PUBLIC_API_URL is not set. " +
+      "Configure it in your Vercel project settings to point to your backend (e.g. https://matpilot-1.onrender.com)."
+    );
+  }
+
+  return "http://localhost:8000";
+}
+
+export const API_URL = resolveApiUrl();
 export interface AuthUser {
   id: string;
   username: string;
   email: string;
   full_name: string;
   role: string;
-}
-
-if (!process.env.NEXT_PUBLIC_API_URL && process.env.NODE_ENV === "production") {
-  console.warn("[MatPilot] NEXT_PUBLIC_API_URL is not set. API requests will fail in production.");
 }
 
 async function apiFetch<T>(
@@ -541,4 +550,18 @@ export const apiService = {
 
   deleteRefinementSession: (sessionId: string) =>
     apiFetch<{ success: boolean }>(`/manual-refinement/${sessionId}`, { method: "DELETE" }),
+
+  // ── Blob downloads ─────────────────────────────────────────
+
+  downloadReport: async (experimentId: string): Promise<Blob> => {
+    const headers: Record<string, string> = {};
+    const token = typeof window !== "undefined" ? localStorage.getItem("matpilot_token") : null;
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    const res = await fetch(`${API_URL}/report/generate/${experimentId}`, {
+      method: "POST",
+      headers,
+    });
+    if (!res.ok) throw new Error("Failed to generate report");
+    return res.blob();
+  },
 };
