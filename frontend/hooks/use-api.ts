@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiService, API_URL } from "@/lib/api-client";
+import type { RefinementParameter, ManualRefinementSession } from "@/types";
 
 export function useProjects() {
   return useQuery({
@@ -266,5 +267,417 @@ export function useDownloadPDFReport() {
       URL.revokeObjectURL(url);
       return filename;
     },
+  });
+}
+
+// ── Enterprise Platform Hooks ───────────────────────────────────────
+
+// ── Samples ──────────────────────────────────────────────────────
+export function useSamples(params?: { status?: string; tags?: string[]; search?: string; limit?: number; offset?: number }) {
+  return useQuery({
+    queryKey: ["samples", params],
+    queryFn: () => apiService.listSamples(params),
+  });
+}
+
+export function useSample(id: string) {
+  return useQuery({
+    queryKey: ["samples", id],
+    queryFn: () => apiService.getSample(id),
+    enabled: !!id,
+  });
+}
+
+export function useCreateSample() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: apiService.createSample,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["samples"] }),
+  });
+}
+
+export function useUpdateSample() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id: string; name?: string; formula?: string; description?: string; status?: string; crystal_system?: string; tags?: string[] }) =>
+      apiService.updateSample(id, data),
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ["samples"] });
+      qc.invalidateQueries({ queryKey: ["samples", vars.id] });
+    },
+  });
+}
+
+export function useDeleteSample() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: apiService.deleteSample,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["samples"] }),
+  });
+}
+
+// ── Measurements ─────────────────────────────────────────────────
+export function useMeasurements(params?: { sample_id?: string; status?: string; limit?: number; offset?: number }) {
+  return useQuery({
+    queryKey: ["measurements", params],
+    queryFn: () => apiService.listMeasurements(params),
+  });
+}
+
+export function useMeasurement(id: string) {
+  return useQuery({
+    queryKey: ["measurements", id],
+    queryFn: () => apiService.getMeasurement(id),
+    enabled: !!id,
+  });
+}
+
+export function useCreateMeasurement() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: apiService.createMeasurement,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["measurements"] });
+      qc.invalidateQueries({ queryKey: ["samples"] });
+    },
+  });
+}
+
+export function useUpdateMeasurement() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id: string; name?: string; status?: string }) =>
+      apiService.updateMeasurement(id, data),
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ["measurements"] });
+      qc.invalidateQueries({ queryKey: ["measurements", vars.id] });
+    },
+  });
+}
+
+export function useDeleteMeasurement() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: apiService.deleteMeasurement,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["measurements"] }),
+  });
+}
+
+// ── Crystal Structures ───────────────────────────────────────────
+export function useStructures(params?: { source?: string; formula?: string; space_group?: string; limit?: number; offset?: number }) {
+  return useQuery({
+    queryKey: ["structures", params],
+    queryFn: () => apiService.listStructures(params),
+  });
+}
+
+export function useStructure(id: string) {
+  return useQuery({
+    queryKey: ["structures", id],
+    queryFn: () => apiService.getStructure(id),
+    enabled: !!id,
+  });
+}
+
+export function useCreateStructure() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: apiService.createStructure,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["structures"] }),
+  });
+}
+
+export function useUpdateStructure() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id: string; name?: string; formula?: string; tags?: string[] }) =>
+      apiService.updateStructure(id, data),
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ["structures"] });
+      qc.invalidateQueries({ queryKey: ["structures", vars.id] });
+    },
+  });
+}
+
+export function useDeleteStructure() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: apiService.deleteStructure,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["structures"] }),
+  });
+}
+
+export function useImportStructureCIF() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ cifText, source, sourceId }: { cifText: string; source?: string; sourceId?: string }) =>
+      apiService.importStructureCIF(cifText, source, sourceId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["structures"] }),
+  });
+}
+
+// ── Collections ──────────────────────────────────────────────────
+export function useCollections(params?: { collection_type?: string; limit?: number; offset?: number }) {
+  return useQuery({
+    queryKey: ["collections", params],
+    queryFn: () => apiService.listCollections(params),
+  });
+}
+
+export function useCollection(id: string) {
+  return useQuery({
+    queryKey: ["collections", id],
+    queryFn: () => apiService.getCollection(id),
+    enabled: !!id,
+  });
+}
+
+export function useCreateCollection() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: apiService.createCollection,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["collections"] }),
+  });
+}
+
+export function useUpdateCollection() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id: string; name?: string; description?: string; is_public?: boolean }) =>
+      apiService.updateCollection(id, data),
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ["collections"] });
+      qc.invalidateQueries({ queryKey: ["collections", vars.id] });
+    },
+  });
+}
+
+export function useDeleteCollection() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: apiService.deleteCollection,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["collections"] }),
+  });
+}
+
+export function useAddSampleToCollection() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ collectionId, sampleId }: { collectionId: string; sampleId: string }) =>
+      apiService.addSampleToCollection(collectionId, sampleId),
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ["collections"] });
+      qc.invalidateQueries({ queryKey: ["collections", vars.collectionId] });
+    },
+  });
+}
+
+// ── Downloads ────────────────────────────────────────────────────
+export function useDownloads(params?: { status?: string; limit?: number; offset?: number }) {
+  return useQuery({
+    queryKey: ["downloads", params],
+    queryFn: () => apiService.listDownloads(params),
+  });
+}
+
+export function useRequestDownload() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: apiService.requestDownload,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["downloads"] }),
+  });
+}
+
+export function useDeleteDownload() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: apiService.deleteDownload,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["downloads"] }),
+  });
+}
+
+// ── Notifications ────────────────────────────────────────────────
+export function useNotifications(params?: { unread_only?: boolean; limit?: number }) {
+  return useQuery({
+    queryKey: ["notifications", params],
+    queryFn: () => apiService.listNotifications(params),
+  });
+}
+
+export function useUnreadNotificationCount() {
+  return useQuery({
+    queryKey: ["notifications-unread-count"],
+    queryFn: async () => {
+      const res = await apiService.listNotifications({ unread_only: true, limit: 1 });
+      return res.unread_count;
+    },
+    refetchInterval: 30_000,
+  });
+}
+
+export function useMarkNotificationRead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: apiService.markNotificationRead,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["notifications"] });
+      qc.invalidateQueries({ queryKey: ["notifications-unread-count"] });
+    },
+  });
+}
+
+export function useMarkAllNotificationsRead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: apiService.markAllNotificationsRead,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["notifications"] });
+      qc.invalidateQueries({ queryKey: ["notifications-unread-count"] });
+    },
+  });
+}
+
+// ── Search Configs ───────────────────────────────────────────────
+export function useSearchConfigs(params?: { search_type?: string; limit?: number }) {
+  return useQuery({
+    queryKey: ["search-configs", params],
+    queryFn: () => apiService.listSearchConfigs(params),
+  });
+}
+
+export function useCreateSearchConfig() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: apiService.createSearchConfig,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["search-configs"] }),
+  });
+}
+
+export function useDeleteSearchConfig() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: apiService.deleteSearchConfig,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["search-configs"] }),
+  });
+}
+
+// ── Activity ─────────────────────────────────────────────────────
+export function useActivities(params?: { project_id?: string; limit?: number; offset?: number }) {
+  return useQuery({
+    queryKey: ["activities", params],
+    queryFn: () => apiService.listActivities(params),
+  });
+}
+
+// ── Dashboard ────────────────────────────────────────────────────
+export function useDashboardStats() {
+  return useQuery({
+    queryKey: ["dashboard-stats"],
+    queryFn: apiService.getDashboardStats,
+    refetchInterval: 60_000,
+  });
+}
+
+// ── Admin / Users ────────────────────────────────────────────────
+export function useUsers(params?: { role?: string; limit?: number; offset?: number }) {
+  return useQuery({
+    queryKey: ["users", params],
+    queryFn: () => apiService.listUsers(params),
+  });
+}
+
+export function useUpdateUser() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id: string; role?: string; status?: string }) =>
+      apiService.updateUser(id, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["users"] }),
+  });
+}
+
+// ── Global Search ────────────────────────────────────────────────
+export function useGlobalSearch(query: string, type?: string) {
+  return useQuery({
+    queryKey: ["global-search", query, type],
+    queryFn: () => apiService.globalSearch({ q: query, type, limit: 20 }),
+    enabled: query.length >= 2,
+  });
+}
+
+// ── Manual Refinement Hooks ──────────────────────────────────────
+
+export function useManualRefinement(sessionId: string | null) {
+  const queryClient = useQueryClient();
+
+  const session = useQuery({
+    queryKey: ["manual-refinement", sessionId],
+    queryFn: () => apiService.getManualRefinement(sessionId!),
+    enabled: !!sessionId,
+  });
+
+  const initMutation = useMutation({
+    mutationFn: apiService.initManualRefinement,
+  });
+
+  const setParamMutation = useMutation({
+    mutationFn: ({ paramName, data }: { paramName: string; data: { value?: number; locked?: boolean } }) =>
+      apiService.setRefinementParameter(sessionId!, paramName, data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["manual-refinement", sessionId] }),
+  });
+
+  const lockMutation = useMutation({
+    mutationFn: (paramNames: string[]) =>
+      apiService.lockRefinementParameters(sessionId!, paramNames),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["manual-refinement", sessionId] }),
+  });
+
+  const unlockMutation = useMutation({
+    mutationFn: (paramNames: string[]) =>
+      apiService.unlockRefinementParameters(sessionId!, paramNames),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["manual-refinement", sessionId] }),
+  });
+
+  const stepMutation = useMutation({
+    mutationFn: () => apiService.runRefinementStep(sessionId!),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["manual-refinement", sessionId] }),
+  });
+
+  const fullRefinementMutation = useMutation({
+    mutationFn: () => apiService.runFullRefinement(sessionId!),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["manual-refinement", sessionId] }),
+  });
+
+  const undoMutation = useMutation({
+    mutationFn: () => apiService.undoRefinementStep(sessionId!),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["manual-refinement", sessionId] }),
+  });
+
+  const resetMutation = useMutation({
+    mutationFn: () => apiService.resetRefinement(sessionId!),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["manual-refinement", sessionId] }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => apiService.deleteRefinementSession(sessionId!),
+  });
+
+  return {
+    session,
+    initMutation,
+    setParamMutation,
+    lockMutation,
+    unlockMutation,
+    stepMutation,
+    fullRefinementMutation,
+    undoMutation,
+    resetMutation,
+    deleteMutation,
+  };
+}
+
+export function useRefinementParameters() {
+  return useQuery({
+    queryKey: ["refinement-parameters"],
+    queryFn: apiService.getRefinementParameters,
   });
 }

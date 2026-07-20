@@ -344,3 +344,319 @@ export type PipelineResponse = {
   completed_stages: string[];
   results: Record<string, unknown>;
 };
+
+// ── Enterprise Platform Types ──────────────────────────────────────
+
+export type SampleStatus = "DRAFT" | "ACTIVE" | "ARCHIVED";
+export type CrystalSystem = "cubic" | "hexagonal" | "tetragonal" | "orthorhombic" | "monoclinic" | "triclinic" | "rhombohedral";
+
+export type Sample = {
+  id: string;
+  name: string;
+  formula: string;
+  description: string;
+  owner_id: string | null;
+  status: SampleStatus;
+  crystal_system: CrystalSystem | null;
+  space_group: string | null;
+  lattice_params: Record<string, number> | null;
+  composition: Record<string, unknown> | null;
+  source: string;
+  supplier: string | null;
+  purity: number | null;
+  batch_number: string | null;
+  measurement_ids: string[];
+  tags: string[];
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export type InstrumentConfig = {
+  instrument_name: string;
+  radiation_type: string;
+  wavelength_angstrom: number | null;
+  tube_voltage_kv: number | null;
+  tube_current_ma: number | null;
+  optics: string | null;
+};
+
+export type ScanConfig = {
+  scan_type: string;
+  two_theta_start: number | null;
+  two_theta_end: number | null;
+  step_size_2theta: number | null;
+  scan_speed_deg_per_min: number | null;
+  total_time_seconds: number | null;
+};
+
+export type MeasurementStatus = "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED";
+
+export type Measurement = {
+  id: string;
+  sample_id: string | null;
+  experiment_id: string | null;
+  name: string;
+  description: string;
+  status: MeasurementStatus;
+  instrument: InstrumentConfig;
+  scan: ScanConfig;
+  data_points: number;
+  two_theta: number[];
+  intensity: number[];
+  processed_two_theta: number[] | null;
+  processed_intensity: number[] | null;
+  peaks: Peak[];
+  has_results: boolean;
+  results_summary: Record<string, unknown> | null;
+  file_id: string | null;
+  raw_file_path: string | null;
+  tags: string[];
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
+};
+
+export type AtomSite = {
+  label: string;
+  element: string;
+  x: number;
+  y: number;
+  z: number;
+  occupancy: number;
+  u_iso: number | null;
+  wyckoff: string | null;
+};
+
+export type CrystalStructureTheoreticalPeak = {
+  hkl: string;
+  h: number;
+  k: number;
+  l: number;
+  two_theta: number;
+  d_spacing: number;
+  intensity: number;
+  f_squared: number;
+  multiplicity: number;
+};
+
+export type CrystalStructure = {
+  id: string;
+  name: string;
+  formula: string;
+  source: string;
+  source_id: string | null;
+  a: number | null;
+  b: number | null;
+  c: number | null;
+  alpha: number | null;
+  beta: number | null;
+  gamma: number | null;
+  space_group: string | null;
+  crystal_system: string | null;
+  z_number: number | null;
+  atom_sites: AtomSite[];
+  theoretical_peaks: CrystalStructureTheoreticalPeak[];
+  cif_text: string | null;
+  publication: string | null;
+  doi: string | null;
+  tags: string[];
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CollectionType = "PROJECT" | "RESEARCH_GROUP" | "PUBLICATION" | "CUSTOM";
+
+export type Collection = {
+  id: string;
+  name: string;
+  description: string;
+  owner_id: string | null;
+  collection_type: CollectionType;
+  sample_ids: string[];
+  measurement_ids: string[];
+  structure_ids: string[];
+  experiment_ids: string[];
+  tags: string[];
+  metadata: Record<string, unknown>;
+  is_public: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type DownloadType = "REPORT_PDF" | "REPORT_HTML" | "CIF_FILE" | "PATTERN_DATA" | "PEAK_LIST" | "REFINEMENT_RESULT" | "BATCH_EXPORT";
+export type DownloadStatus = "PENDING" | "PROCESSING" | "READY" | "EXPIRED" | "FAILED";
+
+export type Download = {
+  id: string;
+  user_id: string | null;
+  download_type: DownloadType;
+  status: DownloadStatus;
+  source_type: string;
+  source_id: string | null;
+  filename: string;
+  file_path: string;
+  file_size_bytes: number;
+  mime_type: string;
+  experiment_id: string | null;
+  error_message: string | null;
+  created_at: string;
+  expires_at: string | null;
+  downloaded_at: string | null;
+};
+
+export type NotificationType = "JOB_COMPLETED" | "JOB_FAILED" | "REFINEMENT_COMPLETE" | "PHASE_IDENTIFICATION_COMPLETE" | "DOWNLOAD_READY" | "COLLABORATION_INVITE" | "SYSTEM_ALERT" | "COMMENT";
+export type NotificationPriority = "LOW" | "NORMAL" | "HIGH" | "URGENT";
+
+export type Notification = {
+  id: string;
+  user_id: string | null;
+  notification_type: NotificationType;
+  priority: NotificationPriority;
+  title: string;
+  message: string;
+  source_type: string;
+  source_id: string | null;
+  experiment_id: string | null;
+  is_read: boolean;
+  is_dismissed: boolean;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  read_at: string | null;
+};
+
+export type SearchConfig = {
+  id: string;
+  name: string;
+  description: string;
+  owner_id: string | null;
+  search_type: string;
+  query: string;
+  elements: string[];
+  space_group: string | null;
+  crystal_system: string | null;
+  providers: string[];
+  max_results: number;
+  min_match_score: number;
+  filters: Record<string, unknown>;
+  use_count: number;
+  last_used_at: string | null;
+  tags: string[];
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ActivityType = "FILE_UPLOADED" | "PROJECT_CREATED" | "PROJECT_UPDATED" | "MEASUREMENT_STARTED" | "MEASUREMENT_COMPLETED" | "PHASE_IDENTIFICATION_RUN" | "RIETVELD_REFINEMENT_RUN" | "REPORT_GENERATED" | "SAMPLE_CREATED" | "SAMPLE_UPDATED" | "STRUCTURE_IMPORTED" | "COLLECTION_CREATED" | "SEARCH_PERFORMED" | "DOWNLOAD_COMPLETED" | "USER_LOGIN";
+
+export type Activity = {
+  id: string;
+  user_id: string | null;
+  activity_type: ActivityType;
+  title: string;
+  description: string;
+  source_type: string;
+  source_id: string | null;
+  project_id: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+};
+
+export type UserRole = "RESEARCHER" | "ANALYST" | "ADMIN" | "VIEWER";
+export type UserStatus = "ACTIVE" | "INACTIVE" | "SUSPENDED";
+
+export type User = {
+  id: string;
+  username: string;
+  email: string;
+  full_name: string;
+  role: UserRole;
+  status: UserStatus;
+  organization_id: string | null;
+  team_ids: string[];
+  default_wavelength: number | null;
+  preferred_providers: string[];
+  language: string;
+  timezone: string;
+  last_login_at: string | null;
+  login_count: number;
+  avatar_url: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export type OrgPlan = "FREE" | "PRO" | "ENTERPRISE";
+export type OrgStatus = "ACTIVE" | "SUSPENDED" | "CANCELLED";
+
+export type Organization = {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  owner_id: string | null;
+  plan: OrgPlan;
+  status: OrgStatus;
+  team_ids: string[];
+  member_ids: string[];
+  max_members: number;
+  max_projects: number;
+  max_measurements: number;
+  storage_limit_gb: number;
+  storage_used_gb: number;
+  settings: Record<string, unknown>;
+  logo_url: string | null;
+  primary_color: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type DashboardStats = {
+  total_projects: number;
+  total_samples: number;
+  total_measurements: number;
+  total_structures: number;
+  total_experiments: number;
+  active_jobs: number;
+  completed_jobs: number;
+  recent_activities: Activity[];
+};
+
+export type SearchResult = {
+  items: Sample[] | Measurement[] | CrystalStructure[];
+  total: number;
+  query: string;
+  page: number;
+  page_size: number;
+};
+
+// ── Manual Refinement Types ──────────────────────────────────────
+
+export interface RefinementParameter {
+  name: string;
+  label: string;
+  value: number;
+  initial_value: number;
+  lower_bound: number;
+  upper_bound: number;
+  locked: boolean;
+  category: string;
+  description: string;
+  uncertainty?: number | null;
+}
+
+export interface ManualRefinementSession {
+  session_id: string;
+  experiment_id: string;
+  parameters: RefinementParameter[];
+  current_step: number;
+  history: Array<{ step: number; rwp: number | null; rp: number | null; action: string; parameters?: Record<string, number> }>;
+  last_result?: RietveldResults | null;
+  wavelength: number;
+}
+
+export type ParameterCategory =
+  | "scale" | "background" | "profile" | "lattice"
+  | "phase" | "instrument" | "sample" | "microstructure";
