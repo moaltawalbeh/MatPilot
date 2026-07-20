@@ -31,7 +31,7 @@ import type {
   ManualRefinementSession,
 } from "@/types";
 
-export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_URL = process.env.NEXT_PUBLIC_API_URL;  if (!API_URL) {   throw new Error(     "NEXT_PUBLIC_API_URL is not defined. Please configure it in your environment."   ); }  export { API_URL };
 
 export interface AuthUser {
   id: string;
