@@ -1,6 +1,8 @@
 "use client";
 
 import { Page } from "@/components/ui/page";
+import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
 import { useLanguage } from "@/components/language-provider";
 import {
   useDashboardStats,
@@ -39,6 +41,18 @@ import {
   Eye,
   Zap,
   Layers,
+  Waves,
+  AudioLines,
+  Sun,
+  Microscope,
+  Atom,
+  ScanEye,
+  Target,
+  Thermometer,
+  Flame,
+  CircleDot,
+  ArrowRight,
+  CheckCircle2,
 } from "lucide-react";
 
 export default function Dashboard() {
@@ -91,15 +105,31 @@ export default function Dashboard() {
   const quickActions = [
     { label: "Upload Data", icon: Upload, href: "/projects", color: "var(--accent-orange)" },
     { label: "New Project", icon: Plus, href: "/projects", color: "var(--accent-cyan)" },
-    { label: "New Sample", icon: Beaker, href: "/samples", color: "var(--accent-emerald)" },
-    { label: "Search Database", icon: Search, href: "/search", color: "var(--accent-violet)" },
+    { label: "Search Database", icon: Search, href: "/search", color: "var(--accent-emerald)" },
+    { label: "AI Assistant", icon: Sparkles, href: "/assistant", color: "var(--accent-violet)" },
+  ];
+
+  const characterizationModules = [
+    { name: "XRD", icon: Atom, color: "var(--accent-orange)", available: true, href: "/experiments" },
+    { name: "Raman", icon: Waves, color: "var(--accent-cyan)", available: false, href: "/characterization/raman" },
+    { name: "FTIR", icon: AudioLines, color: "var(--accent-emerald)", available: false, href: "/characterization/ftir" },
+    { name: "UV-Vis", icon: Sun, color: "var(--accent-amber)", available: false, href: "/characterization/uv-vis" },
+    { name: "SEM", icon: Microscope, color: "var(--accent-violet)", available: false, href: "/characterization/sem" },
+    { name: "EDS", icon: ScanEye, color: "var(--accent-rose)", available: false, href: "/characterization/eds" },
+    { name: "TEM", icon: Eye, color: "var(--accent-cyan)", available: false, href: "/characterization/tem" },
+    { name: "XPS", icon: Target, color: "var(--accent-orange)", available: false, href: "/characterization/xps" },
+    { name: "TGA", icon: Thermometer, color: "var(--accent-emerald)", available: false, href: "/characterization/tga" },
+    { name: "DSC", icon: Flame, color: "var(--accent-rose)", available: false, href: "/characterization/dsc" },
+    { name: "BET", icon: CircleDot, color: "var(--accent-violet)", available: false, href: "/characterization/bet" },
+    { name: "DLS", icon: Zap, color: "var(--accent-cyan)", available: false, href: "/characterization/dls" },
   ];
 
   const workflowSteps = [
-    { step: "1", name: "Create Project", desc: "Organize your research", href: "/projects", color: "var(--accent-orange)" },
-    { step: "2", name: "Upload XRD Data", desc: "Import diffraction patterns", href: "/projects", color: "var(--accent-cyan)" },
-    { step: "3", name: "Run Pipeline", desc: "Automatic preprocessing & analysis", href: "/projects", color: "var(--accent-emerald)" },
-    { step: "4", name: "View Results", desc: "Phase ID & refinement stats", href: "/projects", color: "var(--accent-violet)" },
+    { step: 1, name: "Upload", desc: "Import diffraction data", color: "var(--accent-orange)" },
+    { step: 2, name: "Preprocessing", desc: "Background & stripping", color: "var(--accent-cyan)" },
+    { step: 3, name: "Phase ID", desc: "Mineral matching", color: "var(--accent-emerald)" },
+    { step: 4, name: "Refinement", desc: "Rietveld analysis", color: "var(--accent-violet)" },
+    { step: 5, name: "Report", desc: "Export results", color: "var(--accent-amber)" },
   ];
 
   const activityIconMap: Record<string, { icon: typeof Upload; color: string }> = {
@@ -138,7 +168,7 @@ export default function Dashboard() {
       description={t.dash_subtitle}
       actions={
         <Link href="/projects" className="button primary" style={{ textDecoration: "none" }}>
-          <Plus size={15} /> New project
+          <Plus size={15} /> New Project
         </Link>
       }
     >
@@ -159,37 +189,127 @@ export default function Dashboard() {
         </div>
       </form>
 
-      {/* Metric Cards — 4 columns */}
+      {/* ═══ Metric Cards ═══ */}
       <div className="grid metrics" style={{ marginBottom: 20 }}>
         {metricCards.map((m, i) => (
           <div
             className={`card animate-fade-in stagger-${i + 1}`}
             key={m.label}
-            style={{ padding: "16px 20px", display: "flex", gap: 14, alignItems: "start" }}
+            style={{
+              padding: "18px 20px",
+              display: "flex",
+              gap: 14,
+              alignItems: "center",
+              transition: "border-color 0.15s ease, box-shadow 0.15s ease",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = m.color;
+              e.currentTarget.style.boxShadow = `0 0 0 1px ${m.color}20`;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = "";
+              e.currentTarget.style.boxShadow = "";
+            }}
           >
             <div
               style={{
-                width: 36,
-                height: 36,
+                width: 42,
+                height: 42,
                 borderRadius: "var(--radius-md)",
-                background: `${m.color}15`,
+                background: `${m.color}12`,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 flexShrink: 0,
               }}
             >
-              <m.icon size={17} style={{ color: m.color }} />
+              <m.icon size={20} style={{ color: m.color }} />
             </div>
-            <div>
-              <div style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 500 }}>{m.label}</div>
-              <div className="number">{loadingStats ? "—" : m.value}</div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 500, marginBottom: 2 }}>{m.label}</div>
+              {loadingStats ? (
+                <Skeleton style={{ width: 40, height: 24 }} />
+              ) : (
+                <div className="number">{m.value}</div>
+              )}
             </div>
           </div>
         ))}
       </div>
 
-      {/* Row 2: Quick Actions + Workflow Steps + System Status */}
+      {/* ═══ Characterization Modules ═══ */}
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, padding: "0 2px" }}>
+          <div>
+            <h2 style={{ fontSize: 15, fontWeight: 600, letterSpacing: "-0.2px" }}>Characterization Modules</h2>
+            <p style={{ fontSize: 12, color: "var(--text-tertiary)", marginTop: 2 }}>Available analytical techniques</p>
+          </div>
+          <FlaskConical size={16} style={{ color: "var(--text-muted)" }} />
+        </div>
+        <div
+          style={{
+            display: "flex",
+            gap: 10,
+            overflowX: "auto",
+            paddingBottom: 4,
+            scrollbarWidth: "thin",
+          }}
+        >
+          {characterizationModules.map((mod, i) => (
+            <Link
+              key={mod.name}
+              href={mod.href}
+              style={{ textDecoration: "none", color: "inherit" }}
+            >
+              <div
+                className={`card animate-fade-in stagger-${Math.min(i + 1, 6)}`}
+                style={{
+                  padding: "14px 16px",
+                  minWidth: 110,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: 8,
+                  cursor: "pointer",
+                  transition: "border-color 0.15s ease, transform 0.12s ease",
+                  flexShrink: 0,
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = mod.color;
+                  e.currentTarget.style.transform = "translateY(-1px)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = "";
+                  e.currentTarget.style.transform = "";
+                }}
+              >
+                <div
+                  style={{
+                    width: 34,
+                    height: 34,
+                    borderRadius: "var(--radius-sm)",
+                    background: `${mod.color}12`,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <mod.icon size={17} style={{ color: mod.color }} />
+                </div>
+                <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)" }}>{mod.name}</span>
+                <span
+                  className={`badge ${mod.available ? "good" : ""}`}
+                  style={{ fontSize: 10, padding: "1px 7px" }}
+                >
+                  {mod.available ? "Available" : "Coming Soon"}
+                </span>
+              </div>
+            </Link>
+          ))}
+        </div>
+      </div>
+
+      {/* ═══ Quick Actions + AI Assistant + System Status ═══ */}
       <div className="grid three" style={{ marginBottom: 20 }}>
         {/* Quick Actions */}
         <section className="card">
@@ -244,58 +364,34 @@ export default function Dashboard() {
           </div>
         </section>
 
-        {/* Workflow Steps */}
+        {/* AI Assistant */}
         <section className="card">
           <div className="section">
             <div>
-              <h2>{t.dash_quick_start}</h2>
-              <span className="muted">XRD analysis pipeline</span>
+              <h2>AI Assistant</h2>
+              <span className="muted">Intelligent analysis helper</span>
             </div>
+            <Sparkles size={16} style={{ color: "var(--accent-violet)" }} />
           </div>
-          <div style={{ padding: "4px 20px 20px" }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              {workflowSteps.map((item) => (
-                <Link
-                  key={item.step}
-                  href={item.href}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                    padding: "10px 12px",
-                    borderRadius: "var(--radius-md)",
-                    textDecoration: "none",
-                    color: "inherit",
-                    transition: "background 0.12s ease",
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-hover)")}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                >
-                  <div
-                    style={{
-                      width: 28,
-                      height: 28,
-                      borderRadius: "var(--radius-sm)",
-                      background: `${item.color}15`,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: 11,
-                      fontWeight: 700,
-                      color: item.color,
-                      flexShrink: 0,
-                    }}
-                  >
-                    {item.step}
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 550 }}>{item.name}</div>
-                    <div style={{ fontSize: 12, color: "var(--text-tertiary)" }}>{item.desc}</div>
-                  </div>
-                  <ArrowUpRight size={14} color="var(--text-muted)" />
-                </Link>
+          <div style={{ padding: "4px 20px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
+            <p style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.6 }}>
+              Get help with phase identification, structure refinement, data interpretation, and report generation.
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {["XRD pattern analysis", "Rietveld refinement tips", "Material characterization guidance"].map((item) => (
+                <div key={item} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--text-tertiary)" }}>
+                  <CheckCircle2 size={12} style={{ color: "var(--accent-emerald)", flexShrink: 0 }} />
+                  {item}
+                </div>
               ))}
             </div>
+            <Link
+              href="/assistant"
+              className="button primary"
+              style={{ textDecoration: "none", alignSelf: "stretch", justifyContent: "center", marginTop: 4 }}
+            >
+              <Sparkles size={14} /> Open Assistant
+            </Link>
           </div>
         </section>
 
@@ -303,14 +399,22 @@ export default function Dashboard() {
         <section className="card">
           <div className="section">
             <div>
-              <h2>System Status</h2>
+              <h2>{t.dash_health}</h2>
               <span className="muted">Platform health</span>
             </div>
           </div>
           <div style={{ padding: "4px 20px 20px" }}>
             {loadingHealth ? (
-              <div style={{ padding: 20, textAlign: "center" }}>
-                <Activity size={20} className="spin" style={{ color: "var(--text-muted)" }} />
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {[1, 2, 3].map((i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <Skeleton style={{ width: 10, height: 10, borderRadius: "50%" }} />
+                    <div style={{ flex: 1 }}>
+                      <Skeleton style={{ width: "70%", height: 12, marginBottom: 4 }} />
+                      <Skeleton style={{ width: "40%", height: 10 }} />
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -322,6 +426,7 @@ export default function Dashboard() {
                       borderRadius: "50%",
                       background: health?.status === "healthy" ? "var(--success)" : "var(--warning)",
                       flexShrink: 0,
+                      boxShadow: health?.status === "healthy" ? "0 0 6px var(--success)" : "0 0 6px var(--warning)",
                     }}
                   />
                   <div>
@@ -354,7 +459,7 @@ export default function Dashboard() {
         </section>
       </div>
 
-      {/* Row 3: Recent Activity + Job Status + Notifications */}
+      {/* ═══ Recent Activity + Job Status + Notifications ═══ */}
       <div className="grid three" style={{ marginBottom: 20 }}>
         {/* Recent Activity Feed */}
         <section className="card">
@@ -365,8 +470,25 @@ export default function Dashboard() {
             </div>
           </div>
           {loadingActivities ? (
-            <div style={{ padding: 30, textAlign: "center" }}>
-              <Activity size={20} className="spin" style={{ color: "var(--text-muted)" }} />
+            <div style={{ padding: "0 20px 12px" }}>
+              {[1, 2, 3, 4].map((i) => (
+                <div
+                  key={i}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    padding: "10px 0",
+                    borderBottom: "1px solid var(--border-subtle)",
+                  }}
+                >
+                  <Skeleton style={{ width: 28, height: 28, borderRadius: "var(--radius-sm)", flexShrink: 0 }} />
+                  <div style={{ flex: 1 }}>
+                    <Skeleton style={{ width: "70%", height: 12, marginBottom: 6 }} />
+                    <Skeleton style={{ width: "30%", height: 10 }} />
+                  </div>
+                </div>
+              ))}
             </div>
           ) : activities.length > 0 ? (
             <div style={{ padding: "0 20px 12px" }}>
@@ -413,9 +535,12 @@ export default function Dashboard() {
               })}
             </div>
           ) : (
-            <p className="muted" style={{ padding: 20, textAlign: "center", fontSize: 13 }}>
-              No activity yet. Create a project to get started.
-            </p>
+            <EmptyState
+              icon={Activity}
+              title="No activity yet"
+              description="Create a project to start tracking your characterization work."
+              action={{ label: "Create Project", href: "/projects" }}
+            />
           )}
         </section>
 
@@ -431,12 +556,29 @@ export default function Dashboard() {
             </Link>
           </div>
           {loadingJobs ? (
-            <div style={{ padding: 30, textAlign: "center" }}>
-              <Activity size={20} className="spin" style={{ color: "var(--text-muted)" }} />
+            <div style={{ padding: "0 20px 16px" }}>
+              {[1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    padding: "10px 0",
+                    borderBottom: "1px solid var(--border-subtle)",
+                  }}
+                >
+                  <Skeleton style={{ width: 8, height: 8, borderRadius: "50%", flexShrink: 0 }} />
+                  <div style={{ flex: 1 }}>
+                    <Skeleton style={{ width: "60%", height: 12, marginBottom: 4 }} />
+                    <Skeleton style={{ width: "40%", height: 10 }} />
+                  </div>
+                  <Skeleton style={{ width: 50, height: 18, borderRadius: 9999 }} />
+                </div>
+              ))}
             </div>
           ) : jobs.length > 0 ? (
             <div style={{ padding: "0 20px 16px" }}>
-              {/* Summary badges */}
               <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
                 <span className="badge info">{runningCount} running</span>
                 <span className="badge good">{completedCount} completed</span>
@@ -486,9 +628,11 @@ export default function Dashboard() {
               ))}
             </div>
           ) : (
-            <p className="muted" style={{ padding: 20, textAlign: "center", fontSize: 13 }}>
-              No jobs yet. Run an analysis to see job status here.
-            </p>
+            <EmptyState
+              icon={Cpu}
+              title="No jobs yet"
+              description="Run an analysis pipeline to see job status here."
+            />
           )}
         </section>
 
@@ -546,20 +690,22 @@ export default function Dashboard() {
               ))}
             </div>
           ) : (
-            <p className="muted" style={{ padding: 20, textAlign: "center", fontSize: 13 }}>
-              No unread notifications.
-            </p>
+            <EmptyState
+              icon={Bell}
+              title="All caught up"
+              description="No unread notifications at this time."
+            />
           )}
         </section>
       </div>
 
-      {/* Row 4: Recent Projects + Recent Samples + Popular Structures */}
+      {/* ═══ Recent Projects + Recent Samples ═══ */}
       <div className="grid three" style={{ marginBottom: 20 }}>
         {/* Recent Projects Table */}
         <section className="card" style={{ gridColumn: "span 2" }}>
           <div className="section">
             <div>
-              <h2>Recent Projects</h2>
+              <h2>{t.dash_recent}</h2>
               <span className="muted">Your active characterization work</span>
             </div>
             <Link href="/projects" className="button ghost sm" style={{ textDecoration: "none" }}>View all</Link>
@@ -577,16 +723,24 @@ export default function Dashboard() {
             </thead>
             <tbody>
               {loadingProjects ? (
-                <tr>
-                  <td colSpan={6} style={{ textAlign: "center", padding: 24 }}>
-                    <Activity size={18} className="spin" style={{ color: "var(--text-muted)" }} />
-                  </td>
-                </tr>
+                [1, 2, 3, 4, 5].map((i) => (
+                  <tr key={i}>
+                    <td><Skeleton style={{ width: "60%", height: 12 }} /></td>
+                    <td><Skeleton style={{ width: "50%", height: 12 }} /></td>
+                    <td><Skeleton style={{ width: 20, height: 12 }} /></td>
+                    <td><Skeleton style={{ width: 20, height: 12 }} /></td>
+                    <td><Skeleton style={{ width: "70%", height: 12 }} /></td>
+                    <td><Skeleton style={{ width: 50, height: 16, borderRadius: 9999 }} /></td>
+                  </tr>
+                ))
               ) : allProjects.length === 0 ? (
                 <tr>
                   <td colSpan={6} style={{ textAlign: "center", padding: 24, color: "var(--text-tertiary)" }}>
-                    No projects yet.{" "}
-                    <Link href="/projects" style={{ color: "var(--accent-orange)" }}>Create your first project</Link>{" "}to get started.
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+                      <FolderKanban size={20} style={{ color: "var(--text-muted)", opacity: 0.5 }} />
+                      <span>No projects yet.{" "}
+                        <Link href="/projects" style={{ color: "var(--accent-orange)" }}>Create your first project</Link>{" "}to get started.</span>
+                    </div>
                   </td>
                 </tr>
               ) : (
@@ -623,8 +777,26 @@ export default function Dashboard() {
             <Link href="/samples" className="button ghost sm" style={{ textDecoration: "none" }}>View all</Link>
           </div>
           {loadingSamples ? (
-            <div style={{ padding: 30, textAlign: "center" }}>
-              <Activity size={20} className="spin" style={{ color: "var(--text-muted)" }} />
+            <div style={{ padding: "0 20px 12px" }}>
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div
+                  key={i}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    padding: "10px 0",
+                    borderBottom: "1px solid var(--border-subtle)",
+                  }}
+                >
+                  <Skeleton style={{ width: 28, height: 28, borderRadius: "var(--radius-sm)", flexShrink: 0 }} />
+                  <div style={{ flex: 1 }}>
+                    <Skeleton style={{ width: "60%", height: 12, marginBottom: 4 }} />
+                    <Skeleton style={{ width: "40%", height: 10 }} />
+                  </div>
+                  <Skeleton style={{ width: 50, height: 16, borderRadius: 9999 }} />
+                </div>
+              ))}
             </div>
           ) : allSamples.length > 0 ? (
             <div style={{ padding: "0 20px 12px" }}>
@@ -668,14 +840,100 @@ export default function Dashboard() {
               ))}
             </div>
           ) : (
-            <p className="muted" style={{ padding: 20, textAlign: "center", fontSize: 13 }}>
-              No samples yet. Register a sample to begin.
-            </p>
+            <EmptyState
+              icon={Beaker}
+              title="No samples yet"
+              description="Register a sample to begin characterization."
+              action={{ label: "Register Sample", href: "/samples" }}
+            />
           )}
         </section>
       </div>
 
-      {/* Row 5: Popular Structures + Download Queue */}
+      {/* ═══ Workflow Pipeline ═══ */}
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, padding: "0 2px" }}>
+          <div>
+            <h2 style={{ fontSize: 15, fontWeight: 600, letterSpacing: "-0.2px" }}>Analysis Pipeline</h2>
+            <p style={{ fontSize: 12, color: "var(--text-tertiary)", marginTop: 2 }}>XRD analysis workflow stages</p>
+          </div>
+          <Layers size={16} style={{ color: "var(--text-muted)" }} />
+        </div>
+        <div
+          className="card"
+          style={{
+            padding: "24px 28px",
+            display: "flex",
+            alignItems: "center",
+            gap: 0,
+            overflowX: "auto",
+          }}
+        >
+          {workflowSteps.map((step, i) => (
+            <div key={step.step} style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: 8,
+                  minWidth: 120,
+                }}
+              >
+                <div
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: "var(--radius-lg)",
+                    background: `${step.color}12`,
+                    border: `1px solid ${step.color}25`,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 14,
+                    fontWeight: 700,
+                    color: step.color,
+                  }}
+                >
+                  {step.step}
+                </div>
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>{step.name}</div>
+                  <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginTop: 2 }}>{step.desc}</div>
+                </div>
+              </div>
+              {i < workflowSteps.length - 1 && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: 40,
+                    flexShrink: 0,
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 24,
+                      height: 1,
+                      background: "var(--border-default)",
+                    }}
+                  />
+                  <ArrowRight
+                    size={14}
+                    style={{
+                      color: "var(--text-muted)",
+                      position: "absolute",
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ═══ Popular Structures + Download Queue ═══ */}
       <div className="grid two" style={{ marginBottom: 20 }}>
         {/* Popular Structures */}
         <section className="card">
@@ -687,9 +945,26 @@ export default function Dashboard() {
             <Link href="/structures" className="button ghost sm" style={{ textDecoration: "none" }}>View all</Link>
           </div>
           {loadingStructures ? (
-            <div style={{ padding: 30, textAlign: "center" }}>
-              <Activity size={20} className="spin" style={{ color: "var(--text-muted)" }} />
-            </div>
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Structure</th>
+                  <th>Formula</th>
+                  <th>Space Group</th>
+                  <th>Source</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <tr key={i}>
+                    <td><Skeleton style={{ width: "60%", height: 12 }} /></td>
+                    <td><Skeleton style={{ width: "50%", height: 12 }} /></td>
+                    <td><Skeleton style={{ width: "40%", height: 12 }} /></td>
+                    <td><Skeleton style={{ width: 40, height: 16, borderRadius: 9999 }} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           ) : structures.length > 0 ? (
             <table className="table">
               <thead>
@@ -716,9 +991,11 @@ export default function Dashboard() {
               </tbody>
             </table>
           ) : (
-            <p className="muted" style={{ padding: 20, textAlign: "center", fontSize: 13 }}>
-              No structures in database yet.
-            </p>
+            <EmptyState
+              icon={Database}
+              title="No structures yet"
+              description="Crystal structures will appear here once imported."
+            />
           )}
         </section>
 
@@ -731,8 +1008,26 @@ export default function Dashboard() {
             </div>
           </div>
           {loadingDownloads ? (
-            <div style={{ padding: 30, textAlign: "center" }}>
-              <Activity size={20} className="spin" style={{ color: "var(--text-muted)" }} />
+            <div style={{ padding: "0 20px 12px" }}>
+              {[1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    padding: "10px 0",
+                    borderBottom: "1px solid var(--border-subtle)",
+                  }}
+                >
+                  <Skeleton style={{ width: 28, height: 28, borderRadius: "var(--radius-sm)", flexShrink: 0 }} />
+                  <div style={{ flex: 1 }}>
+                    <Skeleton style={{ width: "70%", height: 12, marginBottom: 4 }} />
+                    <Skeleton style={{ width: "50%", height: 10 }} />
+                  </div>
+                  <Skeleton style={{ width: 60, height: 16, borderRadius: 9999 }} />
+                </div>
+              ))}
             </div>
           ) : downloads.length > 0 ? (
             <div style={{ padding: "0 20px 12px" }}>
@@ -779,9 +1074,11 @@ export default function Dashboard() {
               ))}
             </div>
           ) : (
-            <p className="muted" style={{ padding: 20, textAlign: "center", fontSize: 13 }}>
-              No pending downloads.
-            </p>
+            <EmptyState
+              icon={Download}
+              title="No pending downloads"
+              description="Exports will appear here when ready."
+            />
           )}
         </section>
       </div>

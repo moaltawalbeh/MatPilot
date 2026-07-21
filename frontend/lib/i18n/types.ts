@@ -14,6 +14,19 @@ export type TranslationKeys = {
   nav_services: string;
   nav_about: string;
   nav_launch: string;
+  nav_characterization: string;
+  nav_xrd: string;
+  nav_raman: string;
+  nav_ftir: string;
+  nav_uvvis: string;
+  nav_sem: string;
+  nav_eds: string;
+  nav_tem: string;
+  nav_xps: string;
+  nav_tga: string;
+  nav_dsc: string;
+  nav_bet: string;
+  nav_dls: string;
 
   // Landing page
   landing_title: string;
@@ -76,4 +89,8 @@ export type TranslationKeys = {
   error: string;
   success: string;
   language: string;
+
+  // Coming Soon
+  coming_soon_title: string;
+  coming_soon_desc: string;
 };

@@ -12,7 +12,7 @@ from backend.api.routers import (
     upload, analysis, providers, report, health, jobs, config, system,
     projects, experiments, samples, measurements, structures, collections,
     downloads, notifications, search_configs, activities, dashboard, admin,
-    teams, organizations, search, manual_refinement, auth,
+    teams, organizations, search, manual_refinement, auth, chat,
 )
 from backend.api.middleware.error_handler import register_exception_handlers
 from backend.api.middleware.activity_recorder import ActivityRecorderMiddleware
@@ -102,6 +102,7 @@ def create_app() -> FastAPI:
     app.include_router(search.router)
     app.include_router(auth.router)
     app.include_router(manual_refinement.router)
+    app.include_router(chat.router)
 
     return app
 

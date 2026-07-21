@@ -5,8 +5,8 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { LanguageProvider } from "@/components/language-provider";
 
 export const metadata: Metadata = {
-  title: "MatPilot — Scientific Analysis Platform",
-  description: "Advanced X-ray diffraction analysis and materials characterization platform",
+  title: "MatPilot — Materials Characterization Platform",
+  description: "Comprehensive platform for materials characterization including XRD, Raman, FTIR, SEM, and more",
 };
 
 export default function Layout({ children }: { children: React.ReactNode }) {

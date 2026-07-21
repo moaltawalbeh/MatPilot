@@ -2,7 +2,7 @@
 
 import { PublicHeader, PublicFooter } from "@/components/layout/public-header";
 import Link from "next/link";
-import { BarChart3, Search, Target, Database, FileText, Atom, Sparkles } from "lucide-react";
+import { BarChart3, Search, Target, Database, FileText, Atom, Sparkles, MessageSquare } from "lucide-react";
 
 const services = [
   {
@@ -24,7 +24,7 @@ const services = [
     icon: Target,
     title: "Rietveld Refinement",
     description: "Perform least-squares Rietveld refinement to extract lattice parameters, phase fractions, and structural details from multiphase samples.",
-    features: ["Auto Workflow", "Profile Fitting", "Phase Fractions", "Quality Metrics"],
+    features: ["Auto Workflow", "Manual Mode", "Profile Fitting", "Quality Metrics"],
   },
   {
     slug: "reference-search",
@@ -48,6 +48,13 @@ const services = [
     features: ["3D Viewer", "Unit Cell Display", "Atomic Positions", "Space Group Info"],
   },
   {
+    slug: "ai-assistant",
+    icon: MessageSquare,
+    title: "AI Assistant",
+    description: "Get expert help from an AI-powered assistant for materials science questions, crystallography concepts, and analysis result interpretation.",
+    features: ["Materials Science", "Crystallography", "Result Explanation", "Context-Aware"],
+  },
+  {
     slug: "report-generation",
     icon: Sparkles,
     title: "Scientific Report Generation",
@@ -66,7 +73,7 @@ export default function ServicesPage() {
             Our <span style={{ color: "var(--accent-orange)" }}>Services</span>
           </h1>
           <p style={{ fontSize: 16, color: "var(--text-secondary)", maxWidth: 600, margin: "0 auto", lineHeight: 1.7 }}>
-            Comprehensive suite of scientific tools for X-ray diffraction analysis and materials characterization.
+            Comprehensive suite of scientific tools for materials characterization and X-ray diffraction analysis.
           </p>
         </div>
 
@@ -76,7 +83,7 @@ export default function ServicesPage() {
             return (
               <Link
                 key={service.slug}
-                href={`/services/${service.slug}`}
+                href={service.slug === "ai-assistant" ? "/dashboard" : `/services/${service.slug}`}
                 style={{ textDecoration: "none" }}
               >
                 <div className="card" style={{ padding: 24, height: "100%", cursor: "pointer", transition: "border-color 0.15s" }}

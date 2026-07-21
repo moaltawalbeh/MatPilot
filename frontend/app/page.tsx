@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { Zap, ArrowRight, FlaskConical, Database, Target, BarChart3, FileText, FileBarChart, ChevronRight, Check, Globe, Sun, Moon } from "lucide-react";
+import { Zap, ArrowRight, FlaskConical, Database, Target, BarChart3, FileText, FileBarChart, ChevronRight, Check, Globe, Sun, Moon, Waves, AudioLines, Microscope, Atom, ScanEye, Thermometer, Flame, CircleDot, Layers, Sparkles } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 import { useLanguage } from "@/components/language-provider";
 import { LOCALES } from "@/lib/i18n";
@@ -14,7 +14,7 @@ const FEATURES = [
   { icon: FlaskConical, titleKey: "feature_phase_id" as const, descKey: "feature_phase_id_desc" as const, color: "var(--accent-emerald)" },
   { icon: Target, titleKey: "feature_rietveld" as const, descKey: "feature_rietveld_desc" as const, color: "var(--accent-violet)" },
   { icon: FileText, titleKey: "feature_reports" as const, descKey: "feature_reports_desc" as const, color: "var(--accent-rose)" },
-  { icon: BarChart3, titleKey: "feature_charts" as const, descKey: "feature_charts_desc" as const, color: "var(--accent-amber)" },
+  { icon: Sparkles, title: "AI Assistant", desc: "Intelligent assistant for materials science questions and result interpretation", color: "var(--accent-amber)" },
 ];
 
 const WORKFLOW_STEPS = [
@@ -27,7 +27,22 @@ const WORKFLOW_STEPS = [
   { icon: "📄", labelKey: "wf_report" as const },
 ];
 
-const TECH = ["Python", "FastAPI", "Next.js", "React", "TypeScript", "NumPy", "SciPy", "pymatgen", "Materials Science"];
+const TECH = ["Python", "FastAPI", "Next.js", "React", "TypeScript", "NumPy", "SciPy", "pymatgen", "Groq AI", "PostgreSQL", "Materials Science"];
+
+const TECHNIQUES = [
+  { name: "X-ray Diffraction", icon: FileBarChart, color: "var(--accent-orange)", available: true, href: "/experiments" },
+  { name: "Raman Spectroscopy", icon: Waves, color: "var(--accent-cyan)", available: false, href: "/characterization/raman" },
+  { name: "FTIR Spectroscopy", icon: AudioLines, color: "var(--accent-emerald)", available: false, href: "/characterization/ftir" },
+  { name: "UV-Vis Spectroscopy", icon: Sun, color: "var(--accent-amber)", available: false, href: "/characterization/uvvis" },
+  { name: "SEM", icon: Microscope, color: "var(--accent-violet)", available: false, href: "/characterization/sem" },
+  { name: "EDS/EDX", icon: Atom, color: "var(--accent-rose)", available: false, href: "/characterization/eds" },
+  { name: "TEM", icon: ScanEye, color: "var(--accent-cyan)", available: false, href: "/characterization/tem" },
+  { name: "XPS", icon: Target, color: "var(--accent-orange)", available: false, href: "/characterization/xps" },
+  { name: "TGA", icon: Thermometer, color: "var(--accent-emerald)", available: false, href: "/characterization/tga" },
+  { name: "DSC", icon: Flame, color: "var(--accent-rose)", available: false, href: "/characterization/dsc" },
+  { name: "BET Surface Area", icon: Layers, color: "var(--accent-violet)", available: false, href: "/characterization/bet" },
+  { name: "Dynamic Light Scattering", icon: CircleDot, color: "var(--accent-amber)", available: false, href: "/characterization/dls" },
+];
 
 export default function LandingPage() {
   const { theme, toggle } = useTheme();
@@ -212,12 +227,49 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* Characterization Techniques */}
+      <section style={{ padding: "60px 32px", maxWidth: 1100, margin: "0 auto" }}>
+        <h2 style={{ fontSize: 32, fontWeight: 750, textAlign: "center", marginBottom: 12, letterSpacing: "-0.5px" }}>
+          Supported Characterization Techniques
+        </h2>
+        <p style={{ fontSize: 15, color: "var(--text-secondary)", textAlign: "center", marginBottom: 40, maxWidth: 600, margin: "0 auto 40px" }}>
+          MatPilot is expanding to support multiple materials characterization methods. XRD is fully implemented, with more techniques coming soon.
+        </p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12 }}>
+          {TECHNIQUES.map((tech) => (
+            <Link key={tech.name} href={tech.href} style={{
+              display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
+              padding: "20px 12px", borderRadius: "var(--radius-md)",
+              background: "var(--surface-1)", border: "1px solid var(--border-subtle)",
+              textDecoration: "none", color: "inherit", transition: "all 0.2s",
+              position: "relative",
+            }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = tech.color; e.currentTarget.style.transform = "translateY(-2px)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border-subtle)"; e.currentTarget.style.transform = "none"; }}
+            >
+              <div style={{
+                width: 40, height: 40, borderRadius: "var(--radius-md)",
+                background: `${tech.color}15`, display: "grid", placeItems: "center",
+              }}>
+                <tech.icon size={20} style={{ color: tech.color }} />
+              </div>
+              <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-primary)", textAlign: "center" }}>{tech.name}</span>
+              {tech.available ? (
+                <span className="badge good" style={{ fontSize: 9 }}>Available</span>
+              ) : (
+                <span className="badge" style={{ fontSize: 9, color: "var(--text-muted)" }}>Coming Soon</span>
+              )}
+            </Link>
+          ))}
+        </div>
+      </section>
+
       {/* Features */}
       <section id="features" style={{ padding: "60px 32px", maxWidth: 1100, margin: "0 auto" }}>
         <h2 style={{ fontSize: 32, fontWeight: 750, textAlign: "center", marginBottom: 40, letterSpacing: "-0.5px" }}>{t.landing_features_title}</h2>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16 }}>
-          {FEATURES.map((f) => (
-            <div key={f.titleKey} style={{
+          {FEATURES.map((f, i) => (
+            <div key={i} style={{
               padding: 24, borderRadius: "var(--radius-lg)",
               background: "var(--surface-1)", border: "1px solid var(--border-subtle)",
               transition: "all 0.2s",
@@ -228,8 +280,8 @@ export default function LandingPage() {
               <div style={{ width: 40, height: 40, borderRadius: "var(--radius-md)", background: `${f.color}15`, display: "grid", placeItems: "center", marginBottom: 14 }}>
                 <f.icon size={20} style={{ color: f.color }} />
               </div>
-              <h3 style={{ fontSize: 15, fontWeight: 650, marginBottom: 6 }}>{t[f.titleKey]}</h3>
-              <p style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.6 }}>{t[f.descKey]}</p>
+              <h3 style={{ fontSize: 15, fontWeight: 650, marginBottom: 6 }}>{("titleKey" in f && f.titleKey) ? t[f.titleKey] : ("title" in f ? (f as any).title : "")}</h3>
+              <p style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.6 }}>{("descKey" in f && f.descKey) ? t[f.descKey] : ("desc" in f ? (f as any).desc : "")}</p>
             </div>
           ))}
         </div>
@@ -257,8 +309,8 @@ export default function LandingPage() {
           background: "linear-gradient(135deg, var(--accent-orange-bg, rgba(249,115,22,0.08)), var(--surface-1))",
           border: "1px solid var(--border-subtle)",
         }}>
-          <h2 style={{ fontSize: 26, fontWeight: 750, marginBottom: 12 }}>Ready to start analyzing?</h2>
-          <p style={{ fontSize: 14, color: "var(--text-secondary)", marginBottom: 24 }}>Launch your workspace and begin your first XRD analysis in minutes.</p>
+          <h2 style={{ fontSize: 26, fontWeight: 750, marginBottom: 12 }}>Ready to characterize your materials?</h2>
+          <p style={{ fontSize: 14, color: "var(--text-secondary)", marginBottom: 24 }}>Launch your workspace and start comprehensive materials characterization.</p>
           <Link href="/dashboard" style={{
             display: "inline-flex", alignItems: "center", gap: 8,
             padding: "12px 32px", borderRadius: "var(--radius-md)",

@@ -13,6 +13,18 @@ import {
   Shield,
   ChevronLeft,
   ChevronRight,
+  Waves,
+  AudioLines,
+  Sun,
+  Microscope,
+  Atom,
+  ScanEye,
+  Target,
+  Thermometer,
+  Flame,
+  Layers,
+  CircleDot,
+  ChevronDown,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -22,6 +34,7 @@ type NavItem = {
   href: string;
   label: string;
   icon: React.ComponentType<{ size?: number }>;
+  badge?: string;
 };
 
 const sections: { title: string; items: NavItem[] }[] = [
@@ -31,6 +44,23 @@ const sections: { title: string; items: NavItem[] }[] = [
       { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
       { href: "/projects", label: "Projects", icon: FolderKanban },
       { href: "/experiments", label: "Experiments", icon: FlaskConical },
+    ],
+  },
+  {
+    title: "CHARACTERIZATION",
+    items: [
+      { href: "/characterization", label: "All Modules", icon: Layers },
+      { href: "/characterization/raman", label: "Raman", icon: Waves, badge: "Soon" },
+      { href: "/characterization/ftir", label: "FTIR", icon: AudioLines, badge: "Soon" },
+      { href: "/characterization/uvvis", label: "UV-Vis", icon: Sun, badge: "Soon" },
+      { href: "/characterization/sem", label: "SEM", icon: Microscope, badge: "Soon" },
+      { href: "/characterization/eds", label: "EDS/EDX", icon: Atom, badge: "Soon" },
+      { href: "/characterization/tem", label: "TEM", icon: ScanEye, badge: "Soon" },
+      { href: "/characterization/xps", label: "XPS", icon: Target, badge: "Soon" },
+      { href: "/characterization/tga", label: "TGA", icon: Thermometer, badge: "Soon" },
+      { href: "/characterization/dsc", label: "DSC", icon: Flame, badge: "Soon" },
+      { href: "/characterization/bet", label: "BET", icon: Layers, badge: "Soon" },
+      { href: "/characterization/dls", label: "DLS", icon: CircleDot, badge: "Soon" },
     ],
   },
   {
@@ -173,7 +203,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
               </div>
             )}
             <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-              {section.items.map(({ href, label, icon: Icon }) => {
+              {section.items.map(({ href, label, icon: Icon, badge }) => {
                 const active = isActive(href);
                 return (
                   <Link
@@ -203,6 +233,21 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                   >
                     <Icon size={18} />
                     {!collapsed && <span>{label}</span>}
+                    {!collapsed && badge && (
+                      <span
+                        style={{
+                          background: "var(--surface-3)",
+                          color: "var(--text-muted)",
+                          fontSize: 9,
+                          padding: "1px 5px",
+                          borderRadius: 4,
+                          marginLeft: "auto",
+                          lineHeight: "14px",
+                        }}
+                      >
+                        {badge}
+                      </span>
+                    )}
                   </Link>
                 );
               })}
