@@ -12,7 +12,7 @@ type DataPoint = {
 };
 
 type Peak = { two_theta: number; intensity: number };
-type TheoreticalPeak = { two_theta: number; intensity: number; hkl?: string; color?: string };
+type TheoreticalPeak = { two_theta: number; intensity: number; hkl?: string; color?: string; phaseName?: string };
 
 type XrdChartProps = {
   data?: DataPoint[];
@@ -652,17 +652,22 @@ export function XrdChart({
 
           {cursorSvg && hasCursor && (
             <g style={{ pointerEvents: "none" }}>
-              <rect x={M.left + cw - 175} y={M.top + 6} width={168} height={nearestPeak ? 54 : 38} rx={4} fill="var(--bg-elevated, #fff)" stroke="var(--border-default, #ddd)" strokeWidth={0.8} opacity={0.94} />
-              <text x={M.left + cw - 167} y={M.top + 21} fontSize={10} fill="var(--text-secondary, #555)" fontFamily="system-ui, sans-serif">
+              <rect x={M.left + cw - 185} y={M.top + 6} width={178} height={nearestPeak ? 68 : 38} rx={4} fill="var(--bg-elevated, #fff)" stroke="var(--border-default, #ddd)" strokeWidth={0.8} opacity={0.94} />
+              <text x={M.left + cw - 177} y={M.top + 21} fontSize={10} fill="var(--text-secondary, #555)" fontFamily="system-ui, sans-serif">
                 2θ = {cursorDataX.toFixed(3)}°
               </text>
-              <text x={M.left + cw - 167} y={M.top + 36} fontSize={10} fill="var(--text-secondary, #555)" fontFamily="system-ui, sans-serif">
+              <text x={M.left + cw - 177} y={M.top + 36} fontSize={10} fill="var(--text-secondary, #555)" fontFamily="system-ui, sans-serif">
                 I = {nearestY != null ? nearestY.toFixed(0) : "—"}
               </text>
               {nearestPeak && (
-                <text x={M.left + cw - 167} y={M.top + 50} fontSize={9} fill={nearestPeak.color || C.theoretical} fontFamily="system-ui, sans-serif" fontWeight={500}>
-                  Peak: {nearestPeak.hkl || nearestPeak.two_theta.toFixed(2) + "°"}
-                </text>
+                <>
+                  <text x={M.left + cw - 177} y={M.top + 50} fontSize={9} fill={nearestPeak.color || C.theoretical} fontFamily="system-ui, sans-serif" fontWeight={500}>
+                    Peak: {nearestPeak.hkl || nearestPeak.two_theta.toFixed(2) + "°"}
+                  </text>
+                  <text x={M.left + cw - 177} y={M.top + 64} fontSize={9} fill={nearestPeak.color || C.theoretical} fontFamily="system-ui, sans-serif" fontWeight={500}>
+                    Phase: {nearestPeak.phaseName || "Reference"}
+                  </text>
+                </>
               )}
             </g>
           )}
