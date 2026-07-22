@@ -251,12 +251,18 @@ async def run_rietveld(
                 status_code=400,
                 detail="selected_cif_ids required for workflow 'auto'"
             )
+        logger.info("[RIETVELD DEBUG] received selected_cif_ids=%s", request.selected_cif_ids)
+        logger.info("[RIETVELD DEBUG] exp.cif_files count=%d, cod_ids=%s", len(exp.cif_files), [c.get("cod_id") for c in exp.cif_files])
+        logger.info("[RIETVELD DEBUG] candidate_phases count=%d, source_ids=%s", len(exp.candidate_phases or []), [p.get("source_id") for p in (exp.candidate_phases or [])])
         cif_map = {c["cod_id"]: c for c in exp.cif_files}
+        logger.info("[RIETVELD DEBUG] cif_map keys=%s", list(cif_map.keys()))
         for cid in request.selected_cif_ids:
             if cid in cif_map:
                 selected_phases.append(cif_map[cid])
+                logger.info("[RIETVELD DEBUG] MATCHED cid=%s", cid)
             else:
-                logger.warning("CIF %s not found in experiment %s", cid, experiment_id)
+                logger.warning("[RIETVELD DEBUG] NO MATCH cid=%s NOT in cif_map keys=%s", cid, list(cif_map.keys()))
+        logger.info("[RIETVELD DEBUG] selected_phases count=%d", len(selected_phases))
 
     elif request.workflow == "upload":
         # Use all uploaded CIFs (not auto-downloaded)

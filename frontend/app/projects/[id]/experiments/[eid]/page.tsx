@@ -292,12 +292,11 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
 
   const runAutomaticRefinement = useCallback(() => {
     if (experimentId) {
-      runRietveld.mutate({
-        experimentId,
-        data: { workflow: "auto", selected_cif_ids: confirmedPhaseIds.length > 0 ? confirmedPhaseIds : undefined },
-      });
+      const payload = { workflow: "auto" as const, selected_cif_ids: confirmedPhaseIds.length > 0 ? confirmedPhaseIds : undefined };
+      console.log("[MATPILOT] runAutomaticRefinement", { experimentId, confirmedPhaseIds, cifFilesCount: experiment?.cif_files?.length ?? 0, payload });
+      runRietveld.mutate({ experimentId, data: payload });
     }
-  }, [experimentId, runRietveld, confirmedPhaseIds]);
+  }, [experimentId, runRietveld, confirmedPhaseIds, experiment?.cif_files]);
 
   const handleModeSelect = useCallback((mode: "auto" | "manual") => {
     setRefinementMode(mode);
@@ -318,6 +317,7 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
       const phase = phases.find((p) => p.rank === rank);
       if (phase?.source_id) sourceIds.push(phase.source_id);
     }
+    console.log("[MATPILOT] handleConfirmPhases", { selectedPhaseIndices: Array.from(selectedPhaseIndices), sourceIds, codIds: (experiment?.cif_files || []).map((c: any) => c.cod_id) });
     setConfirmedPhaseIds(sourceIds);
     setPhasesConfirmed(true);
     if (experimentId) saveConfirmedPhaseIds(experimentId, sourceIds);
@@ -933,6 +933,12 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
                       {isRietveldRunning ? <Loader2 size={13} className="spin" /> : <Play size={13} />}
                       Run Automatic Refinement
                     </button>
+                    {runRietveld.isError && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: "var(--radius-sm)", background: "var(--error-bg)", color: "var(--error)", fontSize: 11, marginTop: 6 }}>
+                        <AlertTriangle size={13} />
+                        <span>{(runRietveld.error as any)?.detail || runRietveld.error?.message || "Refinement failed"}</span>
+                      </div>
+                    )}
                     <button onClick={() => setRefinementMode(null)} disabled={isRietveldRunning} className="button ghost sm" style={{ width: "100%", justifyContent: "center", marginTop: 6 }}>
                       Change Mode
                     </button>
