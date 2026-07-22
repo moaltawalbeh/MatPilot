@@ -4,7 +4,7 @@ import { useState, useMemo, useCallback, useEffect, Suspense, useRef } from "rea
 import { useSearchParams, useRouter } from "next/navigation";
 import { Page } from "@/components/ui/page";
 import { XrdChart } from "@/components/charts/xrd-chart";
-import { useManualRefinement, useRefinementParameters } from "@/hooks/use-api";
+import { useManualRefinement, useRefinementParameters, useExperiment } from "@/hooks/use-api";
 import { apiService } from "@/lib/api-client";
 import type { RefinementParameter, ManualRefinementSession, CIFFile, RietveldResults } from "@/types";
 import {
@@ -12,6 +12,7 @@ import {
   Settings2, Layers, FlaskConical, Loader2, Download, Zap, Target,
   TrendingDown, BarChart3, RefreshCw, Eye, EyeOff, Copy, ArrowLeft,
   CheckCircle2, AlertTriangle, CircleDot, Square, Trash2, Info,
+  Check, X,
 } from "lucide-react";
 
 // ── Category Config ──────────────────────────────────────────────────
@@ -672,63 +673,104 @@ function CategorySection({
   );
 }
 
-// ── Init Screen ──────────────────────────────────────────────────────
+// ── Readiness Screen ─────────────────────────────────────────────────
 
-function InitScreen({
+function ReadinessScreen({
   experimentId,
-  setExperimentId,
+  experiment,
+  isLoading,
   onInit,
   isPending,
-  error,
+  initError,
+  router,
 }: {
   experimentId: string;
-  setExperimentId: (v: string) => void;
+  experiment: any;
+  isLoading: boolean;
   onInit: () => void;
   isPending: boolean;
-  error: string | null;
+  initError: string | null;
+  router: ReturnType<typeof useRouter>;
 }) {
+  const hasData = (experiment?.raw_two_theta?.length ?? 0) > 50;
+  const hasPeaks = (experiment?.detected_peaks?.length ?? 0) > 0;
+  const hasPhases = (experiment?.candidate_phases?.length ?? 0) > 0;
+  const hasCIFs = (experiment?.cif_files?.length ?? 0) > 0;
+  const allReady = hasData && hasPhases && hasCIFs;
+
+  const checks = [
+    { label: "Diffraction Pattern", desc: hasData ? `${experiment.raw_two_theta.length.toLocaleString()} data points loaded` : "No diffraction data found", done: hasData },
+    { label: "Peak Detection", desc: hasPeaks ? `${experiment.detected_peaks.length} peaks identified` : "No peaks detected yet", done: hasPeaks },
+    { label: "Phase Identification", desc: hasPhases ? `${experiment.candidate_phases.length} candidate phases found` : "No phases identified yet", done: hasPhases },
+    { label: "CIF Reference Files", desc: hasCIFs ? `${experiment.cif_files.length} files downloaded` : "No CIF files available", done: hasCIFs },
+  ];
+
   return (
     <Page
       eyebrow="Rietveld Refinement"
       title="Manual Refinement"
-      description="Interactive step-by-step Rietveld refinement with full parameter control."
+      description={experiment ? experiment.name || "Experiment" : "Loading..."}
+      actions={
+        <button className="button ghost sm" onClick={() => experiment?.project_id ? router.push(`/projects/${experiment.project_id}/experiments/${experimentId}`) : router.back()}>
+          <ArrowLeft size={13} /> Back to Experiment
+        </button>
+      }
     >
-      <div className="card" style={{ maxWidth: 560, margin: "40px auto" }}>
-        <div style={S.initOverlay}>
-          <FlaskConical size={48} color="var(--accent-orange)" style={{ opacity: 0.8 }} />
-          <h2 style={{ fontSize: 20, fontWeight: 700, color: "var(--text-primary)" }}>
-            Start Manual Refinement
-          </h2>
-          <p style={{ fontSize: 13, color: "var(--text-secondary)", maxWidth: 400, lineHeight: 1.6 }}>
-            Enter an experiment ID to begin interactive Rietveld refinement.
-            The system will load diffraction data, phase CIFs, and seed
-            parameters from an initial auto-refinement.
-          </p>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%", maxWidth: 360 }}>
-            <input
-              type="text"
-              placeholder="Experiment ID (e.g. exp-abc123)"
-              value={experimentId}
-              onChange={(e) => setExperimentId(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && onInit()}
-              style={{ height: 38, fontSize: 13 }}
-            />
-            {error && (
-              <p style={{ fontSize: 12, color: "var(--error)", lineHeight: 1.4 }}>{error}</p>
-            )}
-            <button
-              className="button primary lg"
-              onClick={onInit}
-              disabled={isPending}
-              style={{ justifyContent: "center" }}
-            >
-              {isPending ? (
-                <><Loader2 size={15} className="spin" /> Initializing...</>
-              ) : (
-                <><Play size={15} /> Initialize Session</>
+      <div className="card" style={{ maxWidth: 560, margin: "20px auto" }}>
+        <div style={{ padding: "28px 32px", display: "flex", flexDirection: "column", alignItems: "center" }}>
+          {isLoading ? (
+            <>
+              <Loader2 size={36} className="spin" style={{ color: "var(--accent-orange)", marginBottom: 16 }} />
+              <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>Loading Experiment Data</h2>
+              <p style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 6 }}>Verifying experiment readiness...</p>
+            </>
+          ) : (
+            <>
+              <div style={{ width: 56, height: 56, borderRadius: "50%", background: allReady ? "rgba(16,185,129,0.12)" : "rgba(249,115,22,0.12)", display: "grid", placeItems: "center", marginBottom: 16 }}>
+                {allReady ? <CheckCircle2 size={28} style={{ color: "var(--success)" }} /> : <AlertTriangle size={28} style={{ color: "var(--accent-orange)" }} />}
+              </div>
+              <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
+                {allReady ? "Ready for Refinement" : "Experiment Status"}
+              </h2>
+              <p style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 6, maxWidth: 420, textAlign: "center", lineHeight: 1.5 }}>
+                {allReady
+                  ? "All prerequisites are met. The system will load diffraction data, phase CIFs, and seed parameters."
+                  : "Some prerequisites are missing. Complete the required steps in the experiment workspace first."}
+              </p>
+
+              <div style={{ width: "100%", marginTop: 20, display: "flex", flexDirection: "column", gap: 8 }}>
+                {checks.map((c) => (
+                  <div key={c.label} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: "var(--radius-sm)", background: c.done ? "rgba(16,185,129,0.05)" : "rgba(239,68,68,0.04)", border: `1px solid ${c.done ? "rgba(16,185,129,0.15)" : "rgba(239,68,68,0.1)"}` }}>
+                    <div style={{ width: 22, height: 22, borderRadius: "50%", display: "grid", placeItems: "center", flexShrink: 0, background: c.done ? "var(--success)" : "var(--error)", color: "white", fontSize: 12, fontWeight: 700 }}>
+                      {c.done ? <Check size={12} /> : <X size={12} />}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: c.done ? "var(--text-primary)" : "var(--error)" }}>{c.label}</div>
+                      <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{c.desc}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {initError && (
+                <div style={{ width: "100%", marginTop: 12, padding: "10px 14px", borderRadius: "var(--radius-sm)", background: "var(--error-bg)", border: "1px solid rgba(239,68,68,0.15)", fontSize: 12, color: "var(--error)" }}>
+                  {initError}
+                </div>
               )}
-            </button>
-          </div>
+
+              <div style={{ display: "flex", gap: 8, marginTop: 20 }}>
+                {allReady ? (
+                  <button className="button primary lg" onClick={onInit} disabled={isPending} style={{ justifyContent: "center" }}>
+                    {isPending ? <><Loader2 size={15} className="spin" /> Initializing...</> : <><Play size={15} /> Start Manual Refinement</>}
+                  </button>
+                ) : (
+                  <button className="button lg" onClick={() => experiment?.project_id ? router.push(`/projects/${experiment.project_id}/experiments/${experimentId}`) : router.back()} style={{ justifyContent: "center" }}>
+                    <ArrowLeft size={15} /> Go to Experiment Workspace
+                  </button>
+                )}
+              </div>
+            </>
+          )}
         </div>
       </div>
     </Page>
@@ -740,14 +782,16 @@ function InitScreen({
 function ManualRefinementContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const experimentIdParam = searchParams.get("experiment") || "";
+  const experimentId = searchParams.get("experiment") || "";
 
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [experimentInput, setExperimentInput] = useState(experimentIdParam);
   const [collapsedCats, setCollapsedCats] = useState<Set<string>>(new Set());
   const [showBounds, setShowBounds] = useState(false);
   const [initError, setInitError] = useState<string | null>(null);
+  const [initAttempted, setInitAttempted] = useState(false);
   const logEndRef = useRef<HTMLDivElement>(null);
+
+  const { data: experiment, isLoading: experimentLoading } = useExperiment(experimentId);
 
   const {
     session,
@@ -823,12 +867,6 @@ function ManualRefinementContent() {
   const unlockedCount = parameters.filter((p) => !p.locked).length;
 
   useEffect(() => {
-    if (experimentIdParam && !experimentInput) {
-      setExperimentInput(experimentIdParam);
-    }
-  }, [experimentIdParam]);
-
-  useEffect(() => {
     if (logEndRef.current) {
       logEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
@@ -836,30 +874,26 @@ function ManualRefinementContent() {
 
   const handleInit = useCallback(async () => {
     setInitError(null);
-    if (!experimentInput.trim()) {
-      setInitError("Please enter an experiment ID");
+    if (!experimentId) {
+      setInitError("No experiment ID provided. Navigate here from the experiment workspace.");
       return;
     }
     try {
-      const exp = await apiService.getExperiment(experimentInput.trim());
+      const exp = experiment || await apiService.getExperiment(experimentId);
       const cifs: CIFFile[] = exp.cif_files || exp.selected_refinement_phases || [];
       const ttheta = exp.raw_two_theta || [];
       const intensity = exp.raw_intensity || [];
       const dataPoints = Math.min(ttheta.length, intensity.length);
-      if (dataPoints === 0) {
-        setInitError("No diffraction data found in this experiment. Run the full pipeline first to process the uploaded file.");
-        return;
-      }
       if (dataPoints < 50) {
-        setInitError(`Only ${dataPoints} data points available — at least 50 are needed for refinement. The uploaded file may be too small or not yet fully processed. Run the full pipeline from the experiment workspace first.`);
+        setInitError("Insufficient diffraction data. Run the full pipeline from the experiment workspace first.");
         return;
       }
       if (cifs.length === 0) {
-        setInitError("No CIF files found. Go to the experiment workspace and run phase identification first.");
+        setInitError("No CIF files found. Run phase identification from the experiment workspace first.");
         return;
       }
       const result = await apiService.initManualRefinement({
-        experiment_id: experimentInput.trim(),
+        experiment_id: experimentId,
         phase_cifs: cifs,
         wavelength: exp.wavelength_angstrom || 1.5406,
         raw_two_theta: ttheta,
@@ -869,12 +903,12 @@ function ManualRefinementContent() {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes("Insufficient data")) {
-        setInitError("Backend could not load diffraction data for this experiment. Try running the full pipeline from the experiment workspace first, then retry.");
+        setInitError("Backend could not load diffraction data. Ensure the full pipeline has completed successfully in the experiment workspace.");
       } else {
         setInitError(msg);
       }
     }
-  }, [experimentInput]);
+  }, [experimentId, experiment]);
 
   const handleToggleLock = useCallback(
     (paramName: string) => {
@@ -945,14 +979,43 @@ function ManualRefinementContent() {
     [sessionId, parameters, lockMutation, unlockMutation],
   );
 
+  const hasData = (experiment?.raw_two_theta?.length ?? 0) > 50;
+  const hasPhases = (experiment?.candidate_phases?.length ?? 0) > 0;
+  const hasCIFs = (experiment?.cif_files?.length ?? 0) > 0;
+  const allReady = hasData && hasPhases && hasCIFs;
+
+  useEffect(() => {
+    if (!sessionId && allReady && !initAttempted && !initMutation.isPending) {
+      setInitAttempted(true);
+      handleInit();
+    }
+  }, [sessionId, allReady, initAttempted, initMutation.isPending, handleInit]);
+
+  if (!experimentId) {
+    return (
+      <Page eyebrow="Rietveld Refinement" title="Manual Refinement" description="No experiment specified.">
+        <div className="card" style={{ maxWidth: 560, margin: "40px auto", padding: "28px 32px", textAlign: "center" }}>
+          <AlertTriangle size={32} style={{ color: "var(--accent-orange)", marginBottom: 12 }} />
+          <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>No Experiment Specified</h2>
+          <p style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 6 }}>Navigate here from the experiment workspace by selecting Manual Refinement mode.</p>
+          <button className="button lg" onClick={() => router.push("/projects")} style={{ justifyContent: "center", marginTop: 16 }}>
+            <ArrowLeft size={15} /> Go to Projects
+          </button>
+        </div>
+      </Page>
+    );
+  }
+
   if (!sessionId) {
     return (
-      <InitScreen
-        experimentId={experimentInput}
-        setExperimentId={setExperimentInput}
+      <ReadinessScreen
+        experimentId={experimentId}
+        experiment={experiment}
+        isLoading={experimentLoading}
         onInit={handleInit}
         isPending={initMutation.isPending}
-        error={initError}
+        initError={initError}
+        router={router}
       />
     );
   }
