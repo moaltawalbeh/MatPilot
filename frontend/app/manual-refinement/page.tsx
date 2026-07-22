@@ -886,19 +886,27 @@ function ManualRefinementContent() {
       try {
         const raw = localStorage.getItem("matpilot_confirmed_phases");
         if (raw) {
-          const map = JSON.parse(raw) as Record<string, number[]>;
-          const ranks = map[experimentId] || [];
-          if (ranks.length > 0 && exp.candidate_phases && exp.cif_files) {
+          const map = JSON.parse(raw);
+          const entry = map[experimentId];
+          let sourceIds: string[] = [];
+          if (Array.isArray(entry)) {
+            if (entry.length > 0 && typeof entry[0] === "string") {
+              sourceIds = entry;
+            }
+          }
+          if (sourceIds.length > 0 && exp.cif_files) {
             const cifsByCod = new Map<string, CIFFile>();
             for (const cif of exp.cif_files) {
               cifsByCod.set(cif.cod_id, cif);
             }
-            for (const rank of ranks) {
-              const phase = exp.candidate_phases.find((p: any, idx: number) => (p.rank ?? idx + 1) === rank);
-              if (phase?.source_id && cifsByCod.has(phase.source_id)) {
-                cifs.push(cifsByCod.get(phase.source_id)!);
-              } else if (phase) {
-                cifs.push({ cod_id: phase.source_id || `phase_${rank}`, material_name: phase.material_name || `Phase ${rank}`, material_formula: phase.material_formula || "N/A", source_provider: phase.source_provider || "unknown", downloaded: false } as CIFFile);
+            for (const sid of sourceIds) {
+              if (cifsByCod.has(sid)) {
+                cifs.push(cifsByCod.get(sid)!);
+              } else {
+                const phase = (exp.candidate_phases || []).find((p: any) => p.source_id === sid);
+                if (phase) {
+                  cifs.push({ cod_id: sid, material_name: phase.material_name || "Unknown", material_formula: phase.material_formula || "N/A", source_provider: phase.source_provider || "unknown", downloaded: false } as CIFFile);
+                }
               }
             }
           }

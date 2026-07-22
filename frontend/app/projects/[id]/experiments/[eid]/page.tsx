@@ -67,21 +67,28 @@ function safeFileName(name: string) {
 
 const CONFIRMED_PHASES_KEY = "matpilot_confirmed_phases";
 
-function loadConfirmedPhases(experimentId: string): Set<number> {
-  if (typeof window === "undefined") return new Set();
+function loadConfirmedPhaseIds(experimentId: string): string[] {
+  if (typeof window === "undefined") return [];
   try {
     const raw = localStorage.getItem(CONFIRMED_PHASES_KEY);
-    if (!raw) return new Set();
-    const map = JSON.parse(raw) as Record<string, number[]>;
-    return new Set(map[experimentId] || []);
-  } catch { return new Set(); }
+    if (!raw) return [];
+    const map = JSON.parse(raw);
+    const entry = map[experimentId];
+    if (!entry || !Array.isArray(entry)) return [];
+    if (entry.length > 0 && typeof entry[0] === "string") return entry;
+    if (entry.length > 0 && typeof entry[0] === "number") {
+      const saved: Set<number> = new Set(entry);
+      return [];
+    }
+    return [];
+  } catch { return []; }
 }
 
-function saveConfirmedPhases(experimentId: string, ranks: number[]) {
+function saveConfirmedPhaseIds(experimentId: string, sourceIds: string[]) {
   try {
     const raw = localStorage.getItem(CONFIRMED_PHASES_KEY);
-    const map = raw ? JSON.parse(raw) as Record<string, number[]> : {};
-    map[experimentId] = ranks;
+    const map = raw ? JSON.parse(raw) as Record<string, string[]> : {};
+    map[experimentId] = sourceIds;
     localStorage.setItem(CONFIRMED_PHASES_KEY, JSON.stringify(map));
   } catch {}
 }
@@ -153,7 +160,7 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
   const [refinementMode, setRefinementMode] = useState<"auto" | "manual" | null>(null);
   const [phaseOrder, setPhaseOrder] = useState<number[]>([]);
   const [hiddenPhaseIndices, setHiddenPhaseIndices] = useState<Set<number>>(new Set());
-  const [confirmedPhaseIndices, setConfirmedPhaseIndices] = useState<Set<number>>(new Set());
+  const [confirmedPhaseIds, setConfirmedPhaseIds] = useState<string[]>([]);
   const [phasesConfirmed, setPhasesConfirmed] = useState(false);
   const [exportingFormat, setExportingFormat] = useState<ExportFormat | null>(null);
 
@@ -169,14 +176,20 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
 
   useEffect(() => {
     if (experimentId) {
-      const saved = loadConfirmedPhases(experimentId);
-      if (saved.size > 0) {
-        setConfirmedPhaseIndices(saved);
-        setSelectedPhaseIndices(saved);
+      const saved = loadConfirmedPhaseIds(experimentId);
+      if (saved.length > 0) {
+        setConfirmedPhaseIds(saved);
         setPhasesConfirmed(true);
+        const ranks = new Set<number>();
+        const phases = experiment?.candidate_phases || [];
+        for (const sid of saved) {
+          const idx = phases.findIndex((p) => p.source_id === sid);
+          if (idx >= 0) ranks.add(idx + 1);
+        }
+        if (ranks.size > 0) setSelectedPhaseIndices(ranks);
       }
     }
-  }, [experimentId]);
+  }, [experimentId, experiment?.candidate_phases]);
 
   useEffect(() => {
     const ranks = (experiment?.candidate_phases || []).map((p, idx) => p.rank ?? idx + 1);
@@ -257,23 +270,34 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
   const pipelineProcessingDone = completedStages.some((s: PipelineStage) => s.id === "peak_detection") &&
     (completedStages.some((s: PipelineStage) => s.id === "phase_identification") || hasCandidatePhases);
   const rietveldCompleted = rietveldResults?.status === "completed";
-  const hasConfirmedPhases = phasesConfirmed && confirmedPhaseIndices.size > 0;
+  const hasConfirmedPhases = phasesConfirmed && confirmedPhaseIds.length > 0;
   const showRefinementMode = pipelineProcessingDone && hasCandidatePhases && hasConfirmedPhases && !rietveldCompleted && !isRietveldRunning && refinementMode === null;
   const showRietveldPanel = refinementMode !== null && !rietveldCompleted;
   const showCandidatePhases = pipelineProcessingDone && hasCandidatePhases && !rietveldCompleted;
 
+  const filteredRietveldResults = useMemo(() => {
+    if (!rietveldResults?.phases_used || !experiment?.candidate_phases) return rietveldResults;
+    const candidateLen = experiment.candidate_phases.length;
+    const phasesUsedLen = rietveldResults.phases_used.length;
+    if (phasesUsedLen <= confirmedPhaseIds.length) return rietveldResults;
+    const confirmedSet = new Set(confirmedPhaseIds);
+    const keptIndices = new Set<number>();
+    experiment.candidate_phases.forEach((cp, idx) => {
+      if (confirmedSet.has(cp.source_id)) keptIndices.add(idx);
+    });
+    if (keptIndices.size === 0 || keptIndices.size >= phasesUsedLen) return rietveldResults;
+    const filteredPhases = rietveldResults.phases_used.filter((_: any, idx: number) => keptIndices.has(idx));
+    return { ...rietveldResults, phases_used: filteredPhases };
+  }, [rietveldResults, confirmedPhaseIds, experiment?.candidate_phases]);
+
   const runAutomaticRefinement = useCallback(() => {
     if (experimentId) {
-      const selectedCifIds = Array.from(confirmedPhaseIndices).map((rank) => {
-        const phase = experiment?.candidate_phases?.find((p) => p.rank === rank);
-        return phase?.source_id;
-      }).filter(Boolean) as string[];
       runRietveld.mutate({
         experimentId,
-        data: { workflow: "auto", selected_cif_ids: selectedCifIds.length > 0 ? selectedCifIds : undefined },
+        data: { workflow: "auto", selected_cif_ids: confirmedPhaseIds.length > 0 ? confirmedPhaseIds : undefined },
       });
     }
-  }, [experimentId, runRietveld, confirmedPhaseIndices, experiment?.candidate_phases]);
+  }, [experimentId, runRietveld, confirmedPhaseIds]);
 
   const handleModeSelect = useCallback((mode: "auto" | "manual") => {
     setRefinementMode(mode);
@@ -283,16 +307,21 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
     setSelectedPhaseIndices(indices);
     setRefinementMode(null);
     setPhasesConfirmed(false);
-    setConfirmedPhaseIndices(new Set());
-    if (experimentId) saveConfirmedPhases(experimentId, []);
+    setConfirmedPhaseIds([]);
+    if (experimentId) saveConfirmedPhaseIds(experimentId, []);
   }, [experimentId]);
 
   const handleConfirmPhases = useCallback(() => {
-    const ranks = Array.from(selectedPhaseIndices);
-    setConfirmedPhaseIndices(new Set(ranks));
+    const sourceIds: string[] = [];
+    const phases = experiment?.candidate_phases || [];
+    for (const rank of selectedPhaseIndices) {
+      const phase = phases.find((p) => p.rank === rank);
+      if (phase?.source_id) sourceIds.push(phase.source_id);
+    }
+    setConfirmedPhaseIds(sourceIds);
     setPhasesConfirmed(true);
-    if (experimentId) saveConfirmedPhases(experimentId, ranks);
-  }, [selectedPhaseIndices, experimentId]);
+    if (experimentId) saveConfirmedPhaseIds(experimentId, sourceIds);
+  }, [selectedPhaseIndices, experiment?.candidate_phases, experimentId]);
 
   const handlePhaseContinue = useCallback(() => {
     setRightOpen(true);
@@ -316,12 +345,13 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
     lines.push("");
     lines.push("SELECTED PHASES");
     lines.push("-".repeat(72));
-    selectedPhaseRanks.forEach((rank, idx) => {
-      const phase = experiment?.candidate_phases?.find((p) => p.rank === rank);
+    const confirmedPhases = confirmedPhaseIds.map((sid) => experiment?.candidate_phases?.find((p) => p.source_id === sid)).filter(Boolean);
+    confirmedPhases.forEach((phase, idx) => {
+      const rank = phase?.rank ?? idx + 1;
       const color = phaseColorMap.get(rank) || PHASE_COLORS[idx % PHASE_COLORS.length];
       lines.push(`${idx + 1}. ${phase?.material_name || `Phase ${rank}`} | ${phase?.material_formula || "N/A"} | Score ${(((phase?.match_score ?? 0) * 100)).toFixed(1)}% | ${phase?.confidence || "N/A"} | Color ${color}`);
     });
-    if (selectedPhaseRanks.length === 0) lines.push("No phases selected.");
+    if (confirmedPhases.length === 0) lines.push("No phases selected.");
     lines.push("");
     lines.push("PHASE IDENTIFICATION RESULTS");
     lines.push("-".repeat(72));
@@ -357,7 +387,7 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
     lines.push("-".repeat(72));
     lines.push(String(experiment?.metadata?.ai_interpretation || "AI interpretation is ready to be attached when guidance services are enabled."));
     return lines.join("\n");
-  }, [experiment, projectId, selectedPhaseRanks, phaseColorMap, refinementMode, isRietveldRunning]);
+  }, [experiment, projectId, confirmedPhaseIds, phaseColorMap, refinementMode, isRietveldRunning]);
 
   const exportReport = useCallback(async (format: ExportFormat) => {
     setExportingFormat(format);
@@ -895,11 +925,11 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
                     </div>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, fontSize: 10, color: "var(--text-muted)" }}>
                       <span>Status: {isRietveldRunning ? "Running" : "Ready"}</span>
-                      <span>Selected: {confirmedPhaseIndices.size} phase{confirmedPhaseIndices.size !== 1 ? "s" : ""}</span>
+                      <span>Selected: {confirmedPhaseIds.length} phase{confirmedPhaseIds.length !== 1 ? "s" : ""}</span>
                       <span>Iteration: {isRietveldRunning ? "optimizing" : "0"}</span>
                       <span>ETA: {isRietveldRunning ? "calculating" : "on run"}</span>
                     </div>
-                    <button onClick={runAutomaticRefinement} disabled={isRietveldRunning || confirmedPhaseIndices.size === 0} className="button primary" style={{ width: "100%", justifyContent: "center", marginTop: 10, height: 34 }}>
+                    <button onClick={runAutomaticRefinement} disabled={isRietveldRunning || confirmedPhaseIds.length === 0} className="button primary" style={{ width: "100%", justifyContent: "center", marginTop: 10, height: 34 }}>
                       {isRietveldRunning ? <Loader2 size={13} className="spin" /> : <Play size={13} />}
                       Run Automatic Refinement
                     </button>
@@ -932,11 +962,12 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
                     Parameter groups are organized as Project, Experiment, Instrument, Background, phase cells, atoms, profile, preferred orientation, size, and strain.
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    {Array.from(confirmedPhaseIndices).map((rank) => {
-                      const phase = experiment.candidate_phases?.find((p) => p.rank === rank);
+                    {confirmedPhaseIds.map((sourceId) => {
+                      const phase = experiment.candidate_phases?.find((p) => p.source_id === sourceId);
+                      const rank = phase?.rank ?? 0;
                       const color = phaseColorMap.get(rank) ?? getPhaseColor(rank - 1);
                       return (
-                        <div key={rank} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 8px", borderRadius: "var(--radius-sm)", background: `${color}10`, border: `1px solid ${color}30` }}>
+                        <div key={sourceId} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 8px", borderRadius: "var(--radius-sm)", background: `${color}10`, border: `1px solid ${color}30` }}>
                           <div style={{ width: 8, height: 8, borderRadius: 2, background: color, flexShrink: 0 }} />
                           <span style={{ fontSize: 10, fontWeight: 600 }}>{phase?.material_formula || `Phase ${rank}`}</span>
                           <span style={{ fontSize: 9, color: "var(--text-muted)", marginLeft: "auto" }}>{phase?.source_provider}</span>
@@ -969,7 +1000,7 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
                     experimentId={experimentId}
                     cifFiles={experiment.cif_files || []}
                     selectedPhases={experiment.selected_refinement_phases || []}
-                    rietveldResults={experiment.rietveld_results || null}
+                    rietveldResults={filteredRietveldResults || null}
                     onComplete={() => {}}
                     onDataReady={() => {}}
                   />
