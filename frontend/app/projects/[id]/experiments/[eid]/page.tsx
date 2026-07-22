@@ -98,22 +98,6 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
 
   const [selectedPhaseIndices, setSelectedPhaseIndices] = useState<Set<number>>(new Set());
   const [refinementMode, setRefinementMode] = useState<"auto" | "manual" | null>(null);
-  const [phaseColors] = useState<Map<number, string>>(() => {
-    const m = new Map<number, string>();
-    return m;
-  });
-
-  useEffect(() => {
-    if (!experiment?.candidate_phases) return;
-    const m = new Map<number, string>();
-    experiment.candidate_phases.forEach((_, idx) => {
-      m.set(idx + 1, PHASE_COLORS[idx % PHASE_COLORS.length]);
-    });
-    phaseColors.forEach((v, k) => m.set(k, v));
-    m.forEach((_, k) => {
-      if (!phaseColors.has(k)) phaseColors.set(k, m.get(k)!);
-    });
-  }, [experiment?.candidate_phases]);
 
   const phaseColorMap = useMemo(() => {
     const m = new Map<number, string>();
@@ -170,9 +154,16 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
 
   const runAutomaticRefinement = useCallback(() => {
     if (experimentId) {
-      runRietveld.mutate({ experimentId, data: { workflow: "auto" } });
+      const selectedCifIds = Array.from(selectedPhaseIndices).map((rank) => {
+        const phase = experiment?.candidate_phases?.find((p) => p.rank === rank);
+        return phase?.source_id;
+      }).filter(Boolean) as string[];
+      runRietveld.mutate({
+        experimentId,
+        data: { workflow: "auto", selected_cif_ids: selectedCifIds.length > 0 ? selectedCifIds : undefined },
+      });
     }
-  }, [experimentId, runRietveld]);
+  }, [experimentId, runRietveld, selectedPhaseIndices, experiment?.candidate_phases]);
 
   const handleModeSelect = useCallback((mode: "auto" | "manual") => {
     setRefinementMode(mode);
@@ -184,7 +175,7 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
   }, [runAutomaticRefinement, router, experimentId]);
 
   const handlePhaseContinue = useCallback(() => {
-    setRefinementMode(null);
+    setRightOpen(true);
   }, []);
 
   const chartData = useMemo(() => {
@@ -217,9 +208,9 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
       two_theta: m.two_theta,
       intensity: m.intensity,
       hkl: m.hkl || "",
-      color: phaseColors.get(m.phase_index + 1) ?? PHASE_COLORS[m.phase_index % PHASE_COLORS.length],
+      color: phaseColorMap.get(m.phase_index + 1) ?? PHASE_COLORS[m.phase_index % PHASE_COLORS.length],
     }));
-  }, [experiment, phaseColors]);
+  }, [experiment, phaseColorMap]);
 
   if (isLoading) {
     return (
