@@ -12,7 +12,7 @@ type DataPoint = {
 };
 
 type Peak = { two_theta: number; intensity: number };
-type TheoreticalPeak = { two_theta: number; intensity: number; hkl?: string };
+type TheoreticalPeak = { two_theta: number; intensity: number; hkl?: string; color?: string };
 
 type XrdChartProps = {
   data?: DataPoint[];
@@ -154,7 +154,7 @@ export function XrdChart({
   const [dims, setDims] = useState({ w: 800, h: 400 });
   const [view, setView] = useState<{ x0: number; x1: number; y0: number; y1: number } | null>(null);
   const [drag, setDrag] = useState<{
-    kind: "box" | "pan";
+    kind: "pan" | "box";
     sx: number;
     sy: number;
     vx0: number;
@@ -164,6 +164,7 @@ export function XrdChart({
   } | null>(null);
   const [box, setBox] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
   const [mousePos, setMousePos] = useState<{ sx: number; sy: number } | null>(null);
+  const [isPanning, setIsPanning] = useState(false);
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -232,10 +233,19 @@ export function XrdChart({
   }, [data, sx, sy]);
 
   const svgToClient = useCallback(
-    (e: React.MouseEvent): { cx: number; cy: number } => {
+    (e: React.MouseEvent | React.TouchEvent): { cx: number; cy: number } => {
       const rect = svgRef.current?.getBoundingClientRect();
       if (!rect) return { cx: 0, cy: 0 };
-      return { cx: e.clientX - rect.left, cy: e.clientY - rect.top };
+      let clientX: number, clientY: number;
+      if ("touches" in e) {
+        const touch = e.touches[0] || e.changedTouches[0];
+        clientX = touch.clientX;
+        clientY = touch.clientY;
+      } else {
+        clientX = e.clientX;
+        clientY = e.clientY;
+      }
+      return { cx: clientX - rect.left, cy: clientY - rect.top };
     },
     [],
   );
@@ -253,13 +263,15 @@ export function XrdChart({
       if (!data || data.length === 0) return;
       const raw = svgToClient(e);
       const { cx, cy } = clampXY(raw.cx, raw.cy);
-      const isPan = e.button === 1 || e.shiftKey || e.ctrlKey;
-      if (isPan) {
+      const isBox = e.shiftKey;
+      if (isBox) {
         e.preventDefault();
-        setDrag({ kind: "pan", sx: cx, sy: cy, vx0: domain.x0, vy0: domain.y0, vx1: domain.x1, vy1: domain.y1 });
-      } else if (e.button === 0) {
         setDrag({ kind: "box", sx: cx, sy: cy, vx0: domain.x0, vy0: domain.y0, vx1: domain.x1, vy1: domain.y1 });
         setBox({ x1: cx, y1: cy, x2: cx, y2: cy });
+      } else {
+        e.preventDefault();
+        setDrag({ kind: "pan", sx: cx, sy: cy, vx0: domain.x0, vy0: domain.y0, vx1: domain.x1, vy1: domain.y1 });
+        setIsPanning(true);
       }
     },
     [data, domain, svgToClient, clampXY],
@@ -303,6 +315,7 @@ export function XrdChart({
     }
     setDrag(null);
     setBox(null);
+    setIsPanning(false);
   }, [drag, box, invX, invY]);
 
   const handleWheel = useCallback(
@@ -336,6 +349,39 @@ export function XrdChart({
     [data, domain, dataDomain, svgToClient, clampXY, invX, invY],
   );
 
+  const handleTouchStart = useCallback(
+    (e: React.TouchEvent) => {
+      if (!data || data.length === 0) return;
+      if (e.touches.length === 1) {
+        const raw = svgToClient(e);
+        const { cx, cy } = clampXY(raw.cx, raw.cy);
+        e.preventDefault();
+        setDrag({ kind: "pan", sx: cx, sy: cy, vx0: domain.x0, vy0: domain.y0, vx1: domain.x1, vy1: domain.y1 });
+        setIsPanning(true);
+      }
+    },
+    [data, domain, svgToClient, clampXY],
+  );
+
+  const handleTouchMove = useCallback(
+    (e: React.TouchEvent) => {
+      if (!drag || drag.kind !== "pan") return;
+      e.preventDefault();
+      const raw = svgToClient(e);
+      const { cx, cy } = clampXY(raw.cx, raw.cy);
+      const dxData = -((cx - drag.sx) / cw) * (drag.vx1 - drag.vx0);
+      const dyData = ((cy - drag.sy) / ch) * (drag.vy1 - drag.vy0);
+      setView({ x0: drag.vx0 + dxData, x1: drag.vx1 + dxData, y0: drag.vy0 + dyData, y1: drag.vy1 + dyData });
+    },
+    [drag, svgToClient, clampXY, cw, ch],
+  );
+
+  const handleTouchEnd = useCallback(() => {
+    setDrag(null);
+    setBox(null);
+    setIsPanning(false);
+  }, []);
+
   const handleDblClick = useCallback(() => {
     setView(null);
     setDrag(null);
@@ -357,6 +403,18 @@ export function XrdChart({
   }, [domain]);
 
   const isZoomed = view !== null;
+
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const preventScroll = (e: WheelEvent) => {
+      if (svgRef.current?.contains(e.target as Node)) {
+        e.preventDefault();
+      }
+    };
+    el.addEventListener("wheel", preventScroll, { passive: false });
+    return () => el.removeEventListener("wheel", preventScroll);
+  }, []);
 
   if (!data || data.length === 0) {
     return (
@@ -387,7 +445,7 @@ export function XrdChart({
   const hasDifference = data[0]?.Difference !== undefined;
   const hasBackground = data[0]?.Background !== undefined;
 
-  let cursorDataX = 0, cursorDataY = 0, nearestY = 0, hasCursor = false;
+  let cursorDataX = 0, cursorDataY = 0, nearestY = 0, nearestIdx = -1, hasCursor = false;
   if (mousePos) {
     cursorDataX = invX(mousePos.sx);
     cursorDataY = invY(mousePos.sy);
@@ -400,8 +458,22 @@ export function XrdChart({
         else hi = mid;
       }
       if (lo > 0 && Math.abs(data[lo - 1].angle - cursorDataX) < Math.abs(data[lo].angle - cursorDataX)) lo--;
+      nearestIdx = lo;
       nearestY = data[lo].Experimental ?? 0;
     }
+  }
+
+  let nearestPeak: TheoreticalPeak | null = null;
+  if (hasCursor && theoreticalPeaks && theoreticalPeaks.length > 0) {
+    let minDist = Infinity;
+    for (const tp of theoreticalPeaks) {
+      const dist = Math.abs(tp.two_theta - cursorDataX);
+      if (dist < minDist) {
+        minDist = dist;
+        nearestPeak = tp;
+      }
+    }
+    if (minDist > 2) nearestPeak = null;
   }
 
   const selRect = box
@@ -429,11 +501,14 @@ export function XrdChart({
               {domain.x0.toFixed(1)}°–{domain.x1.toFixed(1)}°
             </span>
           )}
-          {isZoomed && (
-            <button onClick={handleReset} className="button ghost sm" style={{ height: 24, padding: "0 7px", fontSize: 11 }} title="Reset view (double-click chart)">
-              <RotateCcw size={11} /> Reset
-            </button>
-          )}
+          <button
+            onClick={handleReset}
+            className="button ghost sm"
+            style={{ height: 24, padding: "0 7px", fontSize: 11, opacity: isZoomed ? 1 : 0.5 }}
+            title="Reset view (double-click chart)"
+          >
+            <RotateCcw size={11} /> Reset
+          </button>
           <button onClick={handleCenterZoom} className="button ghost sm" style={{ height: 24, padding: "0 5px" }} title="Zoom to center">
             <ZoomIn size={12} />
           </button>
@@ -452,15 +527,19 @@ export function XrdChart({
           width={dims.w}
           height={dims.h}
           style={{
-            cursor: drag?.kind === "pan" ? "grabbing" : "crosshair",
+            cursor: isPanning ? "grabbing" : "crosshair",
             display: "block",
+            touchAction: "none",
           }}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
-          onMouseLeave={() => { setMousePos(null); if (drag?.kind === "pan") { setDrag(null); setBox(null); } }}
+          onMouseLeave={() => { setMousePos(null); if (drag?.kind === "pan") { setDrag(null); setBox(null); setIsPanning(false); } }}
           onWheel={handleWheel}
           onDoubleClick={handleDblClick}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
           onContextMenu={(e) => e.preventDefault()}
         >
           <defs>
@@ -491,16 +570,19 @@ export function XrdChart({
             {peaks?.map((p, i) => (
               <line key={`pk${i}`} x1={sx(p.two_theta)} y1={M.top} x2={sx(p.two_theta)} y2={M.top + ch} stroke={C.peak} strokeWidth={0.8} strokeDasharray="3 3" opacity={0.55} />
             ))}
-            {theoreticalPeaks?.map((tp, i) => (
-              <g key={`th${i}`}>
-                <line x1={sx(tp.two_theta)} y1={M.top} x2={sx(tp.two_theta)} y2={M.top + ch} stroke={C.theoretical} strokeWidth={1} strokeDasharray="4 2" opacity={0.7} />
-                {tp.hkl && (
-                  <text x={sx(tp.two_theta)} y={M.top + 10} textAnchor="middle" fontSize={8} fill={C.theoretical} fontWeight={500}>
-                    {tp.hkl}
-                  </text>
-                )}
-              </g>
-            ))}
+            {theoreticalPeaks?.map((tp, i) => {
+              const tpColor = tp.color || C.theoretical;
+              return (
+                <g key={`th${i}`}>
+                  <line x1={sx(tp.two_theta)} y1={M.top} x2={sx(tp.two_theta)} y2={M.top + ch} stroke={tpColor} strokeWidth={1} strokeDasharray="4 2" opacity={0.7} />
+                  {tp.hkl && (
+                    <text x={sx(tp.two_theta)} y={M.top + 10 + (i % 3) * 11} textAnchor="middle" fontSize={8} fill={tpColor} fontWeight={500}>
+                      {tp.hkl}
+                    </text>
+                  )}
+                </g>
+              );
+            })}
             {referenceLines?.map((r, i) => (
               <g key={`rf${i}`}>
                 <line x1={sx(r.angle)} y1={M.top} x2={sx(r.angle)} y2={M.top + ch} stroke={r.color || C.theoretical} strokeWidth={0.8} strokeDasharray="5 3" opacity={0.6} />
@@ -562,7 +644,7 @@ export function XrdChart({
             <g clipPath="url(#xrd-clip)" style={{ pointerEvents: "none" }}>
               <line x1={cursorSvg.sx} y1={M.top} x2={cursorSvg.sx} y2={M.top + ch} stroke={C.crosshair} strokeWidth={0.8} strokeDasharray="3 3" />
               <line x1={M.left} y1={cursorSvg.sy} x2={M.left + cw} y2={cursorSvg.sy} stroke={C.crosshair} strokeWidth={0.8} strokeDasharray="3 3" />
-              {nearestY != null && (
+              {nearestIdx >= 0 && (
                 <circle cx={sx(cursorDataX)} cy={sy(nearestY)} r={3.5} fill={C.experimental} stroke="#fff" strokeWidth={1.5} />
               )}
             </g>
@@ -570,13 +652,18 @@ export function XrdChart({
 
           {cursorSvg && hasCursor && (
             <g style={{ pointerEvents: "none" }}>
-              <rect x={M.left + cw - 155} y={M.top + 6} width={148} height={38} rx={4} fill="var(--bg-elevated, #fff)" stroke="var(--border-default, #ddd)" strokeWidth={0.8} opacity={0.92} />
-              <text x={M.left + cw - 147} y={M.top + 21} fontSize={10} fill="var(--text-secondary, #555)" fontFamily="system-ui, sans-serif">
+              <rect x={M.left + cw - 175} y={M.top + 6} width={168} height={nearestPeak ? 54 : 38} rx={4} fill="var(--bg-elevated, #fff)" stroke="var(--border-default, #ddd)" strokeWidth={0.8} opacity={0.94} />
+              <text x={M.left + cw - 167} y={M.top + 21} fontSize={10} fill="var(--text-secondary, #555)" fontFamily="system-ui, sans-serif">
                 2θ = {cursorDataX.toFixed(3)}°
               </text>
-              <text x={M.left + cw - 147} y={M.top + 36} fontSize={10} fill="var(--text-secondary, #555)" fontFamily="system-ui, sans-serif">
+              <text x={M.left + cw - 167} y={M.top + 36} fontSize={10} fill="var(--text-secondary, #555)" fontFamily="system-ui, sans-serif">
                 I = {nearestY != null ? nearestY.toFixed(0) : "—"}
               </text>
+              {nearestPeak && (
+                <text x={M.left + cw - 167} y={M.top + 50} fontSize={9} fill={nearestPeak.color || C.theoretical} fontFamily="system-ui, sans-serif" fontWeight={500}>
+                  Peak: {nearestPeak.hkl || nearestPeak.two_theta.toFixed(2) + "°"}
+                </text>
+              )}
             </g>
           )}
         </svg>

@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { useExperiment, useRunPipeline, useExperimentData, useRunRietveld } from "@/hooks/use-api";
 import { XrdChart } from "@/components/charts/xrd-chart";
-import { PhaseIdentification } from "@/components/experiment/phase-identification";
+import { PhaseIdentification, getPhaseColor, PHASE_COLORS } from "@/components/experiment/phase-identification";
 import { RietveldRefinement } from "@/components/experiment/rietveld-refinement";
 import type { PipelineStage, Peak } from "@/types";
 import Link from "next/link";
@@ -96,6 +96,35 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
   const [chartFullscreen, setChartFullscreen] = useState(false);
   const [statsVisible, setStatsVisible] = useState(false);
 
+  const [selectedPhaseIndices, setSelectedPhaseIndices] = useState<Set<number>>(new Set());
+  const [refinementMode, setRefinementMode] = useState<"auto" | "manual" | null>(null);
+  const [phaseColors] = useState<Map<number, string>>(() => {
+    const m = new Map<number, string>();
+    return m;
+  });
+
+  useEffect(() => {
+    if (!experiment?.candidate_phases) return;
+    const m = new Map<number, string>();
+    experiment.candidate_phases.forEach((_, idx) => {
+      m.set(idx + 1, PHASE_COLORS[idx % PHASE_COLORS.length]);
+    });
+    phaseColors.forEach((v, k) => m.set(k, v));
+    m.forEach((_, k) => {
+      if (!phaseColors.has(k)) phaseColors.set(k, m.get(k)!);
+    });
+  }, [experiment?.candidate_phases]);
+
+  const phaseColorMap = useMemo(() => {
+    const m = new Map<number, string>();
+    if (experiment?.candidate_phases) {
+      experiment.candidate_phases.forEach((_, idx) => {
+        m.set(idx + 1, PHASE_COLORS[idx % PHASE_COLORS.length]);
+      });
+    }
+    return m;
+  }, [experiment?.candidate_phases]);
+
   const shouldAutoRun = useMemo(() => {
     if (!experiment || autoRan) return false;
     return experiment.has_pattern_data && (!experiment.pipeline_stages || experiment.pipeline_stages.length === 0);
@@ -134,13 +163,29 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
     completedStages.some((s: PipelineStage) => s.id === "phase_identification");
   const hasCandidatePhases = (experiment?.candidate_phases?.length ?? 0) > 0;
   const rietveldCompleted = rietveldResults?.status === "completed";
-  const showRefinementMode = pipelineProcessingDone && hasCandidatePhases && !rietveldCompleted && !isRietveldRunning;
+  const hasSelectedPhases = selectedPhaseIndices.size > 0;
+  const showRefinementMode = pipelineProcessingDone && hasCandidatePhases && hasSelectedPhases && !rietveldCompleted && !isRietveldRunning && refinementMode === null;
+  const showRietveldPanel = refinementMode !== null && !rietveldCompleted;
+  const showCandidatePhases = pipelineProcessingDone && hasCandidatePhases && !rietveldCompleted;
 
   const runAutomaticRefinement = useCallback(() => {
     if (experimentId) {
       runRietveld.mutate({ experimentId, data: { workflow: "auto" } });
     }
   }, [experimentId, runRietveld]);
+
+  const handleModeSelect = useCallback((mode: "auto" | "manual") => {
+    setRefinementMode(mode);
+    if (mode === "auto") {
+      runAutomaticRefinement();
+    } else {
+      router.push(`/manual-refinement?experiment=${experimentId}`);
+    }
+  }, [runAutomaticRefinement, router, experimentId]);
+
+  const handlePhaseContinue = useCallback(() => {
+    setRefinementMode(null);
+  }, []);
 
   const chartData = useMemo(() => {
     const rv = experiment?.rietveld_results;
@@ -172,8 +217,9 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
       two_theta: m.two_theta,
       intensity: m.intensity,
       hkl: m.hkl || "",
+      color: phaseColors.get(m.phase_index + 1) ?? PHASE_COLORS[m.phase_index % PHASE_COLORS.length],
     }));
-  }, [experiment]);
+  }, [experiment, phaseColors]);
 
   if (isLoading) {
     return (
@@ -220,16 +266,6 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
 
   const completionPercent = Math.round((completedStages.length / PIPELINE_STAGES.length) * 100);
 
-  const cardHoverStyle = (borderColor: string, bgColor: string) => ({
-    cursor: "pointer" as const,
-    padding: "14px 16px",
-    borderRadius: "var(--radius-md)",
-    background: "var(--surface-1)",
-    border: "1px solid var(--border-subtle)",
-    transition: "all 0.2s",
-    textAlign: "center" as const,
-  });
-
   return (
     <AppShell>
       <div style={{ height: "100vh", display: "flex", flexDirection: "column", background: "var(--bg-primary)", overflow: "hidden" }}>
@@ -238,7 +274,7 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
           @keyframes statsSlideUp { from { opacity: 0; transform: translateX(-50%) translateY(12px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
         `}</style>
 
-        {/* ── Header ── */}
+        {/* Header */}
         <div style={{ borderBottom: "1px solid var(--border-subtle)", padding: "10px 20px", display: "flex", alignItems: "center", gap: 12, background: "var(--bg-secondary)", flexShrink: 0 }}>
           <Link href={`/projects/${projectId}`} style={{ color: "var(--text-muted)", display: "flex", padding: 4, borderRadius: "var(--radius-sm)", transition: "background 0.15s" }}>
             <ArrowLeft size={16} />
@@ -259,7 +295,7 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
           </div>
         </div>
 
-        {/* ── Pipeline Progress ── */}
+        {/* Pipeline Progress */}
         <div style={{ borderBottom: "1px solid var(--border-subtle)", padding: "8px 20px", background: "var(--bg-secondary)", flexShrink: 0 }}>
           <div style={{ height: 3, borderRadius: 2, background: "var(--surface-2)", marginBottom: 8, overflow: "hidden" }}>
             <div style={{ height: "100%", width: `${completionPercent}%`, borderRadius: 2, background: failedStage ? "var(--error)" : isRunning ? "var(--accent-cyan)" : completionPercent === 100 ? "var(--success)" : "var(--accent-cyan)", transition: "width 0.6s cubic-bezier(0.4, 0, 0.2, 1)" }} />
@@ -306,10 +342,10 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
           </div>
         </div>
 
-        {/* ── Main: 3-column layout ── */}
+        {/* Main: 3-column layout */}
         <div style={{ flex: 1, display: "flex", overflow: "hidden", minHeight: 0 }}>
 
-          {/* ── Left Panel ── */}
+          {/* Left Panel */}
           <div style={{ width: leftOpen ? 280 : 0, transition: "width 0.25s cubic-bezier(0.4, 0, 0.2, 1)", overflow: "hidden", borderRight: leftOpen ? "1px solid var(--border-subtle)" : "none", display: "flex", flexDirection: "column", background: "var(--bg-secondary)", flexShrink: 0 }}>
             <div style={{ padding: "8px 12px", borderBottom: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <span style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px", color: "var(--text-muted)" }}>Pipeline & Phases</span>
@@ -354,7 +390,16 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
 
               {completedStages.some((s: PipelineStage) => s.id === "peak_detection") && (
                 <div style={{ marginTop: 14 }}>
-                  <PhaseIdentification experimentId={experimentId} candidatePhases={experiment.candidate_phases || []} cifFiles={experiment.cif_files || []} onComplete={() => {}} />
+                  <PhaseIdentification
+                    experimentId={experimentId}
+                    candidatePhases={experiment.candidate_phases || []}
+                    cifFiles={experiment.cif_files || []}
+                    onComplete={() => {}}
+                    selectedPhaseIndices={selectedPhaseIndices}
+                    onSelectionChange={setSelectedPhaseIndices}
+                    onContinue={handlePhaseContinue}
+                    phaseColors={phaseColorMap}
+                  />
                 </div>
               )}
 
@@ -426,7 +471,7 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
             </div>
           </div>
 
-          {/* ── Center: Chart Area ── */}
+          {/* Center: Chart Area */}
           <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, position: "relative" }}>
             {!leftOpen && (
               <button onClick={() => setLeftOpen(true)} style={{ position: "absolute", left: 4, top: "50%", transform: "translateY(-50%)", zIndex: 10, width: 24, height: 48, borderRadius: "var(--radius-sm)", background: "var(--surface-2)", border: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "var(--text-muted)", boxShadow: "0 1px 4px rgba(0,0,0,0.1)" }} title="Show left panel">
@@ -444,21 +489,8 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
                 <BarChart2 size={12} style={{ color: "var(--accent-orange)" }} />
                 <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-secondary)" }}>Diffraction Pattern</span>
                 <div style={{ marginLeft: "auto", display: "flex", gap: 2 }}>
-                  {[
-                    { icon: ZoomIn, tip: "Zoom In" },
-                    { icon: ZoomOut, tip: "Zoom Out" },
-                    { icon: RotateCcw, tip: "Reset View" },
-                  ].map(({ icon: I, tip }) => (
-                    <button key={tip} title={tip} className="button ghost sm" style={{ height: 24, width: 24, padding: 0, display: "grid", placeItems: "center" }}>
-                      <I size={12} />
-                    </button>
-                  ))}
-                  <div style={{ width: 1, height: 16, background: "var(--border-subtle)", margin: "0 4px" }} />
                   <button onClick={() => setChartFullscreen(!chartFullscreen)} title={chartFullscreen ? "Exit Fullscreen" : "Fullscreen"} className="button ghost sm" style={{ height: 24, width: 24, padding: 0, display: "grid", placeItems: "center" }}>
                     <Maximize2 size={12} />
-                  </button>
-                  <button title="Export Data" className="button ghost sm" style={{ height: 24, width: 24, padding: 0, display: "grid", placeItems: "center" }}>
-                    <Download size={12} />
                   </button>
                 </div>
               </div>
@@ -532,7 +564,7 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
             )}
           </div>
 
-          {/* ── Right Panel ── */}
+          {/* Right Panel */}
           <div style={{ width: rightOpen ? 300 : 0, transition: "width 0.25s cubic-bezier(0.4, 0, 0.2, 1)", overflow: "hidden", borderLeft: rightOpen ? "1px solid var(--border-subtle)" : "none", display: "flex", flexDirection: "column", background: "var(--bg-secondary)", flexShrink: 0 }}>
             <div style={{ padding: "8px 12px", borderBottom: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <span style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px", color: "var(--text-muted)" }}>Refinement</span>
@@ -548,11 +580,22 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
                   <div style={{ textAlign: "center", marginBottom: 14 }}>
                     <h3 style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>Choose Refinement Mode</h3>
                     <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>Select how to proceed with Rietveld refinement</p>
+                    <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 4, justifyContent: "center" }}>
+                      {Array.from(selectedPhaseIndices).map((rank) => {
+                        const phase = experiment.candidate_phases?.find((p) => p.rank === rank);
+                        const color = phaseColorMap.get(rank) ?? getPhaseColor(rank - 1);
+                        return (
+                          <span key={rank} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: 999, fontSize: 10, fontWeight: 600, background: `${color}18`, color, border: `1px solid ${color}40` }}>
+                            <span style={{ width: 6, height: 6, borderRadius: "50%", background: color }} />
+                            {phase?.material_formula || `Phase ${rank}`}
+                          </span>
+                        );
+                      })}
+                    </div>
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                    {/* Automatic Card */}
                     <div
-                      onClick={runAutomaticRefinement}
+                      onClick={() => handleModeSelect("auto")}
                       style={{
                         cursor: "pointer",
                         padding: "14px 12px",
@@ -570,9 +613,8 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
                       <span className="badge good" style={{ marginTop: 4, display: "inline-flex" }}>Recommended</span>
                       <p style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 6, lineHeight: 1.4 }}>One-click refinement with recommended parameters</p>
                     </div>
-                    {/* Manual Card */}
                     <div
-                      onClick={() => router.push(`/manual-refinement?experiment=${experimentId}`)}
+                      onClick={() => handleModeSelect("manual")}
                       style={{
                         cursor: "pointer",
                         padding: "14px 12px",
@@ -615,24 +657,29 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
                 />
               )}
 
-              {/* Candidate Phases List */}
-              {hasCandidatePhases && (
+              {/* Candidate Phases List (color-coded) */}
+              {showCandidatePhases && (
                 <div style={{ marginTop: 14 }}>
-                  <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>Candidate Phases</div>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>
+                    Selected Phases ({selectedPhaseIndices.size}/{experiment.candidate_phases.length})
+                  </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                     {experiment.candidate_phases.map((phase: any, idx: number) => {
+                      const rank = phase.rank ?? idx + 1;
+                      const isSelected = selectedPhaseIndices.has(rank);
+                      const color = phaseColorMap.get(rank) ?? getPhaseColor(idx);
                       const fraction = phase.fraction ?? phase.rwp_fraction ?? null;
                       return (
-                        <div key={idx} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 8px", borderRadius: "var(--radius-sm)", background: "var(--surface-1)", border: "1px solid var(--border-subtle)" }}>
-                          <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--accent-orange)", flexShrink: 0 }} />
+                        <div key={idx} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 8px", borderRadius: "var(--radius-sm)", background: isSelected ? `${color}10` : "var(--surface-1)", border: `1px solid ${isSelected ? `${color}30` : "var(--border-subtle)"}`, opacity: isSelected ? 1 : 0.5, transition: "all 0.15s ease" }}>
+                          <div style={{ width: 6, height: 6, borderRadius: "50%", background: color, flexShrink: 0 }} />
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: 11, fontWeight: 550, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                              {phase.material_formula || phase.name || phase.material_name || `Phase ${idx + 1}`}
+                            <div style={{ fontSize: 11, fontWeight: 550, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: isSelected ? "var(--text-primary)" : "var(--text-muted)" }}>
+                              {phase.material_formula || phase.material_name || phase.name || `Phase ${rank}`}
                             </div>
                             {phase.space_group && <div style={{ fontSize: 9, color: "var(--text-muted)" }}>{phase.space_group}</div>}
                           </div>
                           {fraction != null && (
-                            <span style={{ fontSize: 10, fontFamily: "var(--font-mono)", fontWeight: 600, color: "var(--accent-orange)" }}>
+                            <span style={{ fontSize: 10, fontFamily: "var(--font-mono)", fontWeight: 600, color }}>
                               {(fraction * 100).toFixed(1)}%
                             </span>
                           )}
