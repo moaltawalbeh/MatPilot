@@ -13,12 +13,12 @@ type RietveldRefinementProps = {
   rietveldResults: RietveldResults | null;
   onComplete: () => void;
   onDataReady?: (chartData: any[]) => void;
+  confirmedPhaseIds?: string[];
 };
 
-export function RietveldRefinement({ experimentId, cifFiles, selectedPhases, rietveldResults, onComplete, onDataReady }: RietveldRefinementProps) {
+export function RietveldRefinement({ experimentId, cifFiles, selectedPhases, rietveldResults, onComplete, onDataReady, confirmedPhaseIds }: RietveldRefinementProps) {
   const [expanded, setExpanded] = useState(true);
   const [workflow, setWorkflow] = useState<"auto" | "upload">("auto");
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
   const rietveldMutation = useRunRietveld();
   const uploadCifMutation = useUploadCIFFiles();
@@ -26,6 +26,17 @@ export function RietveldRefinement({ experimentId, cifFiles, selectedPhases, rie
   const hasResults = rietveldResults !== null && rietveldResults.status === "completed";
 
   const autoCifs = cifFiles.filter((c) => c.downloaded && (c.used_for_phase_id ?? false));
+
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => {
+    if (confirmedPhaseIds && confirmedPhaseIds.length > 0) {
+      const ids = new Set<string>();
+      for (const sid of confirmedPhaseIds) {
+        if (autoCifs.some((c) => c.cod_id === sid)) ids.add(sid);
+      }
+      return ids.size > 0 ? ids : new Set(autoCifs.map((c) => c.cod_id));
+    }
+    return new Set(autoCifs.map((c) => c.cod_id));
+  });
   const uploadedCifs = cifFiles.filter((c) => c.uploaded ?? false);
 
   const chartData = useMemo(() => {
@@ -213,7 +224,7 @@ export function RietveldRefinement({ experimentId, cifFiles, selectedPhases, rie
                 </div>
               )}
 
-              <button onClick={() => { setWorkflow("auto"); setSelectedIds(new Set()); }} className="button" style={{ width: "100%", justifyContent: "center" }}>
+              <button onClick={() => { setWorkflow("auto"); setSelectedIds(new Set(autoCifs.map((c) => c.cod_id))); }} className="button" style={{ width: "100%", justifyContent: "center" }}>
                 <FlaskConical size={13} /> Rerun Refinement
               </button>
             </>

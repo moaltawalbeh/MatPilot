@@ -1003,6 +1003,7 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
                     rietveldResults={filteredRietveldResults || null}
                     onComplete={() => {}}
                     onDataReady={() => {}}
+                    confirmedPhaseIds={confirmedPhaseIds}
                   />
                   <div style={{ marginTop: 14, padding: "10px 12px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border-subtle)", background: "var(--surface-1)" }}>
                     <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 8, display: "flex", alignItems: "center", gap: 5 }}>
