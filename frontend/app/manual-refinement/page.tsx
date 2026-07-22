@@ -915,8 +915,17 @@ function ManualRefinementContent() {
       if (cifs.length === 0) {
         cifs = exp.cif_files || exp.selected_refinement_phases || [];
       }
-      const ttheta = exp.raw_two_theta || [];
-      const intensity = exp.raw_intensity || [];
+      let ttheta: number[] = exp.raw_two_theta || [];
+      let intensity: number[] = exp.raw_intensity || [];
+      if (ttheta.length < 50 && exp.project_id) {
+        try {
+          const rawData = await apiService.getExperimentData(exp.project_id, experimentId);
+          if (rawData?.two_theta?.length > 50) {
+            ttheta = rawData.two_theta;
+            intensity = rawData.intensity;
+          }
+        } catch {}
+      }
       const dataPoints = Math.min(ttheta.length, intensity.length);
       if (dataPoints < 50) {
         setInitError("Insufficient diffraction data. Run the full pipeline from the experiment workspace first.");
