@@ -1,13 +1,15 @@
 "use client";
 
 import { useState, useMemo, useCallback, use, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   Layers, Zap, Activity, BarChart2, Search, Database, CheckSquare,
   Target, Play, Check, X, Loader2, Clock, AlertTriangle, FlaskConical,
   ChevronRight, ChevronLeft, ArrowLeft, Box, PanelLeftClose, PanelLeftOpen,
-  PanelRightClose, PanelRightOpen, TableProperties, Atom,
+  PanelRightClose, PanelRightOpen, TableProperties, Atom, Settings2,
+  ZoomIn, ZoomOut, Maximize2, Download, RotateCcw,
 } from "lucide-react";
-import { useExperiment, useRunPipeline, useExperimentData } from "@/hooks/use-api";
+import { useExperiment, useRunPipeline, useExperimentData, useRunRietveld } from "@/hooks/use-api";
 import { XrdChart } from "@/components/charts/xrd-chart";
 import { PhaseIdentification } from "@/components/experiment/phase-identification";
 import { RietveldRefinement } from "@/components/experiment/rietveld-refinement";
@@ -32,16 +34,67 @@ const PIPELINE_STAGES = [
   { id: "rietveld_refinement", name: "Rietveld Refinement", desc: "Least-squares refinement" },
 ];
 
+function getGofColor(v: number): string {
+  if (v < 1.2) return "var(--success)";
+  if (v < 2.0) return "var(--accent-orange)";
+  return "var(--error)";
+}
+
+function getRwpColor(v: number): string {
+  if (v < 10) return "var(--success)";
+  if (v < 20) return "var(--accent-orange)";
+  return "var(--error)";
+}
+
+function SkeletonLine({ width }: { width: string }) {
+  return (
+    <div style={{
+      width,
+      height: 12,
+      borderRadius: 4,
+      background: "linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 50%, var(--surface-2) 75%)",
+      backgroundSize: "200% 100%",
+      animation: "shimmer 1.5s infinite",
+    }} />
+  );
+}
+
+function SkeletonChart() {
+  return (
+    <div style={{
+      height: "100%",
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: 40,
+      gap: 10,
+      background: "var(--surface-1)",
+    }}>
+      <SkeletonLine width="50%" />
+      <SkeletonLine width="85%" />
+      <SkeletonLine width="40%" />
+      <SkeletonLine width="95%" />
+      <SkeletonLine width="70%" />
+      <SkeletonLine width="60%" />
+    </div>
+  );
+}
+
 export default function ExperimentWorkspacePage({ params }: { params: Promise<{ id: string; eid: string }> }) {
   const resolvedParams = use(params);
   const { id: projectId, eid: experimentId } = resolvedParams;
+  const router = useRouter();
   const { data: experiment, isLoading } = useExperiment(experimentId);
   const { data: rawData } = useExperimentData(projectId, experimentId);
   const runPipeline = useRunPipeline();
+  const runRietveld = useRunRietveld();
   const [autoRan, setAutoRan] = useState(false);
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
   const [showPeaks, setShowPeaks] = useState(false);
+  const [chartFullscreen, setChartFullscreen] = useState(false);
+  const [statsVisible, setStatsVisible] = useState(false);
 
   const shouldAutoRun = useMemo(() => {
     if (!experiment || autoRan) return false;
@@ -51,7 +104,10 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
   const handleAutoRun = useCallback(() => {
     if (shouldAutoRun && experimentId) {
       setAutoRan(true);
-      runPipeline.mutate({ experimentId, data: { stages: ["background_correction", "ka2_stripping", "noise_reduction", "intensity_normalization", "peak_detection"] } });
+      runPipeline.mutate({
+        experimentId,
+        data: { stages: ["background_correction", "ka2_stripping", "noise_reduction", "intensity_normalization", "peak_detection"] },
+      });
     }
   }, [shouldAutoRun, experimentId, runPipeline]);
 
@@ -59,10 +115,32 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
     if (shouldAutoRun) handleAutoRun();
   }, [shouldAutoRun, handleAutoRun]);
 
+  const rietveldResults = experiment?.rietveld_results;
+  useEffect(() => {
+    if (rietveldResults?.status === "completed") {
+      const t = setTimeout(() => setStatsVisible(true), 120);
+      return () => clearTimeout(t);
+    }
+    setStatsVisible(false);
+  }, [rietveldResults]);
+
   const stages = experiment?.pipeline_stages || [];
   const completedStages = stages.filter((s: PipelineStage) => s.status === "completed");
   const failedStage = stages.find((s: PipelineStage) => s.status === "failed");
   const isRunning = runPipeline.isPending;
+  const isRietveldRunning = runRietveld.isPending;
+
+  const pipelineProcessingDone = completedStages.some((s: PipelineStage) => s.id === "peak_detection") &&
+    completedStages.some((s: PipelineStage) => s.id === "phase_identification");
+  const hasCandidatePhases = (experiment?.candidate_phases?.length ?? 0) > 0;
+  const rietveldCompleted = rietveldResults?.status === "completed";
+  const showRefinementMode = pipelineProcessingDone && hasCandidatePhases && !rietveldCompleted && !isRietveldRunning;
+
+  const runAutomaticRefinement = useCallback(() => {
+    if (experimentId) {
+      runRietveld.mutate({ experimentId, data: { workflow: "auto" } });
+    }
+  }, [experimentId, runRietveld]);
 
   const chartData = useMemo(() => {
     const rv = experiment?.rietveld_results;
@@ -100,8 +178,27 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
   if (isLoading) {
     return (
       <AppShell>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", color: "var(--text-muted)" }}>
-          <Loader2 size={24} className="spin" style={{ marginRight: 12 }} /> Loading experiment\u2026
+        <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
+          <style>{`@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }`}</style>
+          <div style={{ height: 44, borderBottom: "1px solid var(--border-subtle)", background: "var(--bg-secondary)" }} />
+          <div style={{ height: 36, borderBottom: "1px solid var(--border-subtle)", background: "var(--bg-secondary)", display: "flex", alignItems: "center", padding: "0 20px" }}>
+            <SkeletonLine width="40%" />
+          </div>
+          <div style={{ flex: 1, display: "flex" }}>
+            <div style={{ width: 280, borderRight: "1px solid var(--border-subtle)", background: "var(--bg-secondary)", padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+              <SkeletonLine width="100%" />
+              <SkeletonLine width="80%" />
+              <SkeletonLine width="90%" />
+              <SkeletonLine width="70%" />
+              <SkeletonLine width="95%" />
+            </div>
+            <div style={{ flex: 1 }}><SkeletonChart /></div>
+            <div style={{ width: 300, borderLeft: "1px solid var(--border-subtle)", background: "var(--bg-secondary)", padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+              <SkeletonLine width="60%" />
+              <SkeletonLine width="100%" />
+              <SkeletonLine width="80%" />
+            </div>
+          </div>
         </div>
       </AppShell>
     );
@@ -110,22 +207,40 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
   if (!experiment) {
     return (
       <AppShell>
-        <div style={{ padding: 40, textAlign: "center" }}>
-          <AlertTriangle size={32} style={{ color: "var(--warning)", marginBottom: 12 }} />
-          <div style={{ fontSize: 15, fontWeight: 600 }}>Experiment not found</div>
-          <Link href={`/projects/${projectId}`} className="button" style={{ marginTop: 16, textDecoration: "none" }}>Back to project</Link>
+        <div style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ padding: 40, textAlign: "center" }}>
+            <AlertTriangle size={32} style={{ color: "var(--warning)", marginBottom: 12 }} />
+            <div style={{ fontSize: 15, fontWeight: 600 }}>Experiment not found</div>
+            <Link href={`/projects/${projectId}`} className="button" style={{ marginTop: 16, textDecoration: "none" }}>Back to project</Link>
+          </div>
         </div>
       </AppShell>
     );
   }
 
+  const completionPercent = Math.round((completedStages.length / PIPELINE_STAGES.length) * 100);
+
+  const cardHoverStyle = (borderColor: string, bgColor: string) => ({
+    cursor: "pointer" as const,
+    padding: "14px 16px",
+    borderRadius: "var(--radius-md)",
+    background: "var(--surface-1)",
+    border: "1px solid var(--border-subtle)",
+    transition: "all 0.2s",
+    textAlign: "center" as const,
+  });
+
   return (
     <AppShell>
       <div style={{ height: "100vh", display: "flex", flexDirection: "column", background: "var(--bg-primary)", overflow: "hidden" }}>
+        <style>{`
+          @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+          @keyframes statsSlideUp { from { opacity: 0; transform: translateX(-50%) translateY(12px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+        `}</style>
 
         {/* ── Header ── */}
         <div style={{ borderBottom: "1px solid var(--border-subtle)", padding: "10px 20px", display: "flex", alignItems: "center", gap: 12, background: "var(--bg-secondary)", flexShrink: 0 }}>
-          <Link href={`/projects/${projectId}`} style={{ color: "var(--text-muted)", display: "flex", padding: 4 }}>
+          <Link href={`/projects/${projectId}`} style={{ color: "var(--text-muted)", display: "flex", padding: 4, borderRadius: "var(--radius-sm)", transition: "background 0.15s" }}>
             <ArrowLeft size={16} />
           </Link>
           <div style={{ width: 32, height: 32, borderRadius: "var(--radius-sm)", background: "var(--accent-orange-bg)", display: "grid", placeItems: "center", flexShrink: 0 }}>
@@ -145,8 +260,11 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
         </div>
 
         {/* ── Pipeline Progress ── */}
-        <div style={{ borderBottom: "1px solid var(--border-subtle)", padding: "6px 20px", background: "var(--bg-secondary)", flexShrink: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+        <div style={{ borderBottom: "1px solid var(--border-subtle)", padding: "8px 20px", background: "var(--bg-secondary)", flexShrink: 0 }}>
+          <div style={{ height: 3, borderRadius: 2, background: "var(--surface-2)", marginBottom: 8, overflow: "hidden" }}>
+            <div style={{ height: "100%", width: `${completionPercent}%`, borderRadius: 2, background: failedStage ? "var(--error)" : isRunning ? "var(--accent-cyan)" : completionPercent === 100 ? "var(--success)" : "var(--accent-cyan)", transition: "width 0.6s cubic-bezier(0.4, 0, 0.2, 1)" }} />
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
             {PIPELINE_STAGES.map((stage, idx) => {
               const stageResult = stages.find((s: PipelineStage) => s.id === stage.id);
               const status = stageResult?.status || "pending";
@@ -154,15 +272,33 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
               const fail = status === "failed";
               const run = status === "running";
               return (
-                <div key={stage.id} style={{ display: "flex", alignItems: "center", gap: 2 }}>
-                  <div title={`${stage.name}: ${stage.desc}${done && stageResult?.duration_seconds != null ? ` (${stageResult.duration_seconds.toFixed(1)}s)` : ""}`} style={{ width: 22, height: 22, borderRadius: "var(--radius-xs)", background: done ? "var(--accent-emerald-bg)" : fail ? "var(--error-bg)" : run ? "var(--accent-cyan-bg)" : "var(--surface-2)", border: `1px solid ${done ? "var(--accent-emerald)" : fail ? "var(--error)" : run ? "var(--accent-cyan)" : "var(--border-subtle)"}`, display: "grid", placeItems: "center", transition: "all 0.2s", cursor: "default" }}>
-                    {done ? <Check size={10} style={{ color: "var(--success)" }} /> : fail ? <X size={10} style={{ color: "var(--error)" }} /> : run ? <Loader2 size={10} className="spin" style={{ color: "var(--accent-cyan)" }} /> : <span style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--border-default)" }} />}
+                <div key={stage.id} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <div
+                    title={`${stage.name}: ${stage.desc}${done && stageResult?.duration_seconds != null ? ` (${stageResult.duration_seconds.toFixed(1)}s)` : ""}`}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 5,
+                      padding: "3px 8px",
+                      borderRadius: 999,
+                      fontSize: 10,
+                      fontWeight: 600,
+                      letterSpacing: "-0.1px",
+                      background: done ? "var(--accent-emerald-bg)" : fail ? "var(--error-bg)" : run ? "var(--accent-cyan-bg)" : "var(--surface-2)",
+                      color: done ? "var(--accent-emerald)" : fail ? "var(--error)" : run ? "var(--accent-cyan)" : "var(--text-muted)",
+                      border: `1px solid ${done ? "var(--accent-emerald)" : fail ? "var(--error)" : run ? "var(--accent-cyan)" : "var(--border-subtle)"}`,
+                      transition: "all 0.3s ease",
+                      transform: run ? "scale(1.05)" : "scale(1)",
+                    }}
+                  >
+                    {done ? <Check size={9} /> : fail ? <X size={9} /> : run ? <Loader2 size={9} className="spin" /> : null}
+                    <span style={{ maxWidth: 90, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{stage.name}</span>
                   </div>
-                  {idx < PIPELINE_STAGES.length - 1 && <div style={{ width: 8, height: 1, background: done ? "var(--accent-emerald)" : "var(--border-subtle)" }} />}
+                  {idx < PIPELINE_STAGES.length - 1 && <div style={{ width: 6, height: 1, background: done ? "var(--accent-emerald)" : "var(--border-subtle)", borderRadius: 1, transition: "background 0.3s" }} />}
                 </div>
               );
             })}
-            <span style={{ fontSize: 10, color: "var(--text-muted)", marginLeft: 8 }}>
+            <span style={{ fontSize: 10, color: "var(--text-muted)", marginLeft: 8, whiteSpace: "nowrap" }}>
               {completedStages.length}/{PIPELINE_STAGES.length}
               {isRunning && <span style={{ color: "var(--accent-cyan)", marginLeft: 6 }}>Processing\u2026</span>}
               {failedStage && <span style={{ color: "var(--error)", marginLeft: 6 }}>Failed</span>}
@@ -170,11 +306,11 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
           </div>
         </div>
 
-        {/* ── Main Content: 3-column layout ── */}
+        {/* ── Main: 3-column layout ── */}
         <div style={{ flex: 1, display: "flex", overflow: "hidden", minHeight: 0 }}>
 
           {/* ── Left Panel ── */}
-          <div style={{ width: leftOpen ? 280 : 0, transition: "width 0.25s ease", overflow: "hidden", borderRight: leftOpen ? "1px solid var(--border-subtle)" : "none", display: "flex", flexDirection: "column", background: "var(--bg-secondary)", flexShrink: 0 }}>
+          <div style={{ width: leftOpen ? 280 : 0, transition: "width 0.25s cubic-bezier(0.4, 0, 0.2, 1)", overflow: "hidden", borderRight: leftOpen ? "1px solid var(--border-subtle)" : "none", display: "flex", flexDirection: "column", background: "var(--bg-secondary)", flexShrink: 0 }}>
             <div style={{ padding: "8px 12px", borderBottom: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <span style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px", color: "var(--text-muted)" }}>Pipeline & Phases</span>
               <button onClick={() => setLeftOpen(false)} className="button ghost sm" style={{ height: 22, padding: "0 5px" }} title="Collapse panel">
@@ -182,17 +318,15 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
               </button>
             </div>
             <div style={{ flex: 1, overflowY: "auto", padding: "10px 12px" }}>
-              {/* Run Pipeline Button */}
               <button
                 onClick={() => { if (experimentId) runPipeline.mutate({ experimentId, data: {} }); }}
                 disabled={isRunning}
                 className="button primary"
                 style={{ width: "100%", justifyContent: "center", height: 32, fontSize: 12, fontWeight: 600, marginBottom: 12 }}
               >
-                {isRunning ? <><Loader2 size={13} className="spin" /> Processing\u2026</> : <><Play size={13} /> Run Pipeline</>}
+                {isRunning ? <><Loader2 size={13} className="spin" /> Processing\u2026</> : <><Play size={13} /> Run Full Pipeline</>}
               </button>
 
-              {/* Stage List */}
               <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>Stages</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                 {PIPELINE_STAGES.map((stage) => {
@@ -203,12 +337,12 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
                   const fail = status === "failed";
                   const run = status === "running";
                   return (
-                    <div key={stage.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 8px", borderRadius: "var(--radius-sm)", background: done ? "var(--success-bg)" : fail ? "var(--error-bg)" : "transparent", border: `1px solid ${done ? "rgba(16,185,129,0.12)" : fail ? "rgba(239,68,68,0.12)" : "transparent"}` }}>
-                      <div style={{ width: 18, height: 18, borderRadius: "var(--radius-xs)", display: "flex", alignItems: "center", justifyContent: "center", background: done ? "var(--success)" : fail ? "var(--error)" : run ? "var(--accent-cyan)" : "var(--surface-3)", flexShrink: 0 }}>
+                    <div key={stage.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 8px", borderRadius: "var(--radius-sm)", background: done ? "var(--success-bg)" : fail ? "var(--error-bg)" : run ? "var(--accent-cyan-bg)" : "transparent", border: `1px solid ${done ? "rgba(16,185,129,0.12)" : fail ? "rgba(239,68,68,0.12)" : run ? "rgba(6,182,212,0.12)" : "transparent"}`, transition: "all 0.2s" }}>
+                      <div style={{ width: 18, height: 18, borderRadius: "var(--radius-xs)", display: "flex", alignItems: "center", justifyContent: "center", background: done ? "var(--success)" : fail ? "var(--error)" : run ? "var(--accent-cyan)" : "var(--surface-3)", flexShrink: 0, transition: "background 0.2s" }}>
                         {done ? <Check size={9} style={{ color: "white" }} /> : fail ? <X size={9} style={{ color: "white" }} /> : run ? <Loader2 size={9} className="spin" style={{ color: "white" }} /> : <Icon size={9} style={{ color: "var(--text-muted)" }} />}
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 11, fontWeight: 550, color: done ? "var(--success)" : fail ? "var(--error)" : "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{stage.name}</div>
+                        <div style={{ fontSize: 11, fontWeight: 550, color: done ? "var(--success)" : fail ? "var(--error)" : run ? "var(--accent-cyan)" : "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", transition: "color 0.2s" }}>{stage.name}</div>
                         <div style={{ fontSize: 9, color: "var(--text-muted)", marginTop: 1 }}>
                           {done && stageResult?.duration_seconds != null ? `${stageResult.duration_seconds.toFixed(1)}s` : fail && stageResult?.error ? stageResult.error.substring(0, 30) : stage.desc}
                         </div>
@@ -218,14 +352,12 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
                 })}
               </div>
 
-              {/* Phase Identification */}
               {completedStages.some((s: PipelineStage) => s.id === "peak_detection") && (
                 <div style={{ marginTop: 14 }}>
                   <PhaseIdentification experimentId={experimentId} candidatePhases={experiment.candidate_phases || []} cifFiles={experiment.cif_files || []} onComplete={() => {}} />
                 </div>
               )}
 
-              {/* Detected Peaks */}
               {experiment.detected_peaks && experiment.detected_peaks.length > 0 && (
                 <div style={{ marginTop: 14 }}>
                   <button onClick={() => setShowPeaks(!showPeaks)} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.5px", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
@@ -234,7 +366,7 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
                     <ChevronRight size={10} style={{ transform: showPeaks ? "rotate(90deg)" : "none", transition: "transform 0.15s" }} />
                   </button>
                   {showPeaks && (
-                    <div style={{ marginTop: 6, maxHeight: 200, overflowY: "auto" }}>
+                    <div style={{ marginTop: 6, maxHeight: 200, overflowY: "auto", borderRadius: "var(--radius-sm)", border: "1px solid var(--border-subtle)" }}>
                       <table style={{ width: "100%", fontSize: 10, borderCollapse: "collapse" }}>
                         <thead>
                           <tr style={{ background: "var(--surface-2)" }}>
@@ -259,7 +391,6 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
                 </div>
               )}
 
-              {/* CIF Files */}
               {(experiment.cif_files?.length ?? 0) > 0 && (
                 <div style={{ marginTop: 14 }}>
                   <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>CIF Files ({experiment.cif_files.length})</div>
@@ -278,7 +409,6 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
                 </div>
               )}
 
-              {/* History */}
               {(experiment.analysis_history?.length ?? 0) > 0 && (
                 <div style={{ marginTop: 14 }}>
                   <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>History</div>
@@ -296,23 +426,44 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
             </div>
           </div>
 
-          {/* ── Center: Diffraction Chart ── */}
+          {/* ── Center: Chart Area ── */}
           <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, position: "relative" }}>
-            {/* Toggle Left Panel */}
             {!leftOpen && (
               <button onClick={() => setLeftOpen(true)} style={{ position: "absolute", left: 4, top: "50%", transform: "translateY(-50%)", zIndex: 10, width: 24, height: 48, borderRadius: "var(--radius-sm)", background: "var(--surface-2)", border: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "var(--text-muted)", boxShadow: "0 1px 4px rgba(0,0,0,0.1)" }} title="Show left panel">
                 <PanelLeftOpen size={13} />
               </button>
             )}
-
-            {/* Toggle Right Panel */}
             {!rightOpen && (
               <button onClick={() => setRightOpen(true)} style={{ position: "absolute", right: 4, top: "50%", transform: "translateY(-50%)", zIndex: 10, width: 24, height: 48, borderRadius: "var(--radius-sm)", background: "var(--surface-2)", border: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "var(--text-muted)", boxShadow: "0 1px 4px rgba(0,0,0,0.1)" }} title="Show right panel">
                 <PanelRightOpen size={13} />
               </button>
             )}
 
-            {/* Chart */}
+            {chartData.length > 0 && (
+              <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderBottom: "1px solid var(--border-subtle)", background: "var(--bg-secondary)", flexShrink: 0 }}>
+                <BarChart2 size={12} style={{ color: "var(--accent-orange)" }} />
+                <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-secondary)" }}>Diffraction Pattern</span>
+                <div style={{ marginLeft: "auto", display: "flex", gap: 2 }}>
+                  {[
+                    { icon: ZoomIn, tip: "Zoom In" },
+                    { icon: ZoomOut, tip: "Zoom Out" },
+                    { icon: RotateCcw, tip: "Reset View" },
+                  ].map(({ icon: I, tip }) => (
+                    <button key={tip} title={tip} className="button ghost sm" style={{ height: 24, width: 24, padding: 0, display: "grid", placeItems: "center" }}>
+                      <I size={12} />
+                    </button>
+                  ))}
+                  <div style={{ width: 1, height: 16, background: "var(--border-subtle)", margin: "0 4px" }} />
+                  <button onClick={() => setChartFullscreen(!chartFullscreen)} title={chartFullscreen ? "Exit Fullscreen" : "Fullscreen"} className="button ghost sm" style={{ height: 24, width: 24, padding: 0, display: "grid", placeItems: "center" }}>
+                    <Maximize2 size={12} />
+                  </button>
+                  <button title="Export Data" className="button ghost sm" style={{ height: 24, width: 24, padding: 0, display: "grid", placeItems: "center" }}>
+                    <Download size={12} />
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div style={{ flex: 1, minHeight: 0 }}>
               {chartData.length > 0 ? (
                 <XrdChart
@@ -333,28 +484,48 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
               )}
             </div>
 
-            {/* Quick Stats Bar (below chart) */}
-            {experiment.rietveld_results && (
-              <div style={{ borderTop: "1px solid var(--border-subtle)", padding: "6px 16px", display: "flex", gap: 16, background: "var(--bg-secondary)", flexShrink: 0 }}>
+            {/* Floating Quick Stats Bar */}
+            {rietveldResults && (
+              <div style={{
+                position: "absolute",
+                bottom: 12,
+                left: "50%",
+                transform: statsVisible ? "translateX(-50%) translateY(0)" : "translateX(-50%) translateY(12px)",
+                display: "flex",
+                alignItems: "center",
+                gap: 16,
+                padding: "8px 20px",
+                borderRadius: "var(--radius-md)",
+                background: "var(--bg-secondary)",
+                border: "1px solid var(--border-subtle)",
+                boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+                opacity: statsVisible ? 1 : 0,
+                transition: "opacity 0.4s ease, transform 0.4s ease",
+                zIndex: 5,
+              }}>
                 {[
-                  { label: "R_wp", value: experiment.rietveld_results.r_wp, unit: "%" },
-                  { label: "R_p", value: experiment.rietveld_results.r_p, unit: "%" },
-                  { label: "R_exp", value: experiment.rietveld_results.r_exp, unit: "%" },
-                  { label: "\u03c7\u00b2", value: experiment.rietveld_results.chi_squared },
-                  { label: "GoF", value: experiment.rietveld_results.gof },
-                ].map((s) => (
-                  <div key={s.label} style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
-                    <span style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 600 }}>{s.label}</span>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)", fontFamily: "var(--font-mono)" }}>
-                      {s.value != null ? s.value.toFixed(2) : "\u2014"}
-                      {s.unit && <span style={{ fontSize: 10, fontWeight: 400, color: "var(--text-muted)" }}>{s.unit}</span>}
-                    </span>
-                  </div>
-                ))}
-                {experiment.rietveld_results.iterations && (
-                  <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginLeft: "auto" }}>
+                  { label: "R_wp", value: rietveldResults.r_wp, unit: "%", colorFn: getRwpColor },
+                  { label: "R_p", value: rietveldResults.r_p, unit: "%" },
+                  { label: "R_exp", value: rietveldResults.r_exp, unit: "%" },
+                  { label: "\u03c7\u00b2", value: rietveldResults.chi_squared },
+                  { label: "GoF", value: rietveldResults.gof, colorFn: getGofColor },
+                ].map((s) => {
+                  const val = s.value;
+                  const color = val != null && "colorFn" in s && s.colorFn ? s.colorFn(val) : "var(--text-primary)";
+                  return (
+                    <div key={s.label} style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
+                      <span style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 600 }}>{s.label}</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color, fontFamily: "var(--font-mono)" }}>
+                        {val != null ? val.toFixed(2) : "\u2014"}
+                        {"unit" in s && s.unit && <span style={{ fontSize: 10, fontWeight: 400, color: "var(--text-muted)" }}>{s.unit}</span>}
+                      </span>
+                    </div>
+                  );
+                })}
+                {rietveldResults.iterations && (
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginLeft: 8, paddingLeft: 12, borderLeft: "1px solid var(--border-subtle)" }}>
                     <span style={{ fontSize: 10, color: "var(--text-muted)" }}>Iterations</span>
-                    <span style={{ fontSize: 12, fontWeight: 600, fontFamily: "var(--font-mono)" }}>{experiment.rietveld_results.iterations}</span>
+                    <span style={{ fontSize: 12, fontWeight: 600, fontFamily: "var(--font-mono)" }}>{rietveldResults.iterations}</span>
                   </div>
                 )}
               </div>
@@ -362,7 +533,7 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
           </div>
 
           {/* ── Right Panel ── */}
-          <div style={{ width: rightOpen ? 300 : 0, transition: "width 0.25s ease", overflow: "hidden", borderLeft: rightOpen ? "1px solid var(--border-subtle)" : "none", display: "flex", flexDirection: "column", background: "var(--bg-secondary)", flexShrink: 0 }}>
+          <div style={{ width: rightOpen ? 300 : 0, transition: "width 0.25s cubic-bezier(0.4, 0, 0.2, 1)", overflow: "hidden", borderLeft: rightOpen ? "1px solid var(--border-subtle)" : "none", display: "flex", flexDirection: "column", background: "var(--bg-secondary)", flexShrink: 0 }}>
             <div style={{ padding: "8px 12px", borderBottom: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <span style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px", color: "var(--text-muted)" }}>Refinement</span>
               <button onClick={() => setRightOpen(false)} className="button ghost sm" style={{ height: 22, padding: "0 5px" }} title="Collapse panel">
@@ -370,8 +541,70 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
               </button>
             </div>
             <div style={{ flex: 1, overflowY: "auto", padding: "10px 12px" }}>
-              {/* Rietveld Refinement Component */}
-              {(experiment.candidate_phases?.length ?? 0) > 0 && (
+
+              {/* Choose Refinement Mode */}
+              {showRefinementMode && (
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ textAlign: "center", marginBottom: 14 }}>
+                    <h3 style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>Choose Refinement Mode</h3>
+                    <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>Select how to proceed with Rietveld refinement</p>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                    {/* Automatic Card */}
+                    <div
+                      onClick={runAutomaticRefinement}
+                      style={{
+                        cursor: "pointer",
+                        padding: "14px 12px",
+                        borderRadius: "var(--radius-md)",
+                        background: "var(--surface-1)",
+                        border: "1px solid var(--border-subtle)",
+                        transition: "all 0.2s",
+                        textAlign: "center",
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--accent-orange)"; e.currentTarget.style.background = "var(--accent-orange-bg)"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border-subtle)"; e.currentTarget.style.background = "var(--surface-1)"; }}
+                    >
+                      <Zap size={24} style={{ color: "var(--accent-orange)", margin: "0 auto 8px" }} />
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-primary)" }}>Automatic</div>
+                      <span className="badge good" style={{ marginTop: 4, display: "inline-flex" }}>Recommended</span>
+                      <p style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 6, lineHeight: 1.4 }}>One-click refinement with recommended parameters</p>
+                    </div>
+                    {/* Manual Card */}
+                    <div
+                      onClick={() => router.push(`/manual-refinement?experiment=${experimentId}`)}
+                      style={{
+                        cursor: "pointer",
+                        padding: "14px 12px",
+                        borderRadius: "var(--radius-md)",
+                        background: "var(--surface-1)",
+                        border: "1px solid var(--border-subtle)",
+                        transition: "all 0.2s",
+                        textAlign: "center",
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--accent-violet)"; e.currentTarget.style.background = "rgba(139,92,246,0.06)"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border-subtle)"; e.currentTarget.style.background = "var(--surface-1)"; }}
+                    >
+                      <Settings2 size={24} style={{ color: "var(--accent-violet)", margin: "0 auto 8px" }} />
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-primary)" }}>Manual</div>
+                      <span className="badge" style={{ marginTop: 4, display: "inline-flex" }}>Advanced</span>
+                      <p style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 6, lineHeight: 1.4 }}>Full control over every refinement parameter</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Rietveld Running State */}
+              {isRietveldRunning && (
+                <div style={{ padding: "20px 16px", textAlign: "center" }}>
+                  <Loader2 size={24} className="spin" style={{ color: "var(--accent-cyan)", margin: "0 auto 8px" }} />
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>Running Refinement</div>
+                  <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>Optimizing crystal structure parameters\u2026</div>
+                </div>
+              )}
+
+              {/* Rietveld Results */}
+              {rietveldCompleted && (
                 <RietveldRefinement
                   experimentId={experimentId}
                   cifFiles={experiment.cif_files || []}
@@ -382,7 +615,35 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
                 />
               )}
 
-              {/* Crystal Structure (when available) */}
+              {/* Candidate Phases List */}
+              {hasCandidatePhases && (
+                <div style={{ marginTop: 14 }}>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>Candidate Phases</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                    {experiment.candidate_phases.map((phase: any, idx: number) => {
+                      const fraction = phase.fraction ?? phase.rwp_fraction ?? null;
+                      return (
+                        <div key={idx} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 8px", borderRadius: "var(--radius-sm)", background: "var(--surface-1)", border: "1px solid var(--border-subtle)" }}>
+                          <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--accent-orange)", flexShrink: 0 }} />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 11, fontWeight: 550, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {phase.material_formula || phase.name || phase.material_name || `Phase ${idx + 1}`}
+                            </div>
+                            {phase.space_group && <div style={{ fontSize: 9, color: "var(--text-muted)" }}>{phase.space_group}</div>}
+                          </div>
+                          {fraction != null && (
+                            <span style={{ fontSize: 10, fontFamily: "var(--font-mono)", fontWeight: 600, color: "var(--accent-orange)" }}>
+                              {(fraction * 100).toFixed(1)}%
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Crystal Structure */}
               {experiment.cif_files?.find((c) => c.parsed_data?.unit_cell) && (() => {
                 const cif = experiment.cif_files.find((c) => c.parsed_data?.unit_cell)!;
                 const pd = cif.parsed_data as Record<string, any>;
