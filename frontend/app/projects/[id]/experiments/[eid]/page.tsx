@@ -218,9 +218,9 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
   const isRunning = runPipeline.isPending;
   const isRietveldRunning = runRietveld.isPending;
 
-  const pipelineProcessingDone = completedStages.some((s: PipelineStage) => s.id === "peak_detection") &&
-    completedStages.some((s: PipelineStage) => s.id === "phase_identification");
   const hasCandidatePhases = (experiment?.candidate_phases?.length ?? 0) > 0;
+  const pipelineProcessingDone = completedStages.some((s: PipelineStage) => s.id === "peak_detection") &&
+    (completedStages.some((s: PipelineStage) => s.id === "phase_identification") || hasCandidatePhases);
   const rietveldCompleted = rietveldResults?.status === "completed";
   const hasSelectedPhases = selectedPhaseIndices.size > 0;
   const showRefinementMode = pipelineProcessingDone && hasCandidatePhases && hasSelectedPhases && !rietveldCompleted && !isRietveldRunning && refinementMode === null;
