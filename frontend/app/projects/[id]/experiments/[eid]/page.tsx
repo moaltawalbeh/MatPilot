@@ -9,6 +9,7 @@ import {
   PanelRightClose, PanelRightOpen, TableProperties, Atom, Settings2,
   ZoomIn, ZoomOut, Maximize2, Download, RotateCcw, Eye, EyeOff, Trash2,
   ArrowUp, ArrowDown, FileText, FileCode, FileSpreadsheet, ClipboardList,
+  Lock,
 } from "lucide-react";
 import { useDownloadPDFReport, useExperiment, useRunPipeline, useExperimentData, useRunRietveld } from "@/hooks/use-api";
 import { XrdChart } from "@/components/charts/xrd-chart";
@@ -62,6 +63,27 @@ function downloadBlob(blob: Blob, filename: string) {
 
 function safeFileName(name: string) {
   return (name || "matpilot_experiment").replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_+|_+$/g, "").toLowerCase();
+}
+
+const CONFIRMED_PHASES_KEY = "matpilot_confirmed_phases";
+
+function loadConfirmedPhases(experimentId: string): Set<number> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = localStorage.getItem(CONFIRMED_PHASES_KEY);
+    if (!raw) return new Set();
+    const map = JSON.parse(raw) as Record<string, number[]>;
+    return new Set(map[experimentId] || []);
+  } catch { return new Set(); }
+}
+
+function saveConfirmedPhases(experimentId: string, ranks: number[]) {
+  try {
+    const raw = localStorage.getItem(CONFIRMED_PHASES_KEY);
+    const map = raw ? JSON.parse(raw) as Record<string, number[]> : {};
+    map[experimentId] = ranks;
+    localStorage.setItem(CONFIRMED_PHASES_KEY, JSON.stringify(map));
+  } catch {}
 }
 
 function getGofColor(v: number): string {
@@ -131,6 +153,8 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
   const [refinementMode, setRefinementMode] = useState<"auto" | "manual" | null>(null);
   const [phaseOrder, setPhaseOrder] = useState<number[]>([]);
   const [hiddenPhaseIndices, setHiddenPhaseIndices] = useState<Set<number>>(new Set());
+  const [confirmedPhaseIndices, setConfirmedPhaseIndices] = useState<Set<number>>(new Set());
+  const [phasesConfirmed, setPhasesConfirmed] = useState(false);
   const [exportingFormat, setExportingFormat] = useState<ExportFormat | null>(null);
 
   const phaseColorMap = useMemo(() => {
@@ -142,6 +166,17 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
     }
     return m;
   }, [experiment?.candidate_phases]);
+
+  useEffect(() => {
+    if (experimentId) {
+      const saved = loadConfirmedPhases(experimentId);
+      if (saved.size > 0) {
+        setConfirmedPhaseIndices(saved);
+        setSelectedPhaseIndices(saved);
+        setPhasesConfirmed(true);
+      }
+    }
+  }, [experimentId]);
 
   useEffect(() => {
     const ranks = (experiment?.candidate_phases || []).map((p, idx) => p.rank ?? idx + 1);
@@ -222,14 +257,14 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
   const pipelineProcessingDone = completedStages.some((s: PipelineStage) => s.id === "peak_detection") &&
     (completedStages.some((s: PipelineStage) => s.id === "phase_identification") || hasCandidatePhases);
   const rietveldCompleted = rietveldResults?.status === "completed";
-  const hasSelectedPhases = selectedPhaseIndices.size > 0;
-  const showRefinementMode = pipelineProcessingDone && hasCandidatePhases && hasSelectedPhases && !rietveldCompleted && !isRietveldRunning && refinementMode === null;
+  const hasConfirmedPhases = phasesConfirmed && confirmedPhaseIndices.size > 0;
+  const showRefinementMode = pipelineProcessingDone && hasCandidatePhases && hasConfirmedPhases && !rietveldCompleted && !isRietveldRunning && refinementMode === null;
   const showRietveldPanel = refinementMode !== null && !rietveldCompleted;
   const showCandidatePhases = pipelineProcessingDone && hasCandidatePhases && !rietveldCompleted;
 
   const runAutomaticRefinement = useCallback(() => {
     if (experimentId) {
-      const selectedCifIds = selectedPhaseRanks.map((rank) => {
+      const selectedCifIds = Array.from(confirmedPhaseIndices).map((rank) => {
         const phase = experiment?.candidate_phases?.find((p) => p.rank === rank);
         return phase?.source_id;
       }).filter(Boolean) as string[];
@@ -238,7 +273,7 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
         data: { workflow: "auto", selected_cif_ids: selectedCifIds.length > 0 ? selectedCifIds : undefined },
       });
     }
-  }, [experimentId, runRietveld, selectedPhaseRanks, experiment?.candidate_phases]);
+  }, [experimentId, runRietveld, confirmedPhaseIndices, experiment?.candidate_phases]);
 
   const handleModeSelect = useCallback((mode: "auto" | "manual") => {
     setRefinementMode(mode);
@@ -247,7 +282,17 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
   const handleSelectionChange = useCallback((indices: Set<number>) => {
     setSelectedPhaseIndices(indices);
     setRefinementMode(null);
-  }, []);
+    setPhasesConfirmed(false);
+    setConfirmedPhaseIndices(new Set());
+    if (experimentId) saveConfirmedPhases(experimentId, []);
+  }, [experimentId]);
+
+  const handleConfirmPhases = useCallback(() => {
+    const ranks = Array.from(selectedPhaseIndices);
+    setConfirmedPhaseIndices(new Set(ranks));
+    setPhasesConfirmed(true);
+    if (experimentId) saveConfirmedPhases(experimentId, ranks);
+  }, [selectedPhaseIndices, experimentId]);
 
   const handlePhaseContinue = useCallback(() => {
     setRightOpen(true);
@@ -575,6 +620,7 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
                       <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
                         {[
                           { label: "Select Phases", done: true },
+                          { label: "Confirm Selection", done: phasesConfirmed },
                           { label: "Choose Refinement Mode", done: refinementMode !== null },
                           { label: "Run Refinement", done: rietveldCompleted },
                         ].map((step, idx, arr) => (
@@ -589,7 +635,12 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
                           </div>
                         ))}
                       </div>
-                      {!rietveldCompleted && !isRietveldRunning && refinementMode === null && selectedPhaseIndices.size > 0 && (
+                      {!phasesConfirmed && selectedPhaseIndices.size > 0 && (
+                        <button onClick={handleConfirmPhases} className="button primary" style={{ width: "100%", justifyContent: "center", marginTop: 10, height: 34, fontSize: 12, fontWeight: 600 }}>
+                          <Lock size={13} /> Confirm {selectedPhaseIndices.size} Selected Phase{selectedPhaseIndices.size !== 1 ? "s" : ""}
+                        </button>
+                      )}
+                      {phasesConfirmed && !rietveldCompleted && !isRietveldRunning && refinementMode === null && (
                         <button onClick={handlePhaseContinue} className="button primary" style={{ width: "100%", justifyContent: "center", marginTop: 10, height: 34, fontSize: 12, fontWeight: 600 }}>
                           <ChevronRight size={14} /> Next: Choose Refinement Mode
                         </button>
@@ -844,11 +895,11 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
                     </div>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, fontSize: 10, color: "var(--text-muted)" }}>
                       <span>Status: {isRietveldRunning ? "Running" : "Ready"}</span>
-                      <span>Selected: {selectedPhaseRanks.length} phase{selectedPhaseRanks.length !== 1 ? "s" : ""}</span>
+                      <span>Selected: {confirmedPhaseIndices.size} phase{confirmedPhaseIndices.size !== 1 ? "s" : ""}</span>
                       <span>Iteration: {isRietveldRunning ? "optimizing" : "0"}</span>
                       <span>ETA: {isRietveldRunning ? "calculating" : "on run"}</span>
                     </div>
-                    <button onClick={runAutomaticRefinement} disabled={isRietveldRunning || selectedPhaseRanks.length === 0} className="button primary" style={{ width: "100%", justifyContent: "center", marginTop: 10, height: 34 }}>
+                    <button onClick={runAutomaticRefinement} disabled={isRietveldRunning || confirmedPhaseIndices.size === 0} className="button primary" style={{ width: "100%", justifyContent: "center", marginTop: 10, height: 34 }}>
                       {isRietveldRunning ? <Loader2 size={13} className="spin" /> : <Play size={13} />}
                       Run Automatic Refinement
                     </button>
@@ -880,7 +931,20 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
                   <div style={{ fontSize: 10, color: "var(--text-muted)", lineHeight: 1.5, marginBottom: 10 }}>
                     Parameter groups are organized as Project, Experiment, Instrument, Background, phase cells, atoms, profile, preferred orientation, size, and strain.
                   </div>
-                  <button onClick={() => router.push(`/manual-refinement?experiment=${experimentId}`)} className="button primary" style={{ width: "100%", justifyContent: "center", height: 34 }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {Array.from(confirmedPhaseIndices).map((rank) => {
+                      const phase = experiment.candidate_phases?.find((p) => p.rank === rank);
+                      const color = phaseColorMap.get(rank) ?? getPhaseColor(rank - 1);
+                      return (
+                        <div key={rank} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 8px", borderRadius: "var(--radius-sm)", background: `${color}10`, border: `1px solid ${color}30` }}>
+                          <div style={{ width: 8, height: 8, borderRadius: 2, background: color, flexShrink: 0 }} />
+                          <span style={{ fontSize: 10, fontWeight: 600 }}>{phase?.material_formula || `Phase ${rank}`}</span>
+                          <span style={{ fontSize: 9, color: "var(--text-muted)", marginLeft: "auto" }}>{phase?.source_provider}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <button onClick={() => router.push(`/manual-refinement?experiment=${experimentId}`)} className="button primary" style={{ width: "100%", justifyContent: "center", height: 34, marginTop: 10 }}>
                     <Settings2 size={13} /> Open Manual Workspace
                   </button>
                   <button onClick={() => setRefinementMode(null)} className="button ghost sm" style={{ width: "100%", justifyContent: "center", marginTop: 6 }}>

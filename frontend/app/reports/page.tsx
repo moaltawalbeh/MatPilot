@@ -309,6 +309,8 @@ export default function ReportsPage() {
   const { data: projects, isLoading } = useProjects();
   const allProjects = projects ?? [];
   const [expandedProject, setExpandedProject] = useState<string | null>(null);
+  const [selectedExperimentId, setSelectedExperimentId] = useState<string | null>(null);
+  const [projectExps, setProjectExps] = useState<Record<string, any[]>>({});
   const [exporting, setExporting] = useState<string | null>(null);
   const [exportSuccess, setExportSuccess] = useState<string | null>(null);
   const successTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -320,19 +322,27 @@ export default function ReportsPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (expandedProject && !projectExps[expandedProject]) {
+      apiService.listProjectExperiments(expandedProject).then((exps) => {
+        setProjectExps((prev) => ({ ...prev, [expandedProject]: exps as any[] }));
+      }).catch(() => {});
+    }
+  }, [expandedProject, projectExps]);
+
+  const getExpForExport = (projectId: string, experimentId?: string | null) => {
+    const exps = projectExps[projectId] || [];
+    if (experimentId) return exps.find((e) => e.id === experimentId) || exps[0] || null;
+    return exps[0] || null;
+  };
+
   const handleExport = async (format: ExportFormat, projectName: string, projectId?: string) => {
     const key = `${format}-${projectName}`;
     setExporting(key);
     setExportSuccess(null);
     try {
       const safeName = projectName.replace(/[^a-zA-Z0-9]/g, "_").toLowerCase();
-      let projectExps: { id: string; name?: string; status?: string; data_points?: number; detected_peaks?: unknown[]; rietveld_results?: Record<string, unknown>; candidate_phases?: unknown[]; two_theta_range?: number[] | null; wavelength_angstrom?: number | null; primary_file_id?: string | null }[] = [];
-      if (projectId) {
-        try {
-          projectExps = (await apiService.listProjectExperiments(projectId)) as unknown as typeof projectExps;
-        } catch { /* ignore */ }
-      }
-      const firstExp = projectExps?.[0];
+      const firstExp = getExpForExport(projectId || "", selectedExperimentId);
       const project = allProjects.find((p) => p.id === projectId || p.name === projectName);
 
       if (format === "pdf") {
@@ -425,12 +435,32 @@ export default function ReportsPage() {
                 </button>
                 {isExpanded && (
                   <div style={{ borderTop: "1px solid var(--border-subtle)", padding: "14px 20px" }}>
+                    {(projectExps[project.id] || []).length > 0 && (
+                      <div style={{ marginBottom: 12 }}>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>Experiments</div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                          {(projectExps[project.id] || []).map((exp: any) => {
+                            const hasResults = exp.rietveld_results?.status === "completed";
+                            const isSelected = selectedExperimentId === exp.id;
+                            return (
+                              <button key={exp.id} onClick={() => setSelectedExperimentId(isSelected ? null : exp.id)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", borderRadius: "var(--radius-sm)", background: isSelected ? "var(--accent-orange-bg)" : "var(--surface-2)", border: `1px solid ${isSelected ? "var(--accent-orange)" : "var(--border-subtle)"}`, cursor: "pointer", textAlign: "left", fontSize: 11, width: "100%" }}>
+                                <div style={{ width: 8, height: 8, borderRadius: "50%", background: hasResults ? "var(--success)" : "var(--text-muted)", flexShrink: 0 }} />
+                                <span style={{ fontWeight: 600, flex: 1 }}>{exp.name || "Untitled"}</span>
+                                {hasResults && <span className="badge good" style={{ fontSize: 9 }}>Refined</span>}
+                                <span style={{ color: "var(--text-muted)", fontSize: 10 }}>{exp.data_points?.toLocaleString() || 0} pts</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 8 }}>
                       {exportFormats.map((fmt) => {
                         const Icon = fmt.icon;
                         const key = `${fmt.key}-${project.name}`;
+                        const hasExp = (projectExps[project.id] || []).length > 0;
                         return (
-                          <button key={fmt.key} className="button" disabled={exporting === key} onClick={() => handleExport(fmt.key, project.name, project.id)} style={{ justifyContent: "space-between", padding: "8px 12px", fontSize: 12 }}>
+                          <button key={fmt.key} className="button" disabled={exporting === key || !hasExp} onClick={() => handleExport(fmt.key, project.name, project.id)} style={{ justifyContent: "space-between", padding: "8px 12px", fontSize: 12 }}>
                             <span style={{ display: "flex", alignItems: "center", gap: 6 }}><Icon size={12} />{fmt.label.replace(" Report", "").replace(" Document", "")}</span>
                             {exportSuccess === key ? <CheckCircle2 size={12} style={{ color: "var(--success)" }} /> : exporting === key ? <Loader2 size={12} className="spin" /> : <Download size={12} />}
                           </button>

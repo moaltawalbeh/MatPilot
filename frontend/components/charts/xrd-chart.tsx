@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef, useCallback, useMemo, useEffect } from "react";
+import { useState, useRef, useCallback, useMemo, useEffect, useId } from "react";
 import { FileBarChart, RotateCcw, ZoomIn, Download, Maximize2 } from "lucide-react";
 
 type DataPoint = {
@@ -149,6 +149,8 @@ export function XrdChart({
   emptyDescription,
   emptyAction,
 }: XrdChartProps) {
+  const clipId = useId();
+  const clipRef = `xrd-clip-${clipId}`;
   const wrapRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const [dims, setDims] = useState({ w: 800, h: 400 });
@@ -543,14 +545,14 @@ export function XrdChart({
           onContextMenu={(e) => e.preventDefault()}
         >
           <defs>
-            <clipPath id="xrd-clip">
+            <clipPath id={clipRef}>
               <rect x={M.left} y={M.top} width={cw} height={ch} />
             </clipPath>
           </defs>
 
           <rect x={0} y={0} width={dims.w} height={dims.h} fill="var(--surface-1, #fff)" />
 
-          <g clipPath="url(#xrd-clip)">
+          <g clipPath={`url(#${clipRef})`}>
             {xTicks.map((t) => (
               <line key={`gv${t}`} x1={sx(t)} y1={M.top} x2={sx(t)} y2={M.top + ch} stroke={C.grid} strokeWidth={1} />
             ))}
@@ -559,14 +561,14 @@ export function XrdChart({
             ))}
           </g>
 
-          <g clipPath="url(#xrd-clip)">
+          <g clipPath={`url(#${clipRef})`}>
             {paths.Background && <path d={paths.Background} fill="none" stroke={C.background} strokeWidth={1} opacity={0.45} strokeDasharray="5 3" />}
             {paths.Difference && <path d={paths.Difference} fill="none" stroke={C.difference} strokeWidth={1} opacity={0.55} />}
             {paths.Calculated && <path d={paths.Calculated} fill="none" stroke={C.calculated} strokeWidth={1.5} opacity={0.85} />}
             {paths.Experimental && <path d={paths.Experimental} fill="none" stroke={C.experimental} strokeWidth={1.8} />}
           </g>
 
-          <g clipPath="url(#xrd-clip)">
+          <g clipPath={`url(#${clipRef})`}>
             {peaks?.map((p, i) => (
               <line key={`pk${i}`} x1={sx(p.two_theta)} y1={M.top} x2={sx(p.two_theta)} y2={M.top + ch} stroke={C.peak} strokeWidth={0.8} strokeDasharray="3 3" opacity={0.55} />
             ))}
@@ -595,7 +597,7 @@ export function XrdChart({
             ))}
           </g>
 
-          <g clipPath="url(#xrd-clip)">
+          <g clipPath={`url(#${clipRef})`}>
             {selRect && selRect.w > 1 && selRect.h > 1 && (
               <>
                 <rect x={selRect.x} y={selRect.y} width={selRect.w} height={selRect.h} fill={C.selectionFill} stroke={C.selectionStroke} strokeWidth={1} strokeDasharray="4 2" />
@@ -641,7 +643,7 @@ export function XrdChart({
           </text>
 
           {cursorSvg && hasCursor && (
-            <g clipPath="url(#xrd-clip)" style={{ pointerEvents: "none" }}>
+            <g clipPath={`url(#${clipRef})`} style={{ pointerEvents: "none" }}>
               <line x1={cursorSvg.sx} y1={M.top} x2={cursorSvg.sx} y2={M.top + ch} stroke={C.crosshair} strokeWidth={0.8} strokeDasharray="3 3" />
               <line x1={M.left} y1={cursorSvg.sy} x2={M.left + cw} y2={cursorSvg.sy} stroke={C.crosshair} strokeWidth={0.8} strokeDasharray="3 3" />
               {nearestIdx >= 0 && (

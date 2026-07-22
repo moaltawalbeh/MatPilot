@@ -788,7 +788,7 @@ function ManualRefinementContent() {
   const [collapsedCats, setCollapsedCats] = useState<Set<string>>(new Set());
   const [showBounds, setShowBounds] = useState(false);
   const [initError, setInitError] = useState<string | null>(null);
-  const [initAttempted, setInitAttempted] = useState(false);
+  const [initPending, setInitPending] = useState(false);
   const logEndRef = useRef<HTMLDivElement>(null);
 
   const { data: experiment, isLoading: experimentLoading } = useExperiment(experimentId);
@@ -874,22 +874,50 @@ function ManualRefinementContent() {
 
   const handleInit = useCallback(async () => {
     setInitError(null);
+    setInitPending(true);
     if (!experimentId) {
       setInitError("No experiment ID provided. Navigate here from the experiment workspace.");
+      setInitPending(false);
       return;
     }
     try {
       const exp = experiment || await apiService.getExperiment(experimentId);
-      const cifs: CIFFile[] = exp.cif_files || exp.selected_refinement_phases || [];
+      let cifs: CIFFile[] = [];
+      try {
+        const raw = localStorage.getItem("matpilot_confirmed_phases");
+        if (raw) {
+          const map = JSON.parse(raw) as Record<string, number[]>;
+          const ranks = map[experimentId] || [];
+          if (ranks.length > 0 && exp.candidate_phases && exp.cif_files) {
+            const cifsByCod = new Map<string, CIFFile>();
+            for (const cif of exp.cif_files) {
+              cifsByCod.set(cif.cod_id, cif);
+            }
+            for (const rank of ranks) {
+              const phase = exp.candidate_phases.find((p: any, idx: number) => (p.rank ?? idx + 1) === rank);
+              if (phase?.source_id && cifsByCod.has(phase.source_id)) {
+                cifs.push(cifsByCod.get(phase.source_id)!);
+              } else if (phase) {
+                cifs.push({ cod_id: phase.source_id || `phase_${rank}`, material_name: phase.material_name || `Phase ${rank}`, material_formula: phase.material_formula || "N/A", source_provider: phase.source_provider || "unknown", downloaded: false } as CIFFile);
+              }
+            }
+          }
+        }
+      } catch {}
+      if (cifs.length === 0) {
+        cifs = exp.cif_files || exp.selected_refinement_phases || [];
+      }
       const ttheta = exp.raw_two_theta || [];
       const intensity = exp.raw_intensity || [];
       const dataPoints = Math.min(ttheta.length, intensity.length);
       if (dataPoints < 50) {
         setInitError("Insufficient diffraction data. Run the full pipeline from the experiment workspace first.");
+        setInitPending(false);
         return;
       }
       if (cifs.length === 0) {
-        setInitError("No CIF files found. Run phase identification from the experiment workspace first.");
+        setInitError("No CIF files found. Confirm phase selection in the experiment workspace first.");
+        setInitPending(false);
         return;
       }
       const result = await apiService.initManualRefinement({
@@ -907,6 +935,8 @@ function ManualRefinementContent() {
       } else {
         setInitError(msg);
       }
+    } finally {
+      setInitPending(false);
     }
   }, [experimentId, experiment]);
 
@@ -929,9 +959,11 @@ function ManualRefinementContent() {
   );
 
   const handleBoundsChange = useCallback(
-    (paramName: string, lower: number, upper: number) => {
+    (paramName: string, _lower: number, _upper: number) => {
       if (!sessionId) return;
-      setParamMutation.mutate({ paramName, data: { value: parameters.find((p) => p.name === paramName)?.value, locked: parameters.find((p) => p.name === paramName)?.locked } });
+      const param = parameters.find((p) => p.name === paramName);
+      if (!param) return;
+      setParamMutation.mutate({ paramName, data: { value: param.value, locked: param.locked } });
     },
     [sessionId, parameters, setParamMutation],
   );
@@ -984,13 +1016,6 @@ function ManualRefinementContent() {
   const hasCIFs = (experiment?.cif_files?.length ?? 0) > 0;
   const allReady = hasData && hasPhases && hasCIFs;
 
-  useEffect(() => {
-    if (!sessionId && allReady && !initAttempted && !initMutation.isPending) {
-      setInitAttempted(true);
-      handleInit();
-    }
-  }, [sessionId, allReady, initAttempted, initMutation.isPending, handleInit]);
-
   if (!experimentId) {
     return (
       <Page eyebrow="Rietveld Refinement" title="Manual Refinement" description="No experiment specified.">
@@ -1013,7 +1038,7 @@ function ManualRefinementContent() {
         experiment={experiment}
         isLoading={experimentLoading}
         onInit={handleInit}
-        isPending={initMutation.isPending}
+        isPending={initPending}
         initError={initError}
         router={router}
       />
