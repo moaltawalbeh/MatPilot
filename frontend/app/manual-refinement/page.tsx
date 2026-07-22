@@ -844,12 +844,18 @@ function ManualRefinementContent() {
       const exp = await apiService.getExperiment(experimentInput.trim());
       const cifs: CIFFile[] = exp.cif_files || exp.selected_refinement_phases || [];
       const ttheta = exp.raw_two_theta || [];
-      if (ttheta.length === 0) {
-        setInitError("No diffraction data found in experiment");
+      const intensity = exp.raw_intensity || [];
+      const dataPoints = Math.min(ttheta.length, intensity.length);
+      if (dataPoints === 0) {
+        setInitError("No diffraction data found in this experiment. Run the full pipeline first to process the uploaded file.");
+        return;
+      }
+      if (dataPoints < 50) {
+        setInitError(`Only ${dataPoints} data points available — at least 50 are needed for refinement. The uploaded file may be too small or not yet fully processed. Run the full pipeline from the experiment workspace first.`);
         return;
       }
       if (cifs.length === 0) {
-        setInitError("No CIF files found. Run phase identification first.");
+        setInitError("No CIF files found. Go to the experiment workspace and run phase identification first.");
         return;
       }
       const result = await apiService.initManualRefinement({
@@ -860,7 +866,11 @@ function ManualRefinementContent() {
       setSessionId(result.session_id);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      setInitError(msg);
+      if (msg.includes("Insufficient data")) {
+        setInitError("The backend rejected the data as insufficient for refinement. Try running the full pipeline from the experiment workspace first, or check that the uploaded XRD file contains enough data points (100+ recommended).");
+      } else {
+        setInitError(msg);
+      }
     }
   }, [experimentInput]);
 
