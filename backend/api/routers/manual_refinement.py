@@ -5,11 +5,13 @@ with parameter lock/unlock control.
 """
 
 import uuid
+from uuid import UUID
 from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
 
+from backend.api.dependencies import get_container
 from backend.services.manual_refinement_service import ManualRefinementService
 
 router = APIRouter(prefix="/manual-refinement", tags=["manual-refinement"])
@@ -51,7 +53,7 @@ async def list_parameters():
 
 
 @router.post("/init")
-async def init_session(req: InitSessionRequest):
+async def init_session(req: InitSessionRequest, container=Depends(get_container)):
     """Initialize a new manual refinement session.
 
     Loads diffraction data and phase CIFs, runs an initial auto-refinement
@@ -62,14 +64,33 @@ async def init_session(req: InitSessionRequest):
 
     session_id = f"mr-{uuid.uuid4().hex[:12]}"
 
+    exp = await container.uow.experiments.get_by_id(UUID(req.experiment_id))
+    if not exp:
+        raise HTTPException(status_code=404, detail=f"Experiment not found: {req.experiment_id}")
+
+    two_theta = getattr(exp, "raw_two_theta", None)
+    intensity = getattr(exp, "raw_intensity", None)
+
+    if not two_theta or not intensity:
+        for u in container.upload_service.list_uploads():
+            if exp.primary_file_id and u.file_id == exp.primary_file_id and u.experiment:
+                two_theta = u.experiment.two_theta or []
+                intensity = u.experiment.intensity or []
+                break
+
+    if not two_theta or not intensity:
+        raise HTTPException(status_code=400, detail=f"No diffraction data found for experiment {req.experiment_id}")
+
+    wavelength = req.wavelength or getattr(exp, "wavelength_angstrom", None) or 1.5406
+
     try:
         state = _service.init_session(
             session_id=session_id,
             experiment_id=req.experiment_id,
-            two_theta=[],
-            intensity=[],
+            two_theta=two_theta,
+            intensity=intensity,
             phase_cifs=req.phase_cifs,
-            wavelength=req.wavelength or 1.5406,
+            wavelength=wavelength,
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
