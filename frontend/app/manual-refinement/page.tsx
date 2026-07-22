@@ -862,12 +862,14 @@ function ManualRefinementContent() {
         experiment_id: experimentInput.trim(),
         phase_cifs: cifs,
         wavelength: exp.wavelength_angstrom || 1.5406,
+        raw_two_theta: ttheta,
+        raw_intensity: intensity,
       });
       setSessionId(result.session_id);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes("Insufficient data")) {
-        setInitError("The backend rejected the data as insufficient for refinement. Try running the full pipeline from the experiment workspace first, or check that the uploaded XRD file contains enough data points (100+ recommended).");
+        setInitError("Backend could not load diffraction data for this experiment. Try running the full pipeline from the experiment workspace first, then retry.");
       } else {
         setInitError(msg);
       }

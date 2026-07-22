@@ -506,7 +506,7 @@ export const apiService = {
 
   // ── Manual Refinement ──────────────────────────────────────────
 
-  initManualRefinement: (data: { experiment_id: string; phase_cifs: CIFFile[]; wavelength?: number }) =>
+  initManualRefinement: (data: { experiment_id: string; phase_cifs: CIFFile[]; wavelength?: number; raw_two_theta?: number[]; raw_intensity?: number[] }) =>
     apiFetch<{ session_id: string; parameters: RefinementParameter[]; last_result?: RietveldResults | null; current_step: number; history: Array<{ step: number; rwp: number | null; rp: number | null; action: string }> }>(
       "/manual-refinement/init", { method: "POST", body: JSON.stringify(data) },
     ),

@@ -568,6 +568,34 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
                     onContinue={handlePhaseContinue}
                     phaseColors={phaseColorMap}
                   />
+
+                  {selectedPhaseIndices.size > 0 && (
+                    <div style={{ marginTop: 14, padding: "10px 12px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border-subtle)", background: "var(--surface-1)" }}>
+                      <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 8 }}>Workflow Progress</div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+                        {[
+                          { label: "Select Phases", done: true },
+                          { label: "Choose Refinement Mode", done: refinementMode !== null },
+                          { label: "Run Refinement", done: rietveldCompleted },
+                        ].map((step, idx, arr) => (
+                          <div key={step.label} style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0 }}>
+                              <div style={{ width: 18, height: 18, borderRadius: "50%", display: "grid", placeItems: "center", background: step.done ? "var(--accent-emerald)" : idx === arr.findIndex((s) => !s.done) ? "var(--accent-orange)" : "var(--surface-3)", color: step.done || idx === arr.findIndex((s) => !s.done) ? "white" : "var(--text-muted)", fontSize: 9, fontWeight: 700, transition: "all 0.3s" }}>
+                                {step.done ? <Check size={10} /> : idx + 1}
+                              </div>
+                              {idx < arr.length - 1 && <div style={{ width: 1, height: 14, background: step.done ? "var(--accent-emerald)" : "var(--border-subtle)", transition: "background 0.3s" }} />}
+                            </div>
+                            <span style={{ fontSize: 11, fontWeight: 550, color: step.done ? "var(--accent-emerald)" : idx === arr.findIndex((s) => !s.done) ? "var(--text-primary)" : "var(--text-muted)", marginTop: 1, transition: "color 0.3s" }}>{step.label}</span>
+                          </div>
+                        ))}
+                      </div>
+                      {!rietveldCompleted && !isRietveldRunning && refinementMode === null && selectedPhaseIndices.size > 0 && (
+                        <button onClick={handlePhaseContinue} className="button primary" style={{ width: "100%", justifyContent: "center", marginTop: 10, height: 34, fontSize: 12, fontWeight: 600 }}>
+                          <ChevronRight size={14} /> Next: Choose Refinement Mode
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
