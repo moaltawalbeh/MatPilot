@@ -5,6 +5,14 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
+  async rewrites() {
+    return [
+      {
+        source: "/",
+        destination: "/matpilot-homepage.html",
+      },
+    ];
+  },
   headers: async () => [
     {
       source: "/(.*)",
