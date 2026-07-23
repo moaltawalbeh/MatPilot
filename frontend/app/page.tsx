@@ -10,11 +10,14 @@ export default function HomePage() {
 
   const styleMatch = htmlFile.match(/<style>([\s\S]*?)<\/style>/);
   const bodyMatch = htmlFile.match(/<body[^>]*>([\s\S]*?)<script>/);
-  const scriptMatch = htmlFile.match(/<script>([\s\S]*?)<\/script>/);
+
+  const allScripts = htmlFile.match(/<script>([\s\S]*?)<\/script>/g) || [];
+  const scriptJs = allScripts.reduce((a, b) =>
+    b.length > a.length ? b : a
+  ).replace(/<\/?script>/g, "");
 
   const styles = styleMatch?.[1] || "";
   const bodyHtml = bodyMatch?.[1] || "";
-  const scriptJs = scriptMatch?.[1] || "";
 
   const modifiedBody = bodyHtml.replace(
     '<!-- Primary Action Button -->',
