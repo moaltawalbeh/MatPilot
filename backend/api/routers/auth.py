@@ -1,31 +1,23 @@
 """Auth API endpoints.
 
-Uses Neon PostgreSQL for persistent user storage.
+Uses the app DI container's unit of work — Neon PostgreSQL when
+``DATABASE_URL`` is configured, in-memory otherwise (local dev).
 """
 
 from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel
 from typing import Optional
 
+from backend.api.dependencies import get_container
 from backend.services.auth_service import AuthService
-from backend.infrastructure.database.connection import AsyncSessionLocal
-from backend.infrastructure.database.async_uow import AsyncUnitOfWork
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
 
-async def get_db_auth_service():
-    """Provide AuthService backed by Neon PostgreSQL."""
-    async with AsyncSessionLocal() as session:
-        uow = AsyncUnitOfWork(session)
-        try:
-            yield AuthService(uow)
-            await session.commit()
-        except Exception:
-            await session.rollback()
-            raise
-        finally:
-            await session.close()
+async def get_db_auth_service(request: Request = None):
+    """Provide an AuthService backed by the container's unit of work."""
+    container = get_container(request)
+    yield AuthService(container.uow)
 
 
 class RegisterRequest(BaseModel):
