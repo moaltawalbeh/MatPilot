@@ -11,7 +11,27 @@ from dataclasses import dataclass, field
 import numpy as np
 from scipy.optimize import least_squares
 
-from backend.services.rietveld_service import RietveldService, RietveldResult, RietveldParameters
+from backend.services.rietveld_service import (
+    RietveldService,
+    RietveldResult,
+    RietveldParameters,
+    N_BASE_PARAMS,
+    IDX_SCALE,
+    IDX_ZERO_SHIFT,
+    IDX_BG,
+    IDX_U,
+    IDX_V,
+    IDX_W,
+    IDX_SIZE,
+    IDX_STRAIN,
+    IDX_PO,
+    IDX_SAMPLE_DISP,
+)
+from backend.domain.value_objects.wavelength import Wavelength, RadiationType
+
+CU_KA_AVG_ANGSTROM = Wavelength.from_radiation_type(
+    RadiationType.Cu_K_ALPHA_AVG
+).value_angstrom
 
 logger = logging.getLogger("manual_refinement")
 
@@ -43,7 +63,7 @@ class ManualRefinementSession:
     phase_cifs: List[Dict[str, Any]] = field(default_factory=list)
     two_theta: Optional[np.ndarray] = None
     intensity: Optional[np.ndarray] = None
-    wavelength: float = 1.5406
+    wavelength: float = CU_KA_AVG_ANGSTROM
     # Internal: cached peak data and lattice info from last Rietveld run
     _all_phase_peaks: Optional[List[List[Dict[str, Any]]]] = None
     _phase_lattice_info: Optional[List[Dict[str, Any]]] = None
@@ -80,24 +100,18 @@ PARAMETER_DEFINITIONS = [
     {"name": "W", "label": "W (Caglioti)", "category": "profile",
      "description": "Gaussian width constant", "default": 0.01,
      "lower": 0.0, "upper": 0.05},
-    {"name": "eta", "label": "Mixing Parameter (eta)", "category": "profile",
-     "description": "Pseudo-Voigt Lorentzian/Gaussian ratio", "default": 0.5,
-     "lower": 0.0, "upper": 1.0},
     {"name": "sample_displacement", "label": "Sample Displacement (mm)", "category": "instrument",
      "description": "Sample displacement error", "default": 0.0,
      "lower": -5.0, "upper": 5.0},
     {"name": "preferred_orientation", "label": "Preferred Orientation", "category": "sample",
      "description": "March-Dollase preferred orientation parameter", "default": 1.0,
      "lower": 0.1, "upper": 10.0},
-    {"name": "peak_asymmetry", "label": "Peak Asymmetry", "category": "profile",
-     "description": "Peak asymmetry correction parameter", "default": 0.0,
-     "lower": -1.0, "upper": 1.0},
     {"name": "crystallite_size", "label": "Crystallite Size (nm)", "category": "microstructure",
-     "description": "Average crystallite size (Scherrer)", "default": 100.0,
+     "description": "Average crystallite size (Scherrer, K = 1)", "default": 100.0,
      "lower": 1.0, "upper": 10000.0},
     {"name": "microstrain", "label": "Microstrain (x10^-4)", "category": "microstructure",
-     "description": "Microstrain broadening", "default": 0.0,
-     "lower": 0.0, "upper": 50.0},
+     "description": "Microstrain broadening (Stokes-Wilson, x10^-4 units)", "default": 0.0,
+     "lower": 0.0, "upper": 500.0},
 ]
 
 
@@ -133,7 +147,7 @@ class ManualRefinementService:
         two_theta,
         intensity,
         phase_cifs: List[Dict[str, Any]],
-        wavelength: float = 1.5406,
+        wavelength: float = CU_KA_AVG_ANGSTROM,
     ) -> Dict[str, Any]:
         """Initialize a manual refinement session with data.
 
@@ -171,12 +185,10 @@ class ManualRefinementService:
                 "U": rp.U,
                 "V": rp.V,
                 "W": rp.W,
-                "eta": rp.eta,
-                "sample_displacement": 0.0,
-                "preferred_orientation": 1.0,
-                "peak_asymmetry": 0.0,
-                "crystallite_size": 100.0,
-                "microstrain": 0.0,
+                "sample_displacement": rp.sample_displacement,
+                "preferred_orientation": rp.preferred_orientation,
+                "crystallite_size": (rp.size_angstrom / 10.0) if rp.size_angstrom else 100.0,
+                "microstrain": (rp.microstrain_eps * 1e4) if rp.microstrain_eps is not None else 0.0,
             }
             unc_map = {
                 "scale": unc.get("scale"),
@@ -188,7 +200,12 @@ class ManualRefinementService:
                 "U": unc.get("U"),
                 "V": unc.get("V"),
                 "W": unc.get("W"),
-                "eta": unc.get("eta"),
+                "sample_displacement": unc.get("sample_displacement"),
+                "preferred_orientation": unc.get("preferred_orientation"),
+                "crystallite_size": (unc.get("size_angstrom") / 10.0)
+                if unc.get("size_angstrom") is not None else None,
+                "microstrain": (unc.get("microstrain_eps") * 1e4)
+                if unc.get("microstrain_eps") is not None else None,
             }
         else:
             param_values = {d["name"]: d["default"] for d in PARAMETER_DEFINITIONS}
@@ -361,9 +378,12 @@ class ManualRefinementService:
         wl = session.wavelength
 
         # Build the master parameter vector (same layout as RietveldService)
-        # Indices: 0=scale, 1=zero_shift, 2..5=bg_c0..3, 6=U, 7=V, 8=W, 9=eta,
-        #          10..10+n_frac-1=phase_fractions, then lattice params
-        n_base = 10 + n_frac
+        # Indices (see backend/services/rietveld_service.py):
+        #   0=scale, 1=zero_shift, 2..5=bg_c0..3, 6=U, 7=V, 8=W,
+        #   9=size(Angstrom), 10=strain, 11=preferred_orientation,
+        #   12=sample_displacement, then phase_fractions, then lattice params.
+        # Session units differ for size (nm) and strain (x10^-4), so convert.
+        n_base = N_BASE_PARAMS + n_frac
         n_lattice = sum(len(info["param_indices"]) for info in phase_lattice_info)
         total_params = n_base + n_lattice
 
@@ -374,30 +394,42 @@ class ManualRefinementService:
 
         # Map session parameters to the internal vector
         param_name_to_idx = {}
-        full_x[0] = session.parameters.get("scale", _as_ref("scale")).value
-        full_x[1] = session.parameters.get("zero_shift", _as_ref("zero_shift")).value
+        full_x[IDX_SCALE] = session.parameters.get("scale", _as_ref("scale")).value
+        full_x[IDX_ZERO_SHIFT] = session.parameters.get("zero_shift", _as_ref("zero_shift")).value
         for i, bg_name in enumerate(["bg_c0", "bg_c1", "bg_c2", "bg_c3"]):
-            full_x[2 + i] = session.parameters.get(bg_name, _as_ref(bg_name)).value
-        full_x[6] = session.parameters.get("U", _as_ref("U")).value
-        full_x[7] = session.parameters.get("V", _as_ref("V")).value
-        full_x[8] = session.parameters.get("W", _as_ref("W")).value
-        full_x[9] = session.parameters.get("eta", _as_ref("eta")).value
+            full_x[IDX_BG + i] = session.parameters.get(bg_name, _as_ref(bg_name)).value
+        full_x[IDX_U] = session.parameters.get("U", _as_ref("U")).value
+        full_x[IDX_V] = session.parameters.get("V", _as_ref("V")).value
+        full_x[IDX_W] = session.parameters.get("W", _as_ref("W")).value
+        # crystallite_size is exposed in nm; the engine works in Angstrom.
+        full_x[IDX_SIZE] = (
+            session.parameters.get("crystallite_size", _as_ref("crystallite_size")).value * 10.0
+        )
+        # microstrain is exposed in x10^-4 units; the engine works dimensionless.
+        full_x[IDX_STRAIN] = (
+            session.parameters.get("microstrain", _as_ref("microstrain")).value * 1e-4
+        )
+        full_x[IDX_PO] = session.parameters.get("preferred_orientation", _as_ref("preferred_orientation")).value
+        full_x[IDX_SAMPLE_DISP] = session.parameters.get("sample_displacement", _as_ref("sample_displacement")).value
 
-        param_name_to_idx["scale"] = 0
-        param_name_to_idx["zero_shift"] = 1
+        param_name_to_idx["scale"] = IDX_SCALE
+        param_name_to_idx["zero_shift"] = IDX_ZERO_SHIFT
         for i, bg_name in enumerate(["bg_c0", "bg_c1", "bg_c2", "bg_c3"]):
-            param_name_to_idx[bg_name] = 2 + i
-        param_name_to_idx["U"] = 6
-        param_name_to_idx["V"] = 7
-        param_name_to_idx["W"] = 8
-        param_name_to_idx["eta"] = 9
+            param_name_to_idx[bg_name] = IDX_BG + i
+        param_name_to_idx["U"] = IDX_U
+        param_name_to_idx["V"] = IDX_V
+        param_name_to_idx["W"] = IDX_W
+        param_name_to_idx["crystallite_size"] = IDX_SIZE
+        param_name_to_idx["microstrain"] = IDX_STRAIN
+        param_name_to_idx["preferred_orientation"] = IDX_PO
+        param_name_to_idx["sample_displacement"] = IDX_SAMPLE_DISP
 
         # Phase fractions
         if n_frac > 0:
             phase_frac_names = [f"phase_frac_{i}" for i in range(n_frac)]
             for i, name in enumerate(phase_frac_names):
-                full_x[10 + i] = session.parameters.get(name, _as_ref(name)).value
-                param_name_to_idx[name] = 10 + i
+                full_x[N_BASE_PARAMS + i] = session.parameters.get(name, _as_ref(name)).value
+                param_name_to_idx[name] = N_BASE_PARAMS + i
 
         # Lattice parameters
         lattice_offset = n_base
@@ -413,11 +445,13 @@ class ManualRefinementService:
                 param_name_to_idx[full_name] = lattice_offset + param_idx
             lattice_offset += len(indices)
 
-        # Set bounds from parameter definitions
+        # Set bounds from parameter definitions (convert session units to
+        # engine units for size (nm -> Angstrom) and strain (x10^-4 -> dimless)).
         for name, idx in param_name_to_idx.items():
             if name in session.parameters:
-                full_lower[idx] = session.parameters[name].lower_bound
-                full_upper[idx] = session.parameters[name].upper_bound
+                factor = self._vector_scale(name)
+                full_lower[idx] = session.parameters[name].lower_bound * factor
+                full_upper[idx] = session.parameters[name].upper_bound * factor
 
         # Determine which parameters are unlocked (will be optimized)
         unlocked_names = [name for name, p in session.parameters.items() if not p.locked]
@@ -454,10 +488,9 @@ class ManualRefinementService:
                 full_x_local, tth, all_peaks, n_bg, n_frac, phase_lat_info, wavelength
             )
             residuals = i_calc - i_obs
-            eps = max(0.05, 0.05 * float(np.max(i_obs)))
-            safe_obs = np.clip(i_obs, eps, None)
-            weights = 1.0 / safe_obs
-            weighted_res = residuals * weights
+            # Same Poisson weights as RietveldService (w = 1/y_obs).
+            weights = self._rietveld._weights(i_obs)
+            weighted_res = residuals * np.sqrt(weights)
             cost = float(np.sum(weighted_res ** 2))
             rwp = self._rietveld._compute_rwp(i_obs, i_calc)
             rp = self._rietveld._compute_rp(i_obs, i_calc)
@@ -495,18 +528,17 @@ class ManualRefinementService:
         i_calc = self._rietveld._calculate_pattern(
             x_final, tth, all_phase_peaks, n_bg, n_frac, phase_lattice_info, wl
         ) * i_obs_max
-        bg = self._rietveld._polynomial_bg(x_final[2:6], tth) * i_obs_max
+        bg = self._rietveld._chebyshev_bg(x_final[IDX_BG:IDX_BG + n_bg], tth) * i_obs_max
         diff = session.intensity - i_calc
 
         r_wp = self._rietveld._compute_rwp(session.intensity, i_calc)
         r_p = self._rietveld._compute_rp(session.intensity, i_calc)
+        r_wp_bg_sub = self._rietveld._compute_rwp_bg_subtracted(session.intensity, i_calc, bg)
 
         # Compute Rexp, chi-squared, GoF
         n_data = len(tth)
         n_params_used = int(np.sum(~np.isinf(full_lower)))
-        eps_rexp = max(1e-10, 0.05 * float(np.max(session.intensity)))
-        safe_obs_rexp = np.clip(session.intensity, eps_rexp, None)
-        weights_rexp = 1.0 / safe_obs_rexp
+        weights_rexp = self._rietveld._weights(session.intensity)
         sum_w_y2 = float(np.sum(weights_rexp * session.intensity ** 2))
         if sum_w_y2 > 0 and n_data > n_params_used:
             r_exp = math.sqrt((n_data - n_params_used) / sum_w_y2) * 100.0
@@ -530,21 +562,25 @@ class ManualRefinementService:
             reduced_chi_sq = sum_residuals_sq / max(1, n_data - max(n_params_used, 1))
             cov = cov * reduced_chi_sq
             full_unc = np.zeros(len(x_final))
-            full_unc[unlocked_indices] = np.sqrt(np.diag(cov)) if len(unlocked_indices) == len(np.diag(cov)) else 0.0
+            if len(unlocked_indices) == len(np.diag(cov)):
+                diag = np.maximum(np.diag(cov), 0.0)
+                full_unc[unlocked_indices] = np.sqrt(diag)
             uncertainties = full_unc
         except Exception:
             pass
 
-        # Update session parameters with optimized values
+        # Update session parameters with optimized values (convert engine units
+        # back to session units for size and strain).
         for name, idx in param_name_to_idx.items():
             if name in session.parameters:
                 p = session.parameters[name]
                 old_val = p.value
-                p.value = float(x_final[idx])
-                if name in [n for n in unlocked_names if n in param_name_to_idx]:
-                    if name in param_name_to_idx:
-                        unc_idx = param_name_to_idx[name]
-                        p.uncertainty = float(uncertainties[unc_idx]) if uncertainties[unc_idx] > 0 else None
+                factor = self._vector_scale(name)
+                p.value = float(x_final[idx]) / factor
+                if name in unlocked_names:
+                    unc_idx = param_name_to_idx[name]
+                    unc_val = float(uncertainties[unc_idx]) if uncertainties[unc_idx] > 0 else None
+                    p.uncertainty = (unc_val / factor) if unc_val is not None else None
 
         # Update iteration history
         if iteration_history and iteration_history[-1]["iteration"] != iteration_counter[0]:
@@ -629,6 +665,7 @@ class ManualRefinementService:
             r_wp=round(r_wp, 4),
             r_p=round(r_p, 4),
             r_exp=round(r_exp, 4) if r_exp else None,
+            r_wp_bg_subtracted=round(r_wp_bg_sub, 4),
             chi_squared=round(chi_sq, 4),
             gof=round(gof, 4),
             two_theta=tth.tolist(),
@@ -700,7 +737,6 @@ class ManualRefinementService:
                     "U": r.parameters.U if r.parameters else None,
                     "V": r.parameters.V if r.parameters else None,
                     "W": r.parameters.W if r.parameters else None,
-                    "eta": r.parameters.eta if r.parameters else None,
                     "phase_fractions": r.parameters.phase_fractions if r.parameters else [],
                 } if r.parameters else None,
                 "patterns": {
@@ -782,6 +818,18 @@ class ManualRefinementService:
             return True
         return False
 
+    def _vector_scale(self, name: str) -> float:
+        """Scale factor converting a session parameter value to engine units.
+
+        The refinement vector works in Angstrom (crystallite size) and
+        dimensionless microstrain; the session UI exposes nm and x10^-4 units.
+        """
+        if name == "crystallite_size":
+            return 10.0
+        if name == "microstrain":
+            return 1e-4
+        return 1.0
+
     def _param_to_dict(self, p: RefinementParameter) -> Dict[str, Any]:
         return {
             "name": p.name,
@@ -798,6 +846,20 @@ class ManualRefinementService:
 
     def _build_rietveld_params(self, session: ManualRefinementSession) -> RietveldParameters:
         p = session.parameters
+        phase_fractions = []
+        n_phases = len(session.phase_cifs)
+        for i in range(n_phases):
+            name = f"phase_frac_{i}"
+            if name in p:
+                phase_fractions.append(float(max(0.0, min(1.0, p[name].value))))
+            elif i == n_phases - 1 and n_phases > 1:
+                frac = 1.0 - sum(
+                    float(max(0.0, min(1.0, p.get(f"phase_frac_{j}", _as_ref(f"phase_frac_{j}")).value)))
+                    for j in range(n_phases - 1)
+                )
+                phase_fractions.append(max(0.0, frac))
+            else:
+                phase_fractions.append(1.0)
         return RietveldParameters(
             scale=p.get("scale", _as_ref("scale")).value,
             zero_shift=p.get("zero_shift", _as_ref("zero_shift")).value,
@@ -810,8 +872,11 @@ class ManualRefinementService:
             U=p.get("U", _as_ref("U")).value,
             V=p.get("V", _as_ref("V")).value,
             W=p.get("W", _as_ref("W")).value,
-            eta=p.get("eta", _as_ref("eta")).value,
-            phase_fractions=[],
+            size_angstrom=p.get("crystallite_size", _as_ref("crystallite_size")).value * 10.0,
+            microstrain_eps=p.get("microstrain", _as_ref("microstrain")).value * 1e-4,
+            preferred_orientation=p.get("preferred_orientation", _as_ref("preferred_orientation")).value,
+            sample_displacement=p.get("sample_displacement", _as_ref("sample_displacement")).value,
+            phase_fractions=phase_fractions,
             lattice_params=[],
         )
 
@@ -898,7 +963,7 @@ class ManualRefinementService:
     def _build_phase_lattice_info(self, phase_cifs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Build lattice info mapping matching RietveldService's internal format."""
         info_list = []
-        current_idx = 10 + max(0, len(phase_cifs) - 1)
+        current_idx = N_BASE_PARAMS + max(0, len(phase_cifs) - 1)
 
         for cif_data in phase_cifs:
             uc = cif_data.get("unit_cell", {})

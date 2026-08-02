@@ -5,6 +5,14 @@ Calculates theoretical powder diffraction patterns from crystallographic data:
 - Atomic positions → structure factors → intensities
 - Returns peak list with 2θ positions, intensities, hkl indices, d-spacings
 
+Intensities include the lattice multiplicity of each {hkl} reflection family
+(number of symmetry-equivalent reflections with the same d-spacing) and a
+Lorentz-polarization correction. The structure factor is computed with the
+simplified θ=0 scattering factor (f ≈ Z); space-group-specific systematic
+absences are NOT modelled, so this generator is an approximation suitable for
+peak positions and approximate relative intensities. pymatgen-based generation
+(preferred, correct handling of symmetry) lives in PymatgenPatternGenerator.
+
 Uses only numpy (no heavy dependencies).
 """
 
@@ -14,10 +22,15 @@ import logging
 from typing import Dict, Any, List, Optional, Tuple
 import numpy as np
 
+from backend.domain.value_objects.wavelength import Wavelength, RadiationType
+
 logger = logging.getLogger("theoretical_pattern")
 
-# Cu K-alpha wavelength
-CU_K_ALPHA = 1.5406  # Angstroms
+# Cu K-alpha (weighted average) wavelength — canonical NIST value imported
+# from the shared value object (backend/domain/value_objects/wavelength.py).
+CU_K_ALPHA = Wavelength.from_radiation_type(
+    RadiationType.Cu_K_ALPHA_AVG
+).value_angstrom
 
 
 class TheoreticalPatternGenerator:
@@ -69,6 +82,15 @@ class TheoreticalPatternGenerator:
         atoms = cif_data.get("atoms", [])
         reflections_cif = cif_data.get("reflections", [])
 
+        # Crystal system (from parsed CIF metadata, falling back to the space
+        # group number) is used for lattice multiplicity.
+        crystal_system = (
+            cif_data.get("crystal_system", "")
+            or self._crystal_system_from_sg_number(
+                cif_data.get("space_group_number", 0)
+            )
+        )
+
         # Compute metric tensor and its inverse
         metric = self._compute_metric_tensor(a, b, c, alpha, beta, gamma)
         metric_inv = np.linalg.inv(metric)
@@ -103,12 +125,18 @@ class TheoreticalPatternGenerator:
             f_squared = self._compute_structure_factor(hkl, atoms)
 
             if f_squared > 0:
+                # Lattice multiplicity of the {hkl} family (research doc 1.1:
+                # one plane per symmetry-equivalent family).
+                multiplicity = self._reflection_multiplicity(
+                    h, k, l, crystal_system
+                )
                 peaks.append({
                     "hkl": f"{h}{k}{l}",
                     "h": h, "k": k, "l": l,
                     "two_theta": round(two_theta, 4),
                     "d_spacing": round(d_spacing, 4),
                     "f_squared": round(f_squared, 2),
+                    "multiplicity": multiplicity,
                 })
 
         if not peaks:
@@ -264,11 +292,13 @@ class TheoreticalPatternGenerator:
 
     def _apply_lorentz_polarization(self, peaks: List[Dict[str, Any]]):
         """
-        Apply Lorentz-polarization correction.
+        Apply Lorentz-polarization correction and lattice multiplicity.
 
         LP = (1 + cos²(2θ)) / (sin²(θ) · cos(θ))
 
-        This corrects for geometric factors of the diffractometer.
+        Intensity ~ |F|² · multiplicity · LP. Multiplicity counts the
+        symmetry-equivalent reflections of the {hkl} family contributing to
+        the powder line (research doc 1.1).
         """
         for peak in peaks:
             two_theta_rad = math.radians(peak["two_theta"])
@@ -278,12 +308,96 @@ class TheoreticalPatternGenerator:
             cos_theta = math.cos(theta)
             cos_2theta = math.cos(two_theta_rad)
 
+            multiplicity = peak.get("multiplicity", 1)
+
             if sin_theta <= 0 or cos_theta <= 0:
-                peak["intensity"] = peak["f_squared"]
+                peak["intensity"] = peak["f_squared"] * multiplicity
                 continue
 
             lp_factor = (1.0 + cos_2theta ** 2) / (sin_theta ** 2 * cos_theta)
-            peak["intensity"] = peak["f_squared"] * lp_factor
+            peak["intensity"] = peak["f_squared"] * multiplicity * lp_factor
+
+    @staticmethod
+    def _crystal_system_from_sg_number(space_group_number: int) -> str:
+        """Resolve crystal system from the international space-group number."""
+        sg = int(space_group_number or 0)
+        if 1 <= sg <= 2:
+            return "Triclinic"
+        if 3 <= sg <= 15:
+            return "Monoclinic"
+        if 16 <= sg <= 74:
+            return "Orthorhombic"
+        if 75 <= sg <= 142:
+            return "Tetragonal"
+        if 143 <= sg <= 167:
+            return "Trigonal"
+        if 168 <= sg <= 194:
+            return "Hexagonal"
+        if 195 <= sg <= 230:
+            return "Cubic"
+        return ""
+
+    @staticmethod
+    def _reflection_multiplicity(
+        h: int, k: int, l: int, crystal_system: str
+    ) -> int:
+        """
+        Lattice multiplicity of the {hkl} reflection family.
+
+        Number of symmetry-equivalent reflections with the same d-spacing
+        under the crystal-system point group (standard powder tables;
+        research doc 1.1 counting rules). This is the multiplicity of a
+        surviving reflection — space-group systematic absences may remove a
+        whole reflection, but they do not change the multiplicity of the
+        reflections that remain.
+
+        Trigonal uses the hexagonal (rhombohedral) setting convention; for
+        other systems the multiplicity is unambiguous.
+        """
+        cs = (crystal_system or "").lower()
+        h, k, l = abs(h), abs(k), abs(l)
+        nonzero = sum(1 for v in (h, k, l) if v != 0)
+        distinct = sorted({v for v in (h, k, l) if v != 0})
+        n_distinct = len(distinct)
+
+        if cs == "cubic":
+            if nonzero == 1:
+                return 6
+            if nonzero == 2:
+                return 12 if n_distinct == 1 else 24
+            if n_distinct == 1:  # (hhh)
+                return 8
+            return 24 if n_distinct == 2 else 48
+        if cs == "hexagonal":
+            if nonzero == 1:
+                # (00l) lies along the unique c-axis -> 2; (h00)/(0k0) -> 6
+                return 2 if h == 0 and k == 0 else 6
+            if nonzero == 2:
+                return 6 if n_distinct == 1 else 12
+            return 12 if n_distinct == 2 else 24
+        if cs == "trigonal":
+            if nonzero == 1:
+                # Hexagonal (rhombohedral) setting: (00l) -> 6, (h00) -> 6
+                return 6
+            if nonzero == 2:
+                return 6 if n_distinct == 1 else 12
+            return 12 if n_distinct == 2 else 24
+        if cs == "tetragonal":
+            if nonzero == 1:
+                return 2 if h == 0 and k == 0 else 4
+            if nonzero == 2:
+                return 4 if n_distinct == 1 else 8
+            return 8 if n_distinct == 2 else 16
+        if cs == "orthorhombic":
+            if nonzero == 1:
+                return 2
+            return 4 if nonzero == 2 else 8
+        if cs == "monoclinic":
+            return 2 if nonzero <= 2 else 4
+        if cs == "triclinic":
+            return 2
+        # Unknown crystal system: no symmetry information -> unit multiplicity.
+        return 1
 
     def _merge_close_peaks(
         self, peaks: List[Dict[str, Any]], tolerance: float = 0.01

@@ -1,11 +1,11 @@
 "use client";
 
 import { Page } from "@/components/ui/page";
-import { useProjects, useDownloadPDFReport } from "@/hooks/use-api";
+import { useProjects } from "@/hooks/use-api";
 import { apiService } from "@/lib/api-client";
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { FileText, Download, Printer, Share2, FileCode, FileJson, FileSpreadsheet, CheckCircle2, Loader2, ChevronDown, ChevronRight, FlaskConical, Clock } from "lucide-react";
+import { FileText, Download, Printer, Share2, FileCode, FileSpreadsheet, CheckCircle2, Loader2, ChevronDown, ChevronRight, FlaskConical, Clock } from "lucide-react";
 
 type ExportFormat = "pdf" | "word" | "text";
 
@@ -192,119 +192,6 @@ function buildReportSections(projectName: string, project: any, exp: any) {
   return lines;
 }
 
-function buildWordHtml(projectName: string, project: any, exp: any): string {
-  const now = new Date();
-  const peaks = (exp?.detected_peaks || []) as { two_theta: number; intensity: number; d_spacing?: number; fwhm?: number }[];
-  const phases = (exp?.candidate_phases || []) as { material_name: string; material_formula: string; match_score: number; confidence: string; matched_peaks: number }[];
-  const rv = exp?.rietveld_results as Record<string, any> | undefined;
-
-  const parts: string[] = [
-    `<!DOCTYPE html><html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">`,
-    `<head><meta charset="utf-8"><title>${projectName} — MatPilot Report</title>`,
-    `<style>`,
-    `body{font-family:Calibri,Arial,sans-serif;max-width:800px;margin:0 auto;padding:40px;color:#1a1a2e;line-height:1.6;font-size:11pt}`,
-    `h1{color:#f97316;border-bottom:2px solid #f97316;padding-bottom:8px;font-size:20pt}`,
-    `h2{color:#334155;margin-top:28px;font-size:14pt;border-bottom:1px solid #e2e8f0;padding-bottom:4px}`,
-    `h3{color:#475569;margin-top:16px;font-size:12pt}`,
-    `table{width:100%;border-collapse:collapse;margin:12px 0}`,
-    `th,td{padding:6px 10px;border:1px solid #e2e8f0;text-align:left;font-size:10pt}`,
-    `th{background:#f8fafc;font-weight:600}`,
-    `.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:9pt;font-weight:600}`,
-    `.good{background:#d1fae5;color:#065f46}.info{background:#dbeafe;color:#1e40af}`,
-    `.stat-value{font-size:14pt;font-weight:700;color:#f97316}`,
-    `.stat-label{font-size:9pt;color:#64748b;text-transform:uppercase}`,
-    `.footer{margin-top:40px;padding-top:12px;border-top:1px solid #e2e8f0;color:#94a3b8;font-size:9pt}`,
-    `</style></head><body>`,
-    `<h1>${projectName}</h1>`,
-    `<p style="color:#64748b"><strong>Material:</strong> ${project?.material || "N/A"} &nbsp;|&nbsp; <strong>Generated:</strong> ${now.toLocaleString()} &nbsp;|&nbsp; <strong>Platform:</strong> MatPilot v1.0</p>`,
-  ];
-
-  parts.push(`<h2>Project Information</h2><table>`);
-  parts.push(`<tr><td><strong>Project Name</strong></td><td>${projectName}</td></tr>`);
-  parts.push(`<tr><td><strong>Material</strong></td><td>${project?.material || "N/A"}</td></tr>`);
-  parts.push(`<tr><td><strong>Status</strong></td><td>${project?.status || "N/A"}</td></tr>`);
-  parts.push(`<tr><td><strong>Experiments</strong></td><td>${project?.experiments ?? "N/A"}</td></tr>`);
-  parts.push(`<tr><td><strong>Last Updated</strong></td><td>${project?.updated_at ? new Date(project.updated_at).toLocaleString() : "N/A"}</td></tr>`);
-  parts.push(`</table>`);
-
-  if (exp) {
-    parts.push(`<h2>Experiment Information</h2><table>`);
-    parts.push(`<tr><td><strong>Experiment</strong></td><td>${exp.name || "N/A"}</td></tr>`);
-    parts.push(`<tr><td><strong>Status</strong></td><td>${exp.status || "N/A"}</td></tr>`);
-    parts.push(`<tr><td><strong>Data Points</strong></td><td>${exp.data_points?.toLocaleString() ?? "N/A"}</td></tr>`);
-    if (exp.two_theta_range) parts.push(`<tr><td><strong>2\u03b8 Range</strong></td><td>${exp.two_theta_range[0].toFixed(1)}\u00b0 \u2013 ${exp.two_theta_range[1].toFixed(1)}\u00b0</td></tr>`);
-    parts.push(`<tr><td><strong>Analysis Date</strong></td><td>${now.toLocaleString()}</td></tr>`);
-    parts.push(`</table>`);
-  }
-
-  if (peaks.length > 0) {
-    parts.push(`<h2>Detected Peaks (${peaks.length})</h2><table><thead><tr><th>#</th><th>2\u03b8 (\u00b0)</th><th>Intensity</th><th>d (\u00c5)</th><th>FWHM (\u00b0)</th></tr></thead><tbody>`);
-    peaks.slice(0, 50).forEach((p, i) => {
-      parts.push(`<tr><td>${i + 1}</td><td>${p.two_theta.toFixed(3)}</td><td>${p.intensity.toFixed(1)}</td><td>${p.d_spacing?.toFixed(4) || "\u2014"}</td><td>${p.fwhm?.toFixed(3) || "\u2014"}</td></tr>`);
-    });
-    if (peaks.length > 50) parts.push(`<tr><td colspan="5" style="text-align:center;color:#888">\u2026and ${peaks.length - 50} more peaks</td></tr>`);
-    parts.push(`</tbody></table>`);
-  }
-
-  if (phases.length > 0) {
-    parts.push(`<h2>Phase Identification Results (${phases.length} candidates)</h2><table><thead><tr><th>#</th><th>Material</th><th>Formula</th><th>Match</th><th>Confidence</th><th>Peaks</th></tr></thead><tbody>`);
-    phases.forEach((p, i) => {
-      const confClass = p.confidence === "High" ? "good" : "info";
-      parts.push(`<tr><td>${i + 1}</td><td><strong>${p.material_name}</strong></td><td>${p.material_formula}</td><td>${((p.match_score ?? 0) * 100).toFixed(1)}%</td><td><span class="badge ${confClass}">${p.confidence}</span></td><td>${p.matched_peaks}</td></tr>`);
-    });
-    parts.push(`</tbody></table>`);
-  }
-
-  if (rv && rv.status === "completed") {
-    parts.push(`<h2>Refinement Results</h2>`);
-    parts.push(`<p><strong>Mode:</strong> ${rv.workflow === "auto" ? "Automatic Rietveld" : "Manual Rietveld"}</p>`);
-    parts.push(`<h3>Refinement Statistics</h3><table>`);
-    const stats: [string, any, string][] = [
-      ["R<sub>wp</sub>", rv.r_wp, "%"],
-      ["R<sub>p</sub>", rv.r_p, "%"],
-      ["R<sub>exp</sub>", rv.r_exp, "%"],
-      ["\u03c7\u00b2", rv.chi_squared, ""],
-      ["GoF", rv.gof, ""],
-      ["Iterations", rv.iterations, ""],
-    ];
-    stats.forEach(([label, val, unit]) => {
-      parts.push(`<tr><td>${label}</td><td class="stat-value">${val != null ? (typeof val === "number" ? val.toFixed(4) : String(val)) : "\u2014"} ${unit}</td></tr>`);
-    });
-    parts.push(`</table>`);
-
-    if (rv.parameters) {
-      parts.push(`<h3>Refined Parameters</h3><table>`);
-      if (rv.parameters.scale != null) parts.push(`<tr><td>Scale</td><td>${rv.parameters.scale.toFixed(6)}</td></tr>`);
-      if (rv.parameters.zero_shift != null) parts.push(`<tr><td>Zero Shift</td><td>${rv.parameters.zero_shift.toFixed(6)} \u00b0</td></tr>`);
-      if (rv.parameters.U != null) parts.push(`<tr><td>U (Caglioti)</td><td>${rv.parameters.U.toFixed(6)}</td></tr>`);
-      if (rv.parameters.V != null) parts.push(`<tr><td>V (Caglioti)</td><td>${rv.parameters.V.toFixed(6)}</td></tr>`);
-      if (rv.parameters.W != null) parts.push(`<tr><td>W (Caglioti)</td><td>${rv.parameters.W.toFixed(6)}</td></tr>`);
-      parts.push(`</table>`);
-    }
-
-    if (rv.phases_used?.length > 0) {
-      parts.push(`<h3>Crystal Structure Information</h3>`);
-      rv.phases_used.forEach((phase: any, i: number) => {
-        parts.push(`<h4>Phase ${i + 1}: ${phase.name || phase.formula || "Unknown"}</h4><table>`);
-        if (phase.formula) parts.push(`<tr><td>Formula</td><td>${phase.formula}</td></tr>`);
-        if (phase.space_group) parts.push(`<tr><td>Space Group</td><td>${phase.space_group}</td></tr>`);
-        parts.push(`<tr><td>Fraction</td><td>${((phase.fraction ?? 0) * 100).toFixed(1)}%</td></tr>`);
-        parts.push(`<tr><td>Peaks</td><td>${phase.n_peaks ?? 0}</td></tr>`);
-        if (phase.lattice_params) {
-          Object.entries(phase.lattice_params).forEach(([k, v]) => {
-            parts.push(`<tr><td>${k}</td><td>${typeof v === "number" ? v.toFixed(4) : String(v)}${["a", "b", "c"].includes(k) ? " \u00c5" : ""}</td></tr>`);
-          });
-        }
-        parts.push(`</table>`);
-      });
-    }
-  }
-
-  parts.push(`<div class="footer"><p>Generated by <strong>MatPilot</strong> \u2014 Materials Characterization Platform | <a href="https://www.matpilot.site">matpilot.site</a></p></div>`);
-  parts.push(`</body></html>`);
-  return parts.join("\n");
-}
-
 export default function ReportsPage() {
   const { data: projects, isLoading } = useProjects();
   const allProjects = projects ?? [];
@@ -314,7 +201,6 @@ export default function ReportsPage() {
   const [exporting, setExporting] = useState<string | null>(null);
   const [exportSuccess, setExportSuccess] = useState<string | null>(null);
   const successTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const downloadPdf = useDownloadPDFReport();
 
   useEffect(() => {
     return () => {
@@ -345,24 +231,22 @@ export default function ReportsPage() {
       const firstExp = getExpForExport(projectId || "", selectedExperimentId);
       const project = allProjects.find((p) => p.id === projectId || p.name === projectName);
 
-      if (format === "pdf") {
-        if (projectId && firstExp) {
-          try {
-            const blob = await apiService.downloadReport(firstExp.id);
-            downloadBlob(blob, `${safeName}_report.pdf`);
-          } catch {
-            const lines = buildReportSections(projectName, project, firstExp);
-            downloadReport(lines.join("\n"), `${safeName}_report.txt`, "text/plain");
-          }
-        } else {
-          const lines = buildReportSections(projectName, project, null);
+      const formatMap: Record<ExportFormat, "pdf" | "docx" | "txt"> = {
+        pdf: "pdf",
+        word: "docx",
+        text: "txt",
+      };
+
+      if (firstExp?.id) {
+        try {
+          const { blob, filename } = await apiService.downloadReport(firstExp.id, formatMap[format]);
+          downloadBlob(blob, filename);
+        } catch {
+          const lines = buildReportSections(projectName, project, firstExp);
           downloadReport(lines.join("\n"), `${safeName}_report.txt`, "text/plain");
         }
-      } else if (format === "word") {
-        const html = buildWordHtml(projectName, project, firstExp || null);
-        downloadReport(html, `${safeName}_report.doc`, "application/msword");
-      } else if (format === "text") {
-        const lines = buildReportSections(projectName, project, firstExp || null);
+      } else {
+        const lines = buildReportSections(projectName, project, null);
         downloadReport(lines.join("\n"), `${safeName}_report.txt`, "text/plain");
       }
 

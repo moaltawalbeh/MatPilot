@@ -263,15 +263,17 @@ class TestSimilarityEngine:
         exp_peaks = [
             {"two_theta": 28.44, "intensity": 100},
             {"two_theta": 47.30, "intensity": 55},
+            {"two_theta": 56.12, "intensity": 30},
         ]
         ref_peaks = [
             {"two_theta": 28.44, "intensity": 100, "d_spacing": 3.135, "hkl": "111"},
             {"two_theta": 47.30, "intensity": 55, "d_spacing": 1.920, "hkl": "220"},
+            {"two_theta": 56.12, "intensity": 30, "d_spacing": 1.637, "hkl": "311"},
         ]
 
         result = engine.compare_patterns(exp_peaks, ref_peaks)
         assert result.match_score > 0.8
-        assert result.matched_peaks == 2
+        assert result.matched_peaks == 3
         assert result.confidence == "High"
 
     def test_no_match(self):

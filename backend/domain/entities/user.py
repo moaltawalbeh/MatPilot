@@ -37,6 +37,13 @@ class User:
     # Auth
     hashed_password: Optional[str] = None
 
+    # Account lifecycle / Phase 3
+    is_verified: bool = False
+    email_verification_token: Optional[str] = None
+    password_reset_token: Optional[str] = None
+    # Increment to invalidate all outstanding JWTs (logout / password change).
+    token_version: int = 0
+
     # Organization
     organization_id: Optional[UUID] = None
     team_ids: List[UUID] = field(default_factory=list)

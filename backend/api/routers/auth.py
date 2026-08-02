@@ -44,6 +44,28 @@ class RefreshRequest(BaseModel):
     refresh_token: str
 
 
+class VerifyEmailRequest(BaseModel):
+    token: str
+
+
+class ResendVerificationRequest(BaseModel):
+    email: str
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
+
+class ChangePasswordRequest(BaseModel):
+    old_password: str
+    new_password: str
+
+
 async def get_current_user_dep(
     auth_service: AuthService = Depends(get_db_auth_service),
     request: Request = None,
@@ -62,13 +84,12 @@ async def get_current_user_dep(
 @router.post("/register")
 async def register(request: RegisterRequest, auth_service: AuthService = Depends(get_db_auth_service)):
     try:
-        result = await auth_service.register(
+        return await auth_service.register(
             username=request.username,
             email=request.email,
             password=request.password,
             full_name=request.full_name or "",
         )
-        return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -76,11 +97,10 @@ async def register(request: RegisterRequest, auth_service: AuthService = Depends
 @router.post("/login")
 async def login(request: LoginRequest, auth_service: AuthService = Depends(get_db_auth_service)):
     try:
-        result = await auth_service.login(
+        return await auth_service.login(
             username_or_email=request.username_or_email,
             password=request.password,
         )
-        return result
     except ValueError as e:
         raise HTTPException(status_code=401, detail=str(e))
 
@@ -88,17 +108,67 @@ async def login(request: LoginRequest, auth_service: AuthService = Depends(get_d
 @router.post("/refresh")
 async def refresh(request: RefreshRequest, auth_service: AuthService = Depends(get_db_auth_service)):
     try:
-        result = await auth_service.refresh(request.refresh_token)
-        return result
+        return await auth_service.refresh(request.refresh_token)
     except ValueError as e:
         raise HTTPException(status_code=401, detail=str(e))
+
+
+@router.post("/verify-email")
+async def verify_email(request: VerifyEmailRequest, auth_service: AuthService = Depends(get_db_auth_service)):
+    try:
+        return await auth_service.verify_email(request.token)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/resend-verification")
+async def resend_verification(
+    request: ResendVerificationRequest,
+    auth_service: AuthService = Depends(get_db_auth_service),
+):
+    return await auth_service.resend_verification(request.email)
+
+
+@router.post("/forgot-password")
+async def forgot_password(
+    request: ForgotPasswordRequest,
+    auth_service: AuthService = Depends(get_db_auth_service),
+):
+    return await auth_service.forgot_password(request.email)
+
+
+@router.post("/reset-password")
+async def reset_password(
+    request: ResetPasswordRequest,
+    auth_service: AuthService = Depends(get_db_auth_service),
+):
+    try:
+        return await auth_service.reset_password(request.token, request.new_password)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/change-password")
+async def change_password(
+    request: ChangePasswordRequest,
+    user=Depends(get_current_user_dep),
+    auth_service: AuthService = Depends(get_db_auth_service),
+):
+    try:
+        return await auth_service.change_password(user, request.old_password, request.new_password)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/logout")
+async def logout(
+    user=Depends(get_current_user_dep),
+    auth_service: AuthService = Depends(get_db_auth_service),
+):
+    await auth_service.logout(user)
+    return {"message": "Logged out successfully"}
 
 
 @router.get("/me")
 async def me(user=Depends(get_current_user_dep), auth_service: AuthService = Depends(get_db_auth_service)):
     return auth_service._user_to_dict(user)
-
-
-@router.post("/logout")
-async def logout():
-    return {"message": "Logged out successfully"}

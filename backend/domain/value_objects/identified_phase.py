@@ -32,6 +32,15 @@ class IdentifiedPhase:
     crystal_system: Optional[str] = None
     theoretical_peaks: List[TheoreticalPeak] = field(default_factory=list)
 
+    # Actually computed figure-of-merit components
+    f_n: Optional[float] = None  # Smith-Snyder F_N (higher is better)
+    m20: Optional[float] = None  # de Wolff M20 (higher is better)
+    mae_2theta: Optional[float] = None
+    n_unexplained_exp: Optional[int] = None
+    n_missing_ref: Optional[int] = None
+    quality_mark: Optional[str] = None  # ICDD quality mark (star/G/I/C/P/M/B/O/H)
+    quality_prior: Optional[float] = None
+
 
 @dataclass(frozen=True)
 class SimulatedPattern:

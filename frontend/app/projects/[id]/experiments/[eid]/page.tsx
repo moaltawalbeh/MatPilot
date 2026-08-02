@@ -11,7 +11,8 @@ import {
   ArrowUp, ArrowDown, FileText, FileCode, FileSpreadsheet, ClipboardList,
   Lock,
 } from "lucide-react";
-import { useDownloadPDFReport, useExperiment, useRunPipeline, useExperimentData, useRunRietveld } from "@/hooks/use-api";
+import { useExperiment, useRunPipeline, useExperimentData, useRunRietveld } from "@/hooks/use-api";
+import { apiService } from "@/lib/api-client";
 import { XrdChart } from "@/components/charts/xrd-chart";
 import { PhaseIdentification, getPhaseColor, PHASE_COLORS } from "@/components/experiment/phase-identification";
 import { RietveldRefinement } from "@/components/experiment/rietveld-refinement";
@@ -59,10 +60,6 @@ function downloadBlob(blob: Blob, filename: string) {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-}
-
-function safeFileName(name: string) {
-  return (name || "matpilot_experiment").replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_+|_+$/g, "").toLowerCase();
 }
 
 const CONFIRMED_PHASES_KEY = "matpilot_confirmed_phases";
@@ -148,7 +145,6 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
   const { data: rawData } = useExperimentData(projectId, experimentId);
   const runPipeline = useRunPipeline();
   const runRietveld = useRunRietveld();
-  const downloadPdfReport = useDownloadPDFReport();
   const [autoRan, setAutoRan] = useState(false);
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
@@ -327,84 +323,15 @@ export default function ExperimentWorkspacePage({ params }: { params: Promise<{ 
     setRightOpen(true);
   }, []);
 
-  const buildReportText = useCallback(() => {
-    const rv = experiment?.rietveld_results;
-    const lines: string[] = [];
-    lines.push("MATPILOT XRD REPORT");
-    lines.push("=".repeat(72));
-    lines.push("");
-    lines.push(`Project ID: ${projectId}`);
-    lines.push(`Experiment: ${experiment?.name || "Untitled Experiment"}`);
-    lines.push(`Material: ${experiment?.material || "N/A"}`);
-    lines.push(`Analysis Date: ${new Date().toLocaleString()}`);
-    lines.push(`Uploaded File: ${experiment?.primary_file_id || "N/A"}`);
-    lines.push(`Data Points: ${experiment?.data_points?.toLocaleString() ?? "N/A"}`);
-    if (experiment?.two_theta_range) {
-      lines.push(`Measurement Range: ${experiment.two_theta_range[0].toFixed(2)} to ${experiment.two_theta_range[1].toFixed(2)} deg 2theta`);
-    }
-    lines.push("");
-    lines.push("SELECTED PHASES");
-    lines.push("-".repeat(72));
-    const confirmedPhases = confirmedPhaseIds.map((sid) => experiment?.candidate_phases?.find((p) => p.source_id === sid)).filter(Boolean);
-    confirmedPhases.forEach((phase, idx) => {
-      const rank = phase?.rank ?? idx + 1;
-      const color = phaseColorMap.get(rank) || PHASE_COLORS[idx % PHASE_COLORS.length];
-      lines.push(`${idx + 1}. ${phase?.material_name || `Phase ${rank}`} | ${phase?.material_formula || "N/A"} | Score ${(((phase?.match_score ?? 0) * 100)).toFixed(1)}% | ${phase?.confidence || "N/A"} | Color ${color}`);
-    });
-    if (confirmedPhases.length === 0) lines.push("No phases selected.");
-    lines.push("");
-    lines.push("PHASE IDENTIFICATION RESULTS");
-    lines.push("-".repeat(72));
-    (experiment?.candidate_phases || []).forEach((phase, idx) => {
-      lines.push(`${idx + 1}. ${phase.material_name || "Unknown"} (${phase.material_formula || "N/A"}) - ${((phase.match_score ?? 0) * 100).toFixed(1)}%, ${phase.confidence || "N/A"}`);
-    });
-    lines.push("");
-    lines.push("REFINEMENT");
-    lines.push("-".repeat(72));
-    lines.push(`Mode: ${rv?.workflow || refinementMode || "N/A"}`);
-    lines.push(`Status: ${rv?.status || (isRietveldRunning ? "running" : "not run")}`);
-    if (rv) {
-      lines.push(`Rwp: ${rv.r_wp?.toFixed(4) ?? "N/A"}%`);
-      lines.push(`Rp: ${rv.r_p?.toFixed(4) ?? "N/A"}%`);
-      lines.push(`Rexp: ${rv.r_exp?.toFixed(4) ?? "N/A"}%`);
-      lines.push(`Chi squared: ${rv.chi_squared?.toFixed(4) ?? "N/A"}`);
-      lines.push(`GOF: ${rv.gof?.toFixed(4) ?? "N/A"}`);
-      lines.push(`Iterations: ${rv.iterations ?? "N/A"}`);
-      lines.push("");
-      lines.push("REFINED PARAMETERS");
-      lines.push("-".repeat(72));
-      if (rv.parameters) {
-        lines.push(`Scale: ${rv.parameters.scale ?? "N/A"}`);
-        lines.push(`Zero Shift: ${rv.parameters.zero_shift ?? "N/A"}`);
-        lines.push(`U: ${rv.parameters.U ?? "N/A"}`);
-        lines.push(`V: ${rv.parameters.V ?? "N/A"}`);
-        lines.push(`W: ${rv.parameters.W ?? "N/A"}`);
-        rv.parameters.phase_fractions?.forEach((fraction, idx) => lines.push(`Phase ${idx + 1}: ${(fraction * 100).toFixed(2)}%`));
-      }
-    }
-    lines.push("");
-    lines.push("AI INTERPRETATION");
-    lines.push("-".repeat(72));
-    lines.push(String(experiment?.metadata?.ai_interpretation || "AI interpretation is ready to be attached when guidance services are enabled."));
-    return lines.join("\n");
-  }, [experiment, projectId, confirmedPhaseIds, phaseColorMap, refinementMode, isRietveldRunning]);
-
   const exportReport = useCallback(async (format: ExportFormat) => {
     setExportingFormat(format);
     try {
-      const base = safeFileName(experiment?.name || "matpilot_xrd_report");
-      if (format === "pdf") {
-        await downloadPdfReport.mutateAsync(experimentId);
-      } else if (format === "docx") {
-        const html = `<html><head><meta charset="utf-8"><title>MatPilot Report</title></head><body><pre style="font-family:Calibri,Arial,sans-serif;white-space:pre-wrap">${buildReportText()}</pre></body></html>`;
-        downloadBlob(new Blob([html], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }), `${base}_report.docx`);
-      } else {
-        downloadBlob(new Blob([buildReportText()], { type: "text/plain;charset=utf-8" }), `${base}_report.txt`);
-      }
+      const { blob, filename } = await apiService.downloadReport(experimentId, format);
+      downloadBlob(blob, filename);
     } finally {
       setExportingFormat(null);
     }
-  }, [buildReportText, downloadPdfReport, experiment?.name, experimentId]);
+  }, [experimentId]);
 
   const chartData = useMemo(() => {
     const rv = experiment?.rietveld_results;

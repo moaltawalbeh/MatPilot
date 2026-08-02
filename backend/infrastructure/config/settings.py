@@ -62,7 +62,7 @@ class ReferenceConfig:
         )
     )
     wavelength: float = field(
-        default_factory=lambda: float(os.environ.get("MATPILOT_DEFAULT_WAVELENGTH", "1.5406"))
+        default_factory=lambda: float(os.environ.get("MATPILOT_DEFAULT_WAVELENGTH", "1.540598"))
     )
 
 
@@ -118,6 +118,9 @@ class MatPilotConfig:
     app_name: str = "MatPilot"
     version: str = "0.3.0"
     environment: str = field(default_factory=lambda: os.environ.get("MATPILOT_ENV", "development"))
+    database_url: Optional[str] = field(
+        default_factory=lambda: os.environ.get("DATABASE_URL")
+    )
     upload: UploadConfig = field(default_factory=UploadConfig)
     storage: StorageConfig = field(default_factory=StorageConfig)
     reference: ReferenceConfig = field(default_factory=ReferenceConfig)

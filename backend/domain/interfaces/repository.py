@@ -215,6 +215,14 @@ class IUserRepository(IRepository):
     async def get_by_organization(self, org_id: UUID) -> List[object]:
         raise NotImplementedError
 
+    @abstractmethod
+    async def get_by_email_verification_token(self, token: str) -> Optional[object]:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def get_by_password_reset_token(self, token: str) -> Optional[object]:
+        raise NotImplementedError
+
 
 class IOrganizationRepository(IRepository):
     """Repository for Organization entities."""

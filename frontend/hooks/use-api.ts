@@ -248,11 +248,12 @@ export function usePipelineStages(experimentId: string) {
   });
 }
 
-export function useDownloadPDFReport() {
+export type ReportFormat = "pdf" | "docx" | "txt";
+
+export function useDownloadReport(format: ReportFormat = "pdf") {
   return useMutation({
     mutationFn: async (experimentId: string) => {
-      const blob = await apiService.downloadReport(experimentId);
-      const filename = "report.pdf";
+      const { blob, filename } = await apiService.downloadReport(experimentId, format);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;

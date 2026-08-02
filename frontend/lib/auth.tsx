@@ -16,6 +16,7 @@ export interface AuthUser {
   email: string;
   full_name: string;
   role: string;
+  is_verified: boolean;
 }
 
 interface AuthContextType {
@@ -30,7 +31,12 @@ interface AuthContextType {
     password: string,
     fullName?: string,
   ) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
+  verifyEmail: (token: string) => Promise<string>;
+  resendVerification: (email: string) => Promise<string>;
+  forgotPassword: (email: string) => Promise<string>;
+  resetPassword: (token: string, newPassword: string) => Promise<string>;
+  changePassword: (oldPassword: string, newPassword: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -101,9 +107,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [saveTokens],
   );
 
-  const logout = useCallback(() => {
-    clearTokens();
+  const logout = useCallback(async () => {
+    try {
+      await apiService.logout();
+    } catch {
+      // Server-side revocation is best-effort; always clear local session.
+    } finally {
+      clearTokens();
+    }
   }, [clearTokens]);
+
+  const verifyEmail = useCallback(async (token: string) => {
+    const res = await apiService.verifyEmail(token);
+    if (token) {
+      try {
+        const me = await apiService.getMe();
+        setUser(me);
+      } catch {
+        // Ignore refresh failures here; the user can reload.
+      }
+    }
+    return res.message;
+  }, []);
+
+  const resendVerification = useCallback(async (email: string) => {
+    const res = await apiService.resendVerification(email);
+    return res.message;
+  }, []);
+
+  const forgotPassword = useCallback(async (email: string) => {
+    const res = await apiService.forgotPassword(email);
+    return res.message;
+  }, []);
+
+  const resetPassword = useCallback(async (token: string, newPassword: string) => {
+    const res = await apiService.resetPassword(token, newPassword);
+    return res.message;
+  }, []);
+
+  const changePassword = useCallback(
+    async (oldPassword: string, newPassword: string) => {
+      const res = await apiService.changePassword(oldPassword, newPassword);
+      saveTokens(res.access_token, res.refresh_token);
+    },
+    [saveTokens],
+  );
 
   return (
     <AuthContext.Provider
@@ -115,6 +163,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         register,
         logout,
+        verifyEmail,
+        resendVerification,
+        forgotPassword,
+        resetPassword,
+        changePassword,
       }}
     >
       {children}

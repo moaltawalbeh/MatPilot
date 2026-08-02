@@ -1,12 +1,75 @@
 """Report API endpoints."""
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import Response
 
 from backend.api.dependencies import get_container
-from backend.domain.exceptions.domain_exceptions import EntityNotFoundError
+from backend.domain.exceptions.domain_exceptions import (
+    EntityNotFoundError,
+    UnsupportedFormatException,
+)
 
 router = APIRouter(prefix="/report", tags=["Report"])
+
+SUPPORTED_FORMATS = ("pdf", "docx", "txt", "pptx")
+
+FORMAT_MIME = {
+    "pdf": "application/pdf",
+    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "txt": "text/plain; charset=utf-8",
+    "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+}
+
+
+def _as_list(value):
+    if value is None:
+        return []
+    if isinstance(value, (list, tuple)):
+        return list(value)
+    if hasattr(value, "tolist"):
+        return list(value.tolist())
+    return []
+
+
+def _build_experiment_data(exp) -> dict:
+    """Collect every piece of experiment data the report generator needs.
+
+    The generator is defensive about keys, but this is where we normalize the
+    domain entity into the payload shape the generator consumes, including the
+    processed pattern stored as `experiment._processed_pattern` and the
+    instrument metadata on `experiment.metadata`.
+    """
+    metadata = getattr(exp, "metadata", None)
+
+    wavelength = getattr(exp, "wavelength_angstrom", None)
+    if wavelength is None and metadata is not None:
+        wavelength = getattr(metadata, "wavelength_angstrom", None)
+
+    processed = getattr(exp, "_processed_pattern", None)
+    if not isinstance(processed, dict):
+        processed = {}
+
+    return {
+        "name": getattr(exp, "name", None) or "Untitled Experiment",
+        "two_theta": _as_list(getattr(exp, "raw_two_theta", None)),
+        "intensity": _as_list(getattr(exp, "raw_intensity", None)),
+        "processed_pattern": processed,
+        "detected_peaks": list(getattr(exp, "detected_peaks", []) or []),
+        "candidate_phases": list(getattr(exp, "candidate_phases", []) or []),
+        "rietveld_results": getattr(exp, "rietveld_results", None),
+        "pipeline_stages": list(getattr(exp, "pipeline_stages", []) or []),
+        "wavelength": wavelength or 1.5406,
+        "metadata": {
+            "instrument": getattr(metadata, "instrument", ""),
+            "radiation_type": getattr(metadata, "radiation_type", ""),
+            "wavelength_angstrom": getattr(metadata, "wavelength_angstrom", None),
+            "temperature_k": getattr(metadata, "temperature_k", None),
+            "scan_range_2theta": _as_list(getattr(metadata, "scan_range_2theta", None)),
+            "step_size_2theta": getattr(metadata, "step_size_2theta", None),
+            "scan_time_seconds": getattr(metadata, "scan_time_seconds", None),
+            "notes": getattr(metadata, "notes", ""),
+        } if metadata is not None else {},
+    }
 
 
 @router.get("/{report_id}")
@@ -34,9 +97,20 @@ async def get_report(report_id: str, container=Depends(get_container)):
 
 
 @router.post("/generate/{experiment_id}")
-async def generate_pdf_report(experiment_id: str, container=Depends(get_container)):
-    """Generate a PDF report for an experiment."""
+async def generate_pdf_report(
+    experiment_id: str,
+    format: str = Query("pdf", description="Output format: pdf, docx, txt, pptx"),
+    container=Depends(get_container),
+):
+    """Generate a report for an experiment in the requested format."""
     from uuid import UUID
+
+    fmt = (format or "pdf").lower()
+    if fmt not in SUPPORTED_FORMATS:
+        raise UnsupportedFormatException(
+            f"Unsupported report format: {format}. Supported: {', '.join(SUPPORTED_FORMATS)}"
+        )
+
     try:
         uid = UUID(experiment_id)
     except ValueError:
@@ -51,33 +125,39 @@ async def generate_pdf_report(experiment_id: str, container=Depends(get_containe
         project = await container.uow.projects.get_by_id(exp.project_id)
         if project:
             project_data = {
-                "name": project.name,
+                "name": getattr(project, "name", ""),
                 "material": getattr(project, "material", ""),
-                "created_at": project.created_at.isoformat() if hasattr(project, "created_at") else "",
+                "created_at": getattr(project, "created_at", None),
                 "status": getattr(project, "status", ""),
             }
+            if project_data["created_at"] is not None:
+                project_data["created_at"] = project_data["created_at"].isoformat()
 
-    experiment_data = {
-        "name": exp.name or "Untitled Experiment",
-        "two_theta": list(getattr(exp, "raw_two_theta", []) or []),
-        "intensity": list(getattr(exp, "raw_intensity", []) or []),
-        "processed_two_theta": [],
-        "processed_intensity": [],
-        "detected_peaks": list(getattr(exp, "detected_peaks", []) or []),
-        "candidate_phases": list(getattr(exp, "candidate_phases", []) or []),
-        "rietveld_results": getattr(exp, "rietveld_results", None),
-        "pipeline_stages": list(getattr(exp, "pipeline_stages", []) or []),
-        "wavelength": getattr(exp, "wavelength_angstrom", 1.5406) or 1.5406,
-    }
+    experiment_data = _build_experiment_data(exp)
 
-    from backend.services.report_generator import ReportGenerator
+    from backend.services.report_generator import FORMAT_MIME, ReportGenerator
+
     generator = ReportGenerator()
-    pdf_bytes = generator.generate_report_bytes(project_data, experiment_data)
+    if fmt == "pdf":
+        content = generator.generate_report_bytes(project_data, experiment_data)
+    elif fmt == "docx":
+        content = generator.generate_docx_bytes(project_data, experiment_data)
+    elif fmt == "txt":
+        content = generator.generate_txt_bytes(project_data, experiment_data)
+    elif fmt == "pptx":
+        content = generator.generate_pptx_bytes(project_data, experiment_data)
+    else:  # pragma: no cover - guarded above
+        raise UnsupportedFormatException(f"Unsupported report format: {format}")
+
+    safe_name = "".join(
+        c if c.isalnum() or c in ("-", "_") else "_"
+        for c in (getattr(exp, "name", None) or "report")
+    ).strip("._ ") or "report"
 
     return Response(
-        content=pdf_bytes,
-        media_type="application/pdf",
+        content=content,
+        media_type=FORMAT_MIME[fmt],
         headers={
-            "Content-Disposition": f'attachment; filename="{exp.name or "report"}_report.pdf"'
+            "Content-Disposition": f'attachment; filename="{safe_name}_report.{fmt}"'
         },
     )

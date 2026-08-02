@@ -52,6 +52,7 @@ export interface AuthUser {
   email: string;
   full_name: string;
   role: string;
+  is_verified: boolean;
 }
 
 async function apiFetch<T>(
@@ -485,7 +486,12 @@ export const apiService = {
 
   // ── Auth ─────────────────────────────────────────────────────────
   register: (data: { username: string; email: string; password: string; full_name?: string }) =>
-    apiFetch<{ user: AuthUser; access_token: string; refresh_token: string }>("/auth/register", {
+    apiFetch<{
+      user: AuthUser;
+      access_token: string;
+      refresh_token: string;
+      verification_token?: string;
+    }>("/auth/register", {
       method: "POST",
       body: JSON.stringify(data),
     }),
@@ -497,12 +503,47 @@ export const apiService = {
     }),
 
   refreshToken: (refreshToken: string) =>
-    apiFetch<{ access_token: string }>("/auth/refresh", {
+    apiFetch<{ access_token: string; refresh_token: string }>("/auth/refresh", {
       method: "POST",
       body: JSON.stringify({ refresh_token: refreshToken }),
     }),
 
   getMe: () => apiFetch<AuthUser>("/auth/me"),
+
+  logout: () => apiFetch<{ message: string }>("/auth/logout", { method: "POST" }),
+
+  verifyEmail: (token: string) =>
+    apiFetch<{ message: string }>("/auth/verify-email", {
+      method: "POST",
+      body: JSON.stringify({ token }),
+    }),
+
+  resendVerification: (email: string) =>
+    apiFetch<{ message: string; verification_token?: string }>("/auth/resend-verification", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    }),
+
+  forgotPassword: (email: string) =>
+    apiFetch<{ message: string; reset_token?: string }>("/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    }),
+
+  resetPassword: (token: string, new_password: string) =>
+    apiFetch<{ message: string }>("/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify({ token, new_password }),
+    }),
+
+  changePassword: (old_password: string, new_password: string) =>
+    apiFetch<{ message: string; access_token: string; refresh_token: string }>(
+      "/auth/change-password",
+      {
+        method: "POST",
+        body: JSON.stringify({ old_password, new_password }),
+      },
+    ),
 
   // ── Manual Refinement ──────────────────────────────────────────
 
@@ -553,15 +594,22 @@ export const apiService = {
 
   // ── Blob downloads ─────────────────────────────────────────
 
-  downloadReport: async (experimentId: string): Promise<Blob> => {
+  downloadReport: async (
+    experimentId: string,
+    format: "pdf" | "docx" | "txt" = "pdf"
+  ): Promise<{ blob: Blob; filename: string }> => {
     const headers: Record<string, string> = {};
     const token = typeof window !== "undefined" ? localStorage.getItem("matpilot_token") : null;
     if (token) headers["Authorization"] = `Bearer ${token}`;
-    const res = await fetch(`${API_URL}/report/generate/${experimentId}`, {
+    const res = await fetch(`${API_URL}/report/generate/${experimentId}?format=${encodeURIComponent(format)}`, {
       method: "POST",
       headers,
     });
     if (!res.ok) throw new Error("Failed to generate report");
-    return res.blob();
+    const blob = await res.blob();
+    const disposition = res.headers.get("Content-Disposition") || "";
+    const match = disposition.match(/filename="?([^"]+)"?/i);
+    const filename = match?.[1] || `report.${format}`;
+    return { blob, filename };
   },
 };

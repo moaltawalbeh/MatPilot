@@ -14,7 +14,9 @@ import logging
 import numpy as np
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
+
+from backend.domain.value_objects.wavelength import CU_KA1_ANGSTROM
 
 logger = logging.getLogger("scientific_pipeline")
 
@@ -33,13 +35,19 @@ class PipelineStage:
     error: Optional[str] = None
 
 
-# Ordered list of all pipeline stages
+# Ordered list of all pipeline stages.
+# Physically motivated order (docs/research_ka2_background.md §5.2):
+# background subtraction → smoothing → Kα2 stripping → normalization → peak search.
+# Both hard constraints are satisfied: background is removed before stripping
+# (Rachinger corrupts a non-zero background) and data is smoothed before
+# stripping (the recursion amplifies noise).
 PIPELINE_STAGES = [
     "background_correction",
-    "ka2_stripping",
     "noise_reduction",
+    "ka2_stripping",
     "intensity_normalization",
     "peak_detection",
+    "peak_fitting",
     "phase_identification",
     "candidate_selection",
     "rietveld_refinement",
@@ -89,6 +97,11 @@ class ScientificPipeline:
                 "description": "Identify diffraction peaks in the pattern",
                 "icon": "Search",
             },
+            "peak_fitting": {
+                "name": "Peak Fitting",
+                "description": "Fit Pseudo-Voigt profiles with uncertainties",
+                "icon": "Sliders",
+            },
             "phase_identification": {
                 "name": "Phase Identification",
                 "description": "Search COD database for matching crystal phases",
@@ -131,7 +144,7 @@ class ScientificPipeline:
             Dict with keys: success, outputs, message.
         """
         params = stage_params or {}
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
 
         logger.info("Running pipeline stage: %s for experiment %s", stage_id, experiment.id)
 
@@ -146,6 +159,8 @@ class ScientificPipeline:
                 result = await self._run_normalization(experiment, params)
             elif stage_id == "peak_detection":
                 result = await self._run_peak_detection(experiment, params)
+            elif stage_id == "peak_fitting":
+                result = await self._run_peak_fitting(experiment, params)
             elif stage_id == "phase_identification":
                 result = await self._run_phase_identification(experiment, params)
             elif stage_id == "candidate_selection":
@@ -155,7 +170,7 @@ class ScientificPipeline:
             else:
                 result = {"success": False, "message": f"Unknown stage: {stage_id}"}
 
-            elapsed = (datetime.utcnow() - start_time).total_seconds()
+            elapsed = (datetime.now(timezone.utc) - start_time).total_seconds()
 
             # Record in experiment history
             stage_record = {
@@ -166,7 +181,7 @@ class ScientificPipeline:
                 "icon": "",
                 "status": "completed" if result["success"] else "failed",
                 "started_at": start_time.isoformat(),
-                "completed_at": datetime.utcnow().isoformat(),
+                "completed_at": datetime.now(timezone.utc).isoformat(),
                 "duration_seconds": round(elapsed, 2),
                 "parameters": params,
                 "outputs": {k: v for k, v in result.items() if k != "message"},
@@ -178,7 +193,7 @@ class ScientificPipeline:
             return result
 
         except Exception as e:
-            elapsed = (datetime.utcnow() - start_time).total_seconds()
+            elapsed = (datetime.now(timezone.utc) - start_time).total_seconds()
             logger.error("Pipeline stage %s failed: %s", stage_id, e)
 
             stage_record = {
@@ -186,7 +201,7 @@ class ScientificPipeline:
                 "name": stage_id.replace("_", " ").title(),
                 "status": "failed",
                 "started_at": start_time.isoformat(),
-                "completed_at": datetime.utcnow().isoformat(),
+                "completed_at": datetime.now(timezone.utc).isoformat(),
                 "duration_seconds": round(elapsed, 2),
                 "parameters": params,
                 "outputs": {},
@@ -197,7 +212,19 @@ class ScientificPipeline:
 
             return {"success": False, "message": str(e)}
 
-    STAGES_THAT_STOP_PIPELINE = set()  # Empty = never stop early, always run all requested stages
+    # Signal-processing stages are critical: a failure in any of them means
+    # every downstream stage would operate on invalid data, so they stop the
+    # pipeline. Analysis stages (phase identification, candidate selection,
+    # Rietveld refinement) may fail gracefully without a reference database
+    # and are allowed to continue.
+    STAGES_THAT_STOP_PIPELINE = {
+        "background_correction",
+        "noise_reduction",
+        "ka2_stripping",
+        "intensity_normalization",
+        "peak_detection",
+        "peak_fitting",
+    }
 
     async def run_full_pipeline(
         self,
@@ -300,7 +327,7 @@ class ScientificPipeline:
             record = self._upload_service.get_upload(experiment.primary_file_id)
             if record and record.experiment and record.experiment.wavelength:
                 return record.experiment.wavelength.value_angstrom
-        return experiment.wavelength_angstrom or 1.5406
+        return experiment.wavelength_angstrom or CU_KA1_ANGSTROM
 
     # ─── Stage Implementations ─────────────────────────────────────
 
@@ -321,6 +348,8 @@ class ScientificPipeline:
                 intensity=ii.tolist(),
                 polynomial_order=params.get("polynomial_order", 6),
                 max_iterations=params.get("max_iterations", 50),
+                method=params.get("method", "poly"),
+                clip_window=params.get("clip_window", 20),
             )
 
             self._store_processed_pattern(
@@ -366,6 +395,7 @@ class ScientificPipeline:
             intensity=ii.tolist(),
             element=element,
             wavelength=wavelength,
+            ka2_ka1_ratio=params.get("ka2_ka1_ratio"),
         )
 
         self._store_processed_pattern(
@@ -487,6 +517,60 @@ class ScientificPipeline:
                 "message": f"Peak detection failed: {e}. "
                            "Try adjusting min_prominence_ratio or min_distance_deg parameters.",
             }
+
+    async def _run_peak_fitting(self, experiment, params):
+        from backend.services.peak_fitting import fit_peaks
+
+        tt, ii = self._get_current_pattern(experiment)
+        if len(tt) == 0:
+            return {
+                "success": False,
+                "message": "No pattern data available for peak fitting.",
+            }
+
+        peaks = getattr(experiment, "detected_peaks", None)
+        if not peaks:
+            return {
+                "success": False,
+                "message": "No detected peaks to fit. Run peak detection first.",
+            }
+
+        wavelength = self._get_wavelength(experiment)
+
+        try:
+            result = fit_peaks(
+                two_theta=tt.tolist(),
+                intensity=ii.tolist(),
+                peak_positions=[p["two_theta"] for p in peaks],
+                tolerance=params.get("fit_tolerance", 0.3),
+                wavelength_angstrom=wavelength,
+            )
+
+            return {
+                "success": True,
+                "message": f"Fitted {result.n_peaks_fitted} peaks (R-factor={result.r_factor}%)",
+                "fitted_peaks": [
+                    {
+                        "two_theta": p.two_theta,
+                        "intensity": p.intensity,
+                        "fwhm": p.fwhm,
+                        "area": p.area,
+                        "eta": p.eta,
+                        "d_spacing": p.d_spacing,
+                        "fit_quality": p.fit_quality,
+                        "position_uncertainty": p.position_uncertainty,
+                        "height_uncertainty": p.height_uncertainty,
+                        "fwhm_uncertainty": p.fwhm_uncertainty,
+                        "area_uncertainty": p.area_uncertainty,
+                    }
+                    for p in result.fitted_peaks
+                ],
+                "r_factor": result.r_factor,
+                "n_peaks_fitted": result.n_peaks_fitted,
+            }
+        except Exception as e:
+            logger.error("Peak fitting failed: %s", e)
+            return {"success": False, "message": f"Peak fitting failed: {e}"}
 
     async def _run_phase_identification(self, experiment, params):
         if not self._ref_engine:

@@ -1,8 +1,13 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import Optional, Tuple
 
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import (
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
+from sqlalchemy.pool import NullPool
 
 from backend.domain.interfaces.repository import (
     IActivityRepository,
@@ -73,6 +78,11 @@ class AsyncUnitOfWork(IUnitOfWork):
         await self._session.rollback()
         self._committed = False
 
+    async def close(self) -> None:
+        """Close the underlying session, releasing its connection."""
+        await self._session.close()
+        self._committed = False
+
     async def __aenter__(self) -> AsyncUnitOfWork:
         return self
 
@@ -82,3 +92,21 @@ class AsyncUnitOfWork(IUnitOfWork):
         elif not self._committed:
             await self.commit()
         await self._session.close()
+
+
+def build_async_uow(db_url: str) -> Tuple[object, AsyncUnitOfWork]:
+    """Create an :class:`AsyncUnitOfWork` bound to ``db_url``.
+
+    Returns a ``(engine, uow)`` tuple so callers can keep the engine around
+    for disposal. Creating the engine/session does not connect to the
+    database; the first query or ``create_all`` establishes the connection.
+    """
+    engine = create_async_engine(db_url, poolclass=NullPool, echo=False)
+    session_factory = async_sessionmaker(
+        bind=engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+        autoflush=False,
+    )
+    uow = AsyncUnitOfWork(session_factory())
+    return engine, uow

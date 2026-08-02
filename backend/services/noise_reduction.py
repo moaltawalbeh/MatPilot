@@ -25,7 +25,7 @@ def _savgol_smooth(
     intensity: np.ndarray,
     window_size: int = 11,
     polynomial_order: int = 3,
-) -> np.ndarray:
+):
     """Apply Savitzky-Golay filter for smoothing.
 
     Falls back to simple moving average if scipy is unavailable.
@@ -36,7 +36,7 @@ def _savgol_smooth(
         polynomial_order: Polynomial order for local fitting.
 
     Returns:
-        Smoothed intensity array.
+        (smoothed_intensity, effective_window_size).
     """
     # Ensure window_size is odd
     if window_size % 2 == 0:
@@ -53,13 +53,13 @@ def _savgol_smooth(
         smoothed = savgol_filter(
             intensity, window_size, polynomial_order, deriv=0, mode="nearest"
         )
-        return smoothed
+        return smoothed, window_size
     except ImportError:
         logger.warning("scipy not available, using moving average fallback")
         # Fallback: simple moving average
         kernel = np.ones(window_size) / window_size
         smoothed = np.convolve(intensity, kernel, mode="same")
-        return smoothed
+        return smoothed, window_size
 
 
 def reduce_noise(
@@ -84,13 +84,13 @@ def reduce_noise(
     """
     ii = np.array(intensity, dtype=float)
 
-    smoothed = _savgol_smooth(ii, window_size, polynomial_order)
+    smoothed, effective_window = _savgol_smooth(ii, window_size, polynomial_order)
     # Ensure no negative intensities
     smoothed = np.maximum(smoothed, 0.0)
 
     return NoiseReductionResult(
         two_theta=two_theta,
         intensity_smoothed=smoothed.tolist(),
-        window_size=window_size,
+        window_size=effective_window,
         polynomial_order=polynomial_order,
     )

@@ -12,7 +12,10 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
 
 from backend.api.dependencies import get_container
-from backend.services.manual_refinement_service import ManualRefinementService
+from backend.services.manual_refinement_service import (
+    ManualRefinementService,
+    CU_KA_AVG_ANGSTROM,
+)
 
 router = APIRouter(prefix="/manual-refinement", tags=["manual-refinement"])
 
@@ -24,7 +27,7 @@ _service = ManualRefinementService()
 class InitSessionRequest(BaseModel):
     experiment_id: str
     phase_cifs: list = Field(default_factory=list)
-    wavelength: Optional[float] = 1.5406
+    wavelength: Optional[float] = CU_KA_AVG_ANGSTROM
 
 
 class InitSessionResponse(BaseModel):
@@ -81,7 +84,7 @@ async def init_session(req: InitSessionRequest, container=Depends(get_container)
     if not two_theta or not intensity:
         raise HTTPException(status_code=400, detail=f"No diffraction data found for experiment {req.experiment_id}")
 
-    wavelength = req.wavelength or getattr(exp, "wavelength_angstrom", None) or 1.5406
+    wavelength = req.wavelength or getattr(exp, "wavelength_angstrom", None) or CU_KA_AVG_ANGSTROM
 
     try:
         state = _service.init_session(

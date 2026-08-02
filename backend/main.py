@@ -17,30 +17,30 @@ from backend.api.routers import (
 from backend.api.middleware.error_handler import register_exception_handlers
 from backend.api.middleware.activity_recorder import ActivityRecorderMiddleware
 from backend.infrastructure.config.settings import load_config
-from backend.infrastructure.di.container import DIContainer
+from backend.infrastructure.di.container import create_container
 from backend.infrastructure.database.connection import init_db, close_db, AsyncSessionLocal
-from backend.infrastructure.database.async_uow import AsyncUnitOfWork
-
-
-async def get_db_uow():
-    """FastAPI dependency that provides an async Unit of Work backed by Neon PostgreSQL."""
-    async with AsyncSessionLocal() as session:
-        uow = AsyncUnitOfWork(session)
-        try:
-            yield uow
-            await session.commit()
-        except Exception:
-            await session.rollback()
-            raise
-        finally:
-            await session.close()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan: init DB on startup, close on shutdown."""
-    await init_db()
+    """Application lifespan: init DB on startup, close on shutdown.
+
+    DB setup only runs when ``DATABASE_URL`` is configured. Otherwise the
+    app runs on the in-memory container with no database.
+    """
+    cfg = load_config()
+    if cfg.database_url:
+        await init_db()
     yield
+    # Dispose the async engine/session created by create_container (if any).
+    container = getattr(app.state, "container", None)
+    uow = getattr(container, "uow", None)
+    close_uow = getattr(uow, "close", None)
+    if close_uow is not None:
+        await close_uow()
+    engine = getattr(container, "db_engine", None)
+    if engine is not None:
+        await engine.dispose()
     await close_db()
 
 
@@ -71,10 +71,12 @@ def create_app() -> FastAPI:
     # Activity Recorder — after CORS, before routes
     app.add_middleware(ActivityRecorderMiddleware)
 
-    # Initialize DI Container (in-memory UoW for existing routers)
-    container = DIContainer()
+    # Initialize DI Container. Defaults to the in-memory UoW; switches to an
+    # async Postgres-backed UoW only when DATABASE_URL is configured.
+    container = create_container()
     app.state.container = container
-    app.state.db_session_factory = AsyncSessionLocal
+    if cfg.database_url:
+        app.state.db_session_factory = AsyncSessionLocal
 
     # Register routers
     app.include_router(health.router)

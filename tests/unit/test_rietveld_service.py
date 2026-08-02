@@ -185,6 +185,43 @@ class TestRietveldService:
         assert rwp < 0.01, f"Rwp for perfect match: {rwp}"
         assert rp < 0.01, f"Rp for perfect match: {rp}"
 
+    def test_rwp_bg_subtracted_formula(self):
+        """Rwp(b-s) = sqrt(sum w (obs-calc)^2 / sum w (obs-bg)^2) * 100."""
+        from backend.services.rietveld_service import RietveldService
+
+        svc = RietveldService()
+        obs = np.array([10.0, 20.0, 30.0, 40.0, 50.0])
+        calc = np.array([10.5, 19.5, 30.5, 39.5, 50.5])
+        bg = np.array([5.0, 6.0, 7.0, 8.0, 9.0])
+        rwp_bs = svc._compute_rwp_bg_subtracted(obs, calc, bg)
+
+        eps = 1e-10
+        weights = np.where(obs > eps, 1.0 / obs, 0.0)
+        expected = math.sqrt(
+            np.sum(weights * (obs - calc) ** 2) / np.sum(weights * (obs - bg) ** 2)
+        ) * 100
+
+        assert abs(rwp_bs - expected) < 0.001
+        # Background removal can only make the denominator smaller, so the
+        # background-subtracted Rwp should be >= the ordinary Rwp when the
+        # background is a significant part of the observed intensity.
+        assert rwp_bs >= svc._compute_rwp(obs, calc) - 1e-9
+
+    def test_rwp_bg_subtracted_reported_on_refinement(self):
+        """The refinement result must report a finite background-subtracted Rwp."""
+        from backend.services.rietveld_service import RietveldService
+
+        cif = self._make_silicon_cif()
+        tth, intensity, _ = self._generate_synthetic_pattern(cif)
+
+        svc = RietveldService()
+        result = svc.refine(tth, intensity, [cif])
+
+        assert result.success
+        assert result.r_wp_bg_subtracted is not None
+        assert math.isfinite(result.r_wp_bg_subtracted)
+        assert result.r_wp_bg_subtracted > 0
+
     def test_pseudovoigt_profile_normalization(self):
         """Pseudo-Voigt profile should integrate to approximately 1."""
         from backend.services.rietveld_service import RietveldService
@@ -342,6 +379,7 @@ class TestRietveldService:
         assert result.message
         assert isinstance(result.r_wp, (int, float))
         assert isinstance(result.r_p, (int, float))
+        assert isinstance(result.r_wp_bg_subtracted, (int, float))
         assert isinstance(result.chi_squared, (int, float))
         assert isinstance(result.gof, (int, float))
         assert isinstance(result.two_theta, list)

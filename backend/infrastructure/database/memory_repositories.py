@@ -467,6 +467,18 @@ class MemoryUserRepository(IUserRepository):
     async def get_by_organization(self, org_id: UUID) -> List[object]:
         return [u for u in self._data.values() if getattr(u, "organization_id", None) == org_id]
 
+    async def get_by_email_verification_token(self, token: str) -> Optional[object]:
+        return next(
+            (u for u in self._data.values() if getattr(u, "email_verification_token", None) == token),
+            None,
+        )
+
+    async def get_by_password_reset_token(self, token: str) -> Optional[object]:
+        return next(
+            (u for u in self._data.values() if getattr(u, "password_reset_token", None) == token),
+            None,
+        )
+
 
 class MemoryOrganizationRepository(IOrganizationRepository):
     def __init__(self):

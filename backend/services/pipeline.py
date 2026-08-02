@@ -146,6 +146,209 @@ class ParsingStep(PipelineStep):
         )
 
 
+class BackgroundCorrectionStep(PipelineStep):
+    """Estimate and subtract the diffraction background (SNIP/poly)."""
+
+    @property
+    def name(self) -> str:
+        return "background_correction"
+
+    @property
+    def enabled(self) -> bool:
+        return True
+
+    async def execute(self, context: PipelineContext) -> StepResult:
+        logger.log_pipeline(context.job_id, self.name, "running")
+        try:
+            from backend.services.background_correction import correct_background
+
+            exp_data = context.data.get("experiment", {})
+            two_theta = exp_data.get("two_theta", [])
+            intensity = exp_data.get("intensity", [])
+
+            params = context.metadata.get("parameters", {})
+            result = correct_background(
+                two_theta=two_theta,
+                intensity=intensity,
+                polynomial_order=params.get("polynomial_order", 6),
+                max_iterations=params.get("max_iterations", 50),
+                method=params.get("method", "poly"),
+                clip_window=params.get("clip_window", 20),
+            )
+
+            exp_data["intensity"] = result.intensity_corrected
+            context.results["background_correction"] = {
+                "background": result.background,
+                "iterations": result.iterations,
+            }
+
+            return StepResult(
+                step_name=self.name,
+                success=True,
+                output={"iterations": result.iterations},
+                message="Background correction completed"
+            )
+        except Exception as exc:
+            logger.error("Background correction failed", job_id=context.job_id, error=str(exc))
+            return StepResult(
+                step_name=self.name,
+                success=False,
+                message=f"Background correction failed: {str(exc)}"
+            )
+
+
+class NoiseReductionStep(PipelineStep):
+    """Smooth the pattern while preserving peak shapes."""
+
+    @property
+    def name(self) -> str:
+        return "noise_reduction"
+
+    @property
+    def enabled(self) -> bool:
+        return True
+
+    async def execute(self, context: PipelineContext) -> StepResult:
+        logger.log_pipeline(context.job_id, self.name, "running")
+        try:
+            from backend.services.noise_reduction import reduce_noise
+
+            exp_data = context.data.get("experiment", {})
+            params = context.metadata.get("parameters", {})
+            result = reduce_noise(
+                two_theta=exp_data.get("two_theta", []),
+                intensity=exp_data.get("intensity", []),
+                window_size=params.get("window_size", 11),
+                polynomial_order=params.get("polynomial_order", 3),
+            )
+
+            exp_data["intensity"] = result.intensity_smoothed
+
+            return StepResult(
+                step_name=self.name,
+                success=True,
+                output={"window_size": result.window_size},
+                message="Noise reduction completed"
+            )
+        except Exception as exc:
+            logger.error("Noise reduction failed", job_id=context.job_id, error=str(exc))
+            return StepResult(
+                step_name=self.name,
+                success=False,
+                message=f"Noise reduction failed: {str(exc)}"
+            )
+
+
+class Ka2StrippingStep(PipelineStep):
+    """Remove the Kα2 contribution using recursive Rachinger deconvolution."""
+
+    @property
+    def name(self) -> str:
+        return "ka2_stripping"
+
+    @property
+    def enabled(self) -> bool:
+        return True
+
+    async def execute(self, context: PipelineContext) -> StepResult:
+        logger.log_pipeline(context.job_id, self.name, "running")
+        try:
+            from backend.services.ka2_stripping import strip_ka2
+
+            exp_data = context.data.get("experiment", {})
+            two_theta = exp_data.get("two_theta", [])
+            intensity = exp_data.get("intensity", [])
+            wavelength = exp_data.get("wavelength")
+
+            params = context.metadata.get("parameters", {})
+            element = params.get("element")
+            if not element and wavelength:
+                if 1.7 < wavelength < 1.8:
+                    element = "Co"
+                elif 1.9 < wavelength < 2.0:
+                    element = "Fe"
+                elif 2.2 < wavelength < 2.4:
+                    element = "Cr"
+            element = element or "Cu"
+
+            result = strip_ka2(
+                two_theta=two_theta,
+                intensity=intensity,
+                element=element,
+                wavelength=wavelength,
+                ka2_ka1_ratio=params.get("ka2_ka1_ratio"),
+            )
+
+            exp_data["intensity"] = result.intensity_stripped
+            context.results["ka2_stripping"] = {
+                "delta_2theta": result.delta_2theta,
+                "ka2_component": result.ka2_component,
+            }
+
+            return StepResult(
+                step_name=self.name,
+                success=True,
+                output={"delta_2theta": result.delta_2theta, "element": element},
+                message=f"Ka2 stripping completed (element={element})"
+            )
+        except Exception as exc:
+            logger.error("Ka2 stripping failed", job_id=context.job_id, error=str(exc))
+            return StepResult(
+                step_name=self.name,
+                success=False,
+                message=f"Ka2 stripping failed: {str(exc)}"
+            )
+
+
+class NormalizationStep(PipelineStep):
+    """Normalize intensities (max, area, or reference-peak scale)."""
+
+    @property
+    def name(self) -> str:
+        return "intensity_normalization"
+
+    @property
+    def enabled(self) -> bool:
+        return True
+
+    async def execute(self, context: PipelineContext) -> StepResult:
+        logger.log_pipeline(context.job_id, self.name, "running")
+        try:
+            from backend.services.intensity_normalization import normalize_max, normalize_area, normalize_to_peak
+
+            exp_data = context.data.get("experiment", {})
+            two_theta = exp_data.get("two_theta", [])
+            intensity = exp_data.get("intensity", [])
+
+            params = context.metadata.get("parameters", {})
+            method = params.get("method", "max")
+            if method == "area":
+                result = normalize_area(two_theta, intensity)
+            elif method == "reference_peak":
+                result = normalize_to_peak(
+                    two_theta, intensity,
+                    reference_2theta=params.get("reference_2theta", 28.44),
+                )
+            else:
+                result = normalize_max(two_theta, intensity)
+
+            exp_data["intensity"] = result.intensity_normalized
+
+            return StepResult(
+                step_name=self.name,
+                success=True,
+                output={"method": result.method, "scale_factor": result.scale_factor},
+                message=f"Intensity normalization completed (method={result.method})"
+            )
+        except Exception as exc:
+            logger.error("Intensity normalization failed", job_id=context.job_id, error=str(exc))
+            return StepResult(
+                step_name=self.name,
+                success=False,
+                message=f"Intensity normalization failed: {str(exc)}"
+            )
+
+
 class PeakDetectionStep(PipelineStep):
     """Real peak detection using second-derivative method."""
 
@@ -211,6 +414,89 @@ class PeakDetectionStep(PipelineStep):
                 step_name=self.name,
                 success=False,
                 message=f"Peak detection failed: {str(exc)}"
+            )
+
+
+class PeakFittingStep(PipelineStep):
+    """Fit analytical Pseudo-Voigt profiles to the detected peaks."""
+
+    @property
+    def name(self) -> str:
+        return "peak_fitting"
+
+    @property
+    def enabled(self) -> bool:
+        return True
+
+    async def execute(self, context: PipelineContext) -> StepResult:
+        logger.log_pipeline(context.job_id, self.name, "running")
+
+        try:
+            from backend.services.peak_fitting import fit_peaks
+
+            exp_data = context.data.get("experiment", {})
+            two_theta = exp_data.get("two_theta", [])
+            intensity = exp_data.get("intensity", [])
+            peaks_data = context.results.get("peaks", [])
+            wavelength = exp_data.get("wavelength")
+
+            if not peaks_data or not two_theta:
+                context.warnings.append("No peaks to fit; skipping peak fitting")
+                return StepResult(
+                    step_name=self.name,
+                    success=True,
+                    output={"peak_fitting": "skipped", "reason": "no_peaks"},
+                    message="No peaks to fit"
+                )
+
+            positions = [p["two_theta"] for p in peaks_data]
+            params = context.metadata.get("parameters", {})
+            tolerance = params.get("fit_tolerance", 0.3)
+
+            result = fit_peaks(
+                two_theta=two_theta,
+                intensity=intensity,
+                peak_positions=positions,
+                tolerance=tolerance,
+                wavelength_angstrom=wavelength,
+            )
+
+            fitted_peaks = [
+                {
+                    "two_theta": p.two_theta,
+                    "intensity": p.intensity,
+                    "fwhm": p.fwhm,
+                    "area": p.area,
+                    "eta": p.eta,
+                    "d_spacing": p.d_spacing,
+                    "fit_quality": p.fit_quality,
+                    "position_uncertainty": p.position_uncertainty,
+                    "height_uncertainty": p.height_uncertainty,
+                    "fwhm_uncertainty": p.fwhm_uncertainty,
+                    "area_uncertainty": p.area_uncertainty,
+                }
+                for p in result.fitted_peaks
+            ]
+
+            context.results["fitted_peaks"] = fitted_peaks
+
+            return StepResult(
+                step_name=self.name,
+                success=True,
+                output={
+                    "fitted_peaks": fitted_peaks,
+                    "r_factor": result.r_factor,
+                    "n_peaks_fitted": result.n_peaks_fitted,
+                },
+                message=f"Fitted {result.n_peaks_fitted} peaks (R={result.r_factor}%)"
+            )
+
+        except Exception as exc:
+            logger.error("Peak fitting failed", job_id=context.job_id, error=str(exc))
+            return StepResult(
+                step_name=self.name,
+                success=False,
+                message=f"Peak fitting failed: {str(exc)}"
             )
 
 
@@ -557,6 +843,7 @@ class RietveldStep(PipelineStep):
                 "r_wp": result.r_wp,
                 "r_p": result.r_p,
                 "r_exp": result.r_exp,
+                "r_wp_bg_subtracted": result.r_wp_bg_subtracted,
                 "chi_squared": result.chi_squared,
                 "gof": result.gof,
                 "iterations": result.iterations,
@@ -623,7 +910,8 @@ class ReportStep(PipelineStep):
                 "phases": phases,
                 "theoretical_patterns": theoretical_patterns,
                 "methodology": {
-                    "peak_detection": "Second-derivative method",
+                    "peak_detection": "Find-peaks with statistical prominence threshold (SNR-based)",
+                    "peak_fitting": "Pseudo-Voigt profile fitting with parameter uncertainties",
                     "reference_search": "Pattern matching against COD database (API + local)",
                     "tolerance": "0.3 degrees 2-theta",
                     "wavelength": "Cu K-alpha (1.5406 A)",
@@ -665,7 +953,12 @@ class AnalysisPipeline:
         return [
             ValidationStep(),
             ParsingStep(),
+            BackgroundCorrectionStep(),
+            NoiseReductionStep(),
+            Ka2StrippingStep(),
+            NormalizationStep(),
             PeakDetectionStep(),
+            PeakFittingStep(),
             ReferenceSearchStep(reference_engine=self._reference_engine),
             PhaseIdentificationStep(),
             ReportStep(),

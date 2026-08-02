@@ -2,7 +2,14 @@
 """Dependency Injection Container.
 
 Registers all platform services at application startup.
+
+The container defaults to an in-memory Unit of Work so the application
+runs without a database. When a ``DATABASE_URL`` is configured, use
+:func:`create_container` to build a container backed by an async
+Postgres (or SQLite) session instead.
 """
+
+from typing import Optional
 
 from backend.infrastructure.config.settings import load_config, MatPilotConfig
 from backend.infrastructure.logging.structured_logger import get_logger
@@ -12,6 +19,7 @@ from backend.infrastructure.storage.azure_storage import AzureStorageProvider
 from backend.infrastructure.storage.gcs_storage import GCSStorageProvider
 from backend.infrastructure.storage.storage_provider import IStorageProvider
 from backend.infrastructure.database.sql_uow import InMemoryUnitOfWork
+from backend.infrastructure.database.async_uow import build_async_uow
 from backend.reference.engine.reference_engine import ReferenceEngine
 from backend.reference.providers.cod_provider import CODProvider
 from backend.reference.providers.materials_project_provider import MaterialsProjectProvider
@@ -46,12 +54,26 @@ from backend.application.use_cases.project import ProjectUseCase
 
 
 class DIContainer:
-    """Dependency Injection Container. Wires all platform services together."""
+    """Dependency Injection Container. Wires all platform services together.
 
-    def __init__(self):
+    Args:
+        uow: Optional Unit of Work to wire into all use cases. Defaults to an
+            :class:`InMemoryUnitOfWork` so the app runs without a database.
+        db_engine: Optional SQLAlchemy async engine backing ``uow``. Held so
+            the caller can dispose it on shutdown.
+    """
+
+    def __init__(self, uow=None, db_engine=None):
         # Configuration
         self.config = load_config()
         self.logger = get_logger("di_container")
+
+        # Persistence
+        from backend.domain.interfaces.unit_of_work import IUnitOfWork
+        if uow is not None and not isinstance(uow, IUnitOfWork):
+            raise TypeError("uow must implement backend.domain.interfaces.unit_of_work.IUnitOfWork")
+        self.uow = uow if uow is not None else InMemoryUnitOfWork()
+        self.db_engine = db_engine
 
         # Storage Provider
         self.storage_provider = self._create_storage_provider()
@@ -90,7 +112,6 @@ class DIContainer:
         )
 
         # Use Cases (exposed for API routers)
-        self.uow = InMemoryUnitOfWork()
         self.upload_use_case = UploadFileUseCase(self.uow, self.parser_factory)
         self.submit_analysis_use_case = SubmitAnalysisUseCase(self.uow)
         self.get_analysis_result_use_case = GetAnalysisResultUseCase(self.uow)
@@ -145,3 +166,27 @@ class DIContainer:
         self.parser_factory.register_parser(XRDMLParser())
         self.parser_factory.register_parser(RAWParser())
         self.parser_factory.register_parser(CIFParser())
+
+
+def create_container(db_url: Optional[str] = None) -> DIContainer:
+    """Build a :class:`DIContainer`, selecting the persistence backend.
+
+    When no ``db_url`` is given, the ``DATABASE_URL`` env var (via settings)
+    is consulted. If neither is configured, the container falls back to the
+    in-memory Unit of Work — the historical default that requires no database.
+
+    When a URL is configured, an async engine + session is created and wired
+    into the container as an :class:`AsyncUnitOfWork`. The caller is
+    responsible for disposing ``container.db_engine`` on shutdown.
+
+    Example::
+
+        container = create_container()          # in-memory default
+        container = create_container("postgresql+asyncpg://...")
+    """
+    resolved = db_url or load_config().database_url
+    if not resolved:
+        return DIContainer()
+
+    engine, uow = build_async_uow(resolved)
+    return DIContainer(uow=uow, db_engine=engine)

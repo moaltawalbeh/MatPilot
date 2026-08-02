@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import asdict
 from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
@@ -13,7 +14,7 @@ from backend.domain.entities.analysis_result import AnalysisResult
 from backend.domain.entities.collection import Collection, CollectionType
 from backend.domain.entities.crystal_structure import CrystalStructure
 from backend.domain.entities.download import Download, DownloadStatus, DownloadType
-from backend.domain.entities.experiment import Experiment
+from backend.domain.entities.experiment import Experiment, ExperimentMetadata
 from backend.domain.entities.measurement import Measurement, MeasurementStatus
 from backend.domain.entities.notification import Notification, NotificationType
 from backend.domain.entities.organization import Organization
@@ -73,6 +74,10 @@ def _user_model_to_entity(m: UserModel) -> User:
         email=m.email,
         full_name=m.full_name,
         hashed_password=m.hashed_password,
+        is_verified=m.is_verified or False,
+        email_verification_token=m.email_verification_token,
+        password_reset_token=m.password_reset_token,
+        token_version=m.token_version or 0,
         role=UserRole[m.role] if m.role and m.role in UserRole.__members__ else UserRole.RESEARCHER,
         status=UserStatus[m.status] if m.status and m.status in UserStatus.__members__ else UserStatus.ACTIVE,
         organization_id=m.organization_id,
@@ -95,6 +100,10 @@ def _user_entity_to_model(e: User) -> UserModel:
         email=e.email,
         full_name=e.full_name,
         hashed_password=e.hashed_password or "",
+        is_verified=e.is_verified or False,
+        email_verification_token=e.email_verification_token,
+        password_reset_token=e.password_reset_token,
+        token_version=e.token_version or 0,
         role=e.role.name,
         status=e.status.name,
         organization_id=e.organization_id,
@@ -250,18 +259,56 @@ def _crystal_structure_entity_to_model(e: CrystalStructure) -> CrystalStructureM
     )
 
 
+def _experiment_metadata_to_dict(meta: Optional[ExperimentMetadata]) -> Optional[Dict[str, Any]]:
+    if meta is None:
+        return None
+    return asdict(meta)
+
+
+def _experiment_metadata_from_dict(data: Optional[dict], radiation: Optional[str] = None) -> ExperimentMetadata:
+    if isinstance(data, dict):
+        try:
+            return ExperimentMetadata(**data)
+        except TypeError:
+            pass
+    meta = ExperimentMetadata()
+    if radiation:
+        meta.radiation_type = radiation
+    return meta
+
+
 def _experiment_model_to_entity(m: ExperimentModel) -> Experiment:
-    return Experiment(
+    exp = Experiment(
         id=m.id,
         project_id=m.project_id,
         name=m.name,
+        description=m.description or "",
+        material=m.material or "",
         status=m.status or "Created",
+        primary_file_id=m.primary_file_id,
         data_points=m.data_points or 0,
         wavelength_angstrom=m.wavelength,
         two_theta_range=m.two_theta_range if isinstance(m.two_theta_range, list) else None,
+        file_ids=m.file_ids if isinstance(m.file_ids, list) else [],
+        has_pattern_data=m.has_pattern_data or False,
+        has_crystal_structure=m.has_crystal_structure or False,
+        job_ids=m.job_ids if isinstance(m.job_ids, list) else [],
+        has_results=m.has_results or False,
+        candidate_phases=m.candidate_phases if isinstance(m.candidate_phases, list) else [],
+        cif_files=m.cif_files if isinstance(m.cif_files, list) else [],
+        raw_two_theta=m.raw_two_theta,
+        raw_intensity=m.raw_intensity,
+        detected_peaks=m.detected_peaks if isinstance(m.detected_peaks, list) else [],
+        selected_refinement_phases=m.selected_refinement_phases if isinstance(m.selected_refinement_phases, list) else [],
+        rietveld_results=m.rietveld_results,
+        pipeline_stages=m.pipeline_stages if isinstance(m.pipeline_stages, list) else [],
+        analysis_history=m.analysis_history if isinstance(m.analysis_history, list) else [],
+        metadata=_experiment_metadata_from_dict(m.metadata_, m.radiation),
         created_at=m.created_at,
         updated_at=m.updated_at,
     )
+    exp._processed_pattern = m.processed_pattern
+    return exp
 
 
 def _experiment_entity_to_model(e: Experiment) -> ExperimentModel:
@@ -269,15 +316,69 @@ def _experiment_entity_to_model(e: Experiment) -> ExperimentModel:
         id=e.id,
         project_id=e.project_id,
         name=e.name,
+        description=e.description,
+        material=e.material,
         status=e.status,
-        uploaded_filename=None,
+        uploaded_filename=e.primary_file_id,
         wavelength=e.wavelength_angstrom,
-        radiation=None,
+        radiation=e.metadata.radiation_type if e.metadata else None,
         data_points=e.data_points,
         two_theta_range=e.two_theta_range,
+        file_ids=e.file_ids,
+        primary_file_id=e.primary_file_id,
+        has_pattern_data=e.has_pattern_data,
+        has_crystal_structure=e.has_crystal_structure,
+        job_ids=e.job_ids,
+        has_results=e.has_results,
+        candidate_phases=e.candidate_phases,
+        cif_files=e.cif_files,
+        raw_two_theta=e.raw_two_theta,
+        raw_intensity=e.raw_intensity,
+        processed_pattern=getattr(e, "_processed_pattern", None),
+        detected_peaks=e.detected_peaks,
+        selected_refinement_phases=e.selected_refinement_phases,
+        rietveld_results=e.rietveld_results,
+        pipeline_stages=e.pipeline_stages,
+        analysis_history=e.analysis_history,
+        metadata_=_experiment_metadata_to_dict(e.metadata),
         created_at=e.created_at,
         updated_at=e.updated_at,
     )
+
+
+def _experiment_entity_to_values(e: Experiment) -> Dict[str, Any]:
+    """Map an Experiment entity to ExperimentModel column values for UPDATE."""
+    return {
+        "project_id": e.project_id,
+        "name": e.name,
+        "description": e.description,
+        "material": e.material,
+        "status": e.status,
+        "uploaded_filename": e.primary_file_id,
+        "wavelength": e.wavelength_angstrom,
+        "radiation": e.metadata.radiation_type if e.metadata else None,
+        "data_points": e.data_points,
+        "two_theta_range": e.two_theta_range,
+        "file_ids": e.file_ids,
+        "primary_file_id": e.primary_file_id,
+        "has_pattern_data": e.has_pattern_data,
+        "has_crystal_structure": e.has_crystal_structure,
+        "job_ids": e.job_ids,
+        "has_results": e.has_results,
+        "candidate_phases": e.candidate_phases,
+        "cif_files": e.cif_files,
+        "raw_two_theta": e.raw_two_theta,
+        "raw_intensity": e.raw_intensity,
+        "processed_pattern": getattr(e, "_processed_pattern", None),
+        "detected_peaks": e.detected_peaks,
+        "selected_refinement_phases": e.selected_refinement_phases,
+        "rietveld_results": e.rietveld_results,
+        "pipeline_stages": e.pipeline_stages,
+        "analysis_history": e.analysis_history,
+        "metadata_": _experiment_metadata_to_dict(e.metadata),
+        "created_at": e.created_at,
+        "updated_at": e.updated_at,
+    }
 
 
 def _analysis_job_model_to_entity(m: AnalysisJobModel) -> AnalysisJob:
@@ -571,6 +672,20 @@ class AsyncUserRepository(IUserRepository):
         )
         return [_user_model_to_entity(m) for m in result.scalars().all()]
 
+    async def get_by_email_verification_token(self, token: str) -> Optional[User]:
+        result = await self._session.execute(
+            select(UserModel).where(UserModel.email_verification_token == token)
+        )
+        m = result.scalar_one_or_none()
+        return _user_model_to_entity(m) if m else None
+
+    async def get_by_password_reset_token(self, token: str) -> Optional[User]:
+        result = await self._session.execute(
+            select(UserModel).where(UserModel.password_reset_token == token)
+        )
+        m = result.scalar_one_or_none()
+        return _user_model_to_entity(m) if m else None
+
 
 class AsyncProjectRepository(IProjectRepository):
     def __init__(self, session: AsyncSession):
@@ -813,9 +928,8 @@ class AsyncExperimentRepository(IExperimentRepository):
         return entity
 
     async def update(self, entity: Experiment) -> Experiment:
-        values = {c.name: getattr(entity, c.name, None) for c in ExperimentModel.__table__.columns}
+        values = _experiment_entity_to_values(entity)
         values.pop("id", None)
-        values["updated_at"] = datetime.utcnow()
         stmt = update(ExperimentModel).where(ExperimentModel.id == entity.id).values(**values)
         await self._session.execute(stmt)
         return entity

@@ -24,8 +24,13 @@ class Peak:
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, Peak):
             return NotImplemented
-        return abs(self.two_theta - other.two_theta) < 0.01
+        # Peaks are equal when both position and intensity agree; this keeps the
+        # equality relation consistent with __hash__ (same key -> equal).
+        return (
+            abs(self.two_theta - other.two_theta) < 0.01
+            and self.intensity == other.intensity
+        )
 
     def __hash__(self) -> int:
-        # Round to 0.01 precision to match __eq__ tolerance
-        return hash((round(self.two_theta, 2), round(self.intensity, 2)))
+        # Hash on the same attributes used by __eq__ so equal peaks share a hash.
+        return hash((round(self.two_theta, 2), self.intensity))

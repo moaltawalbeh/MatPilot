@@ -17,7 +17,11 @@ from backend.reference.cif_cache import CIFCache
 from backend.reference.cif_parser import CIFParser
 from backend.reference.theoretical_pattern import TheoreticalPatternGenerator
 from backend.reference.pymatgen_pattern_generator import PymatgenPatternGenerator
-from backend.reference.similarity_engine import SimilarityEngine, SimilarityResult
+from backend.reference.similarity_engine import (
+    SimilarityEngine,
+    SimilarityResult,
+    dedupe_phases,
+)
 from backend.domain.entities.material_record import MaterialRecord
 from backend.domain.exceptions.domain_exceptions import ProviderNotAvailableError
 
@@ -299,6 +303,7 @@ class ReferenceEngine:
         # If no query provided and we have local results, skip COD search
         # (COD search requires a query string)
         if not search_query:
+            results = dedupe_phases(results)
             results.sort(key=lambda r: r.match_score, reverse=True)
             return results[:limit]
 
@@ -356,10 +361,15 @@ class ReferenceEngine:
                     material_formula=material_formula,
                     source_id=cod_id,
                     source_provider="COD",
+                    crystal_system=parsed_data.get("crystal_system", ""),
+                    space_group=parsed_data.get("space_group", ""),
+                    quality_mark=parsed_data.get("quality_mark", ""),
+                    cif_data=parsed_data,
                 )
 
                 results.append(sim_result)
 
+        results = dedupe_phases(results)
         results.sort(key=lambda r: r.match_score, reverse=True)
 
         return results[:limit]
@@ -406,6 +416,9 @@ class ReferenceEngine:
                 material_formula=entry.get("material_formula", ""),
                 source_id=entry.get("source_id", ""),
                 source_provider=entry.get("source_provider", "LocalCOD"),
+                crystal_system=entry.get("crystal_system", ""),
+                space_group=entry.get("space_group", ""),
+                quality_mark=entry.get("quality_mark", ""),
             )
 
             # Apply query-match boost: materials whose formula/name matches the

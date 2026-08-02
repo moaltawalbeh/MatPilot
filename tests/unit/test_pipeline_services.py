@@ -101,9 +101,10 @@ class TestScientificPipeline:
     def test_stage_definitions(self):
         pipeline = ScientificPipeline()
         stages = pipeline.get_stage_definitions()
-        assert len(stages) == 8
+        assert len(stages) == 9
         stage_ids = [s["id"] for s in stages]
         assert "background_correction" in stage_ids
         assert "peak_detection" in stage_ids
+        assert "peak_fitting" in stage_ids
         assert "phase_identification" in stage_ids
         assert "rietveld_refinement" in stage_ids

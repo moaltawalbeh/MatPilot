@@ -2,7 +2,7 @@
 
 import pytest
 import math
-from backend.reference.theoretical_pattern import TheoreticalPatternGenerator
+from backend.reference.theoretical_pattern import CU_K_ALPHA, TheoreticalPatternGenerator
 
 
 class TestTheoreticalPatternGenerator:
@@ -126,3 +126,114 @@ class TestTheoreticalPatternGenerator:
         for h, k, l in hkl_list:
             first_nonzero = next(x for x in [h, k, l] if x != 0)
             assert first_nonzero > 0
+
+
+class TestWavelengthAndMultiplicity:
+    """NIST canonical wavelength and lattice multiplicity."""
+
+    def setup_method(self):
+        self.generator = TheoreticalPatternGenerator(wavelength=1.5406)
+
+    def test_default_wavelength_is_nist_cu_alpha_avg(self):
+        # Canonical NIST Cu K-alpha weighted average imported from the
+        # wavelength value object (backend/domain/value_objects/wavelength.py).
+        assert CU_K_ALPHA == pytest.approx(1.541874, abs=1e-6)
+        assert TheoreticalPatternGenerator()._wavelength == pytest.approx(
+            CU_K_ALPHA, abs=1e-6
+        )
+        assert CU_K_ALPHA != pytest.approx(1.5406, abs=1e-6)
+
+    def test_cubic_multiplicity_table(self):
+        mult = TheoreticalPatternGenerator._reflection_multiplicity
+        assert mult(1, 0, 0, "Cubic") == 6
+        assert mult(1, 1, 0, "Cubic") == 12
+        assert mult(1, 1, 1, "Cubic") == 8
+        assert mult(1, 1, 3, "Cubic") == 24
+        assert mult(1, 2, 3, "Cubic") == 48
+        assert mult(1, 2, 0, "Cubic") == 24
+
+    def test_tetragonal_and_hexagonal_multiplicity(self):
+        mult = TheoreticalPatternGenerator._reflection_multiplicity
+        # Tetragonal: (00l) unique axis -> 2, (h00) -> 4, (hhl) -> 8, (hkl) -> 16
+        assert mult(0, 0, 1, "Tetragonal") == 2
+        assert mult(1, 0, 0, "Tetragonal") == 4
+        assert mult(1, 1, 2, "Tetragonal") == 8
+        assert mult(1, 2, 3, "Tetragonal") == 16
+        # Hexagonal: (00l) unique axis -> 2, (hk0) -> 12, (hkl) -> 24
+        assert mult(0, 0, 1, "Hexagonal") == 2
+        assert mult(1, 2, 0, "Hexagonal") == 12
+        assert mult(1, 2, 3, "Hexagonal") == 24
+
+    def test_unknown_system_is_unit_multiplicity(self):
+        assert TheoreticalPatternGenerator._reflection_multiplicity(
+            1, 0, 0, ""
+        ) == 1
+
+    def test_multiplicity_appears_in_generated_peaks(self):
+        cif_data = {
+            "unit_cell": {
+                "a": 4.05, "b": 4.05, "c": 4.05,
+                "alpha": 90.0, "beta": 90.0, "gamma": 90.0,
+            },
+            "atoms": [
+                {"element": "Al", "x": 0.0, "y": 0.0, "z": 0.0, "occupancy": 1.0},
+            ],
+            "space_group_number": 225,
+        }
+        peaks = self.generator.generate_pattern(cif_data, max_two_theta=60.0)
+        assert peaks
+        assert all(p["multiplicity"] >= 1 for p in peaks)
+
+
+class TestKnownPhaseNaCl:
+    """d-spacings/2-theta correct for a known phase with NIST Cu K-alpha."""
+
+    def test_nacl_200_peak(self):
+        # NaCl: cubic Fm-3m, a = 5.6402 A; d_200 = a/2 = 2.8201 A.
+        cif_data = {
+            "unit_cell": {
+                "a": 5.6402, "b": 5.6402, "c": 5.6402,
+                "alpha": 90.0, "beta": 90.0, "gamma": 90.0,
+            },
+            "atoms": [
+                {"element": "Na", "x": 0.0, "y": 0.0, "z": 0.0, "occupancy": 1.0},
+                {"element": "Cl", "x": 0.5, "y": 0.5, "z": 0.5, "occupancy": 1.0},
+            ],
+            "space_group_number": 225,
+        }
+        wavelength = CU_K_ALPHA
+        gen = TheoreticalPatternGenerator(wavelength=wavelength)
+        peaks = gen.generate_pattern(cif_data, max_two_theta=70.0)
+
+        d_200 = 5.6402 / 2.0
+        theta = math.asin(wavelength / (2.0 * d_200))
+        two_theta_200 = 2.0 * math.degrees(theta)
+
+        candidates = [p for p in peaks if abs(p["d_spacing"] - d_200) < 0.01]
+        assert candidates, f"no peak near d={d_200:.4f}"
+        assert candidates[0]["two_theta"] == pytest.approx(two_theta_200, abs=0.05)
+
+    def test_silicon_111_peak(self):
+        # Si: cubic Fd-3m, a = 5.4301 A; d_111 = a/sqrt(3) = 3.1351 A.
+        cif_data = {
+            "unit_cell": {
+                "a": 5.4301, "b": 5.4301, "c": 5.4301,
+                "alpha": 90.0, "beta": 90.0, "gamma": 90.0,
+            },
+            "atoms": [
+                {"element": "Si", "x": 0.0, "y": 0.0, "z": 0.0, "occupancy": 1.0},
+                {"element": "Si", "x": 0.25, "y": 0.25, "z": 0.25, "occupancy": 1.0},
+            ],
+            "space_group_number": 227,
+        }
+        wavelength = CU_K_ALPHA
+        gen = TheoreticalPatternGenerator(wavelength=wavelength)
+        peaks = gen.generate_pattern(cif_data, max_two_theta=60.0)
+
+        d_111 = 5.4301 / math.sqrt(3)
+        theta = math.asin(wavelength / (2.0 * d_111))
+        two_theta_111 = 2.0 * math.degrees(theta)
+
+        candidates = [p for p in peaks if abs(p["d_spacing"] - d_111) < 0.01]
+        assert candidates, f"no peak near d={d_111:.4f}"
+        assert candidates[0]["two_theta"] == pytest.approx(two_theta_111, abs=0.05)
