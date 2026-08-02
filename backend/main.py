@@ -60,6 +60,7 @@ def create_app() -> FastAPI:
     # CORS — read from config (env-backed MATPILOT_CORS_ORIGINS)
     origins = cfg.api.cors_origins
     allow_credentials = origins != ["*"]
+    print(f"[matpilot] CORS origins: {origins}")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,

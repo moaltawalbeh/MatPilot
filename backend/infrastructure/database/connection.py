@@ -4,6 +4,7 @@ import os
 import ssl
 from typing import AsyncGenerator
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -76,6 +77,46 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
 async def init_db() -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    await _sync_missing_columns()
+
+
+# Columns added to existing tables over time. ``create_all`` creates missing
+# tables but never alters existing ones, so idempotent ``ADD COLUMN IF NOT
+# EXISTS`` statements keep pre-existing databases in sync with the models.
+# (This is the in-app fallback; fresh installs use the Alembic migrations.)
+_MISSING_COLUMNS: dict[str, list[str]] = {
+    "users": [
+        "is_verified BOOLEAN NOT NULL DEFAULT FALSE",
+        "email_verification_token VARCHAR(255) NULL",
+        "password_reset_token VARCHAR(255) NULL",
+        "token_version INTEGER NOT NULL DEFAULT 0",
+        "role VARCHAR(50) NOT NULL DEFAULT 'RESEARCHER'",
+        "status VARCHAR(50) NOT NULL DEFAULT 'ACTIVE'",
+        "organization_id UUID NULL",
+        "default_wavelength FLOAT NULL",
+        "preferred_providers JSON NULL",
+        "language VARCHAR(10) NULL",
+        "timezone VARCHAR(50) NULL",
+        "avatar_url VARCHAR(500) NULL",
+        "last_login_at TIMESTAMP NULL",
+        "login_count INTEGER NULL DEFAULT 0",
+    ],
+    "projects": [
+        "owner_id UUID NULL",
+        "status VARCHAR(50) NULL DEFAULT 'Active'",
+        "tags JSON NULL",
+    ],
+}
+
+
+async def _sync_missing_columns() -> None:
+    """Idempotently add model columns that may be absent from existing tables."""
+    async with engine.begin() as conn:
+        for table, columns in _MISSING_COLUMNS.items():
+            for ddl in columns:
+                await conn.execute(
+                    text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {ddl}")
+                )
 
 
 async def close_db() -> None:

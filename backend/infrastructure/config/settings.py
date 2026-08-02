@@ -95,7 +95,12 @@ def _parse_cors_origins() -> List[str]:
     """Parse CORS origins from MATPILOT_CORS_ORIGINS env var (comma-separated)."""
     raw = os.environ.get("MATPILOT_CORS_ORIGINS", "")
     if raw:
-        return [o.strip() for o in raw.split(",") if o.strip()]
+        origins = []
+        for o in raw.split(","):
+            o = o.strip().rstrip("/")
+            if o:
+                origins.append(o)
+        return origins
     env = os.environ.get("MATPILOT_ENV", "development")
     if env == "development":
         return ["http://localhost:3000", "http://localhost:3001"]
