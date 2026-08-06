@@ -29,6 +29,16 @@ import type {
   SearchResult,
   RefinementParameter,
   ManualRefinementSession,
+  SpectrumDetail,
+  SpectrumListItem,
+  SpectrumUploadResponse,
+  SpectrumListResponse,
+  SpectrumAnalysisResult,
+  SpectroscopySummary,
+  CharacterizationDashboard,
+  SpectrumReport,
+  SpectrumHistoryEntry,
+  SpectroscopyTechnique,
 } from "@/types";
 
 function resolveApiUrl(): string {
@@ -486,12 +496,7 @@ export const apiService = {
 
   // ── Auth ─────────────────────────────────────────────────────────
   register: (data: { username: string; email: string; password: string; full_name?: string }) =>
-    apiFetch<{
-      user: AuthUser;
-      access_token: string;
-      refresh_token: string;
-      verification_token?: string;
-    }>("/auth/register", {
+    apiFetch<{ message: string; email: string }>("/auth/register", {
       method: "POST",
       body: JSON.stringify(data),
     }),
@@ -518,14 +523,20 @@ export const apiService = {
       body: JSON.stringify({ token }),
     }),
 
+  verifyEmailCode: (email: string, code: string) =>
+    apiFetch<{ message: string }>("/auth/verify-code", {
+      method: "POST",
+      body: JSON.stringify({ email, code }),
+    }),
+
   resendVerification: (email: string) =>
-    apiFetch<{ message: string; verification_token?: string }>("/auth/resend-verification", {
+    apiFetch<{ message: string }>("/auth/resend-verification", {
       method: "POST",
       body: JSON.stringify({ email }),
     }),
 
   forgotPassword: (email: string) =>
-    apiFetch<{ message: string; reset_token?: string }>("/auth/forgot-password", {
+    apiFetch<{ message: string }>("/auth/forgot-password", {
       method: "POST",
       body: JSON.stringify({ email }),
     }),
@@ -610,6 +621,93 @@ export const apiService = {
     const disposition = res.headers.get("Content-Disposition") || "";
     const match = disposition.match(/filename="?([^"]+)"?/i);
     const filename = match?.[1] || `report.${format}`;
+    return { blob, filename };
+  },
+
+  // ── Spectroscopy (FTIR / Raman / UV-Vis) ──────────────────────────
+
+  spectroscopySummary: () =>
+    apiFetch<SpectroscopySummary>("/spectroscopy/summary"),
+
+  characterizationDashboard: () =>
+    apiFetch<CharacterizationDashboard>("/dashboard/characterization"),
+
+  listSpectra: (technique: SpectroscopyTechnique, params?: { sample_id?: string; limit?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.sample_id) qs.set("sample_id", params.sample_id);
+    if (params?.limit) qs.set("limit", String(params.limit));
+    const q = qs.toString();
+    return apiFetch<SpectrumListResponse>(`/spectroscopy/${technique}${q ? `?${q}` : ""}`);
+  },
+
+  getSpectrum: (technique: SpectroscopyTechnique, id: string) =>
+    apiFetch<SpectrumDetail>(`/spectroscopy/${technique}/${id}`),
+
+  uploadSpectrum: (
+    technique: SpectroscopyTechnique,
+    file: File,
+    extra?: { sample_id?: string; name?: string; description?: string },
+  ) => {
+    const form = new FormData();
+    form.append("file", file);
+    if (extra?.sample_id) form.append("sample_id", extra.sample_id);
+    if (extra?.name) form.append("name", extra.name);
+    if (extra?.description) form.append("description", extra.description);
+    return apiFetch<SpectrumUploadResponse>(`/spectroscopy/${technique}/upload`, {
+      method: "POST",
+      body: form,
+    });
+  },
+
+  analyzeSpectrum: (technique: SpectroscopyTechnique, id: string, data: { window?: number; baseline_order?: number; prominence?: number }) =>
+    apiFetch<{ spectrum_id: string; success: boolean; message: string; results: SpectrumAnalysisResult; history: SpectrumHistoryEntry[] }>(
+      `/spectroscopy/${technique}/${id}/analyze`,
+      { method: "POST", body: JSON.stringify(data) },
+    ),
+
+  spectrumReport: (technique: SpectroscopyTechnique, id: string) =>
+    apiFetch<SpectrumReport>(`/spectroscopy/${technique}/${id}/report`, {
+      method: "POST",
+    }),
+
+  deleteSpectrum: (technique: SpectroscopyTechnique, id: string) =>
+    apiFetch<{ success: boolean; message: string }>(`/spectroscopy/${technique}/${id}`, {
+      method: "DELETE",
+    }),
+
+  spectraBySample: (sampleId: string) =>
+    apiFetch<{ sample_id: string; spectra: SpectrumListItem[]; total: number }>(
+      `/spectroscopy/by-sample/${sampleId}`,
+      { method: "POST" },
+    ),
+
+  downloadSpectrumReport: async (
+    technique: SpectroscopyTechnique,
+    id: string,
+    format: "txt" | "csv" | "json" = "txt",
+  ): Promise<{ blob: Blob; filename: string }> => {
+    const report = await apiFetch<SpectrumReport>(`/spectroscopy/${technique}/${id}/report`, {
+      method: "POST",
+    });
+    let blob: Blob;
+    let filename: string;
+    if (format === "csv") {
+      const detail = await apiFetch<SpectrumDetail>(`/spectroscopy/${technique}/${id}`);
+      const header = `x,y,processed_y,is_peak\n`;
+      const rows = detail.x.map((xv, i) => {
+        const isPeak = (detail.peaks ?? []).some((p) => Math.abs(p.position - xv) < 1e-6);
+        return `${xv},${detail.y[i] ?? ""},${detail.processed_y?.[i] ?? ""},${isPeak ? 1 : 0}`;
+      });
+      blob = new Blob([header + rows.join("\n")], { type: "text/csv;charset=utf-8" });
+      filename = `${technique}-${id}-data.csv`;
+    } else if (format === "json") {
+      const detail = await apiFetch<SpectrumDetail>(`/spectroscopy/${technique}/${id}`);
+      blob = new Blob([JSON.stringify(detail, null, 2)], { type: "application/json;charset=utf-8" });
+      filename = `${technique}-${id}-data.json`;
+    } else {
+      blob = new Blob([report.markdown], { type: "text/markdown;charset=utf-8" });
+      filename = `${technique}-${id}-report.md`;
+    }
     return { blob, filename };
   },
 };

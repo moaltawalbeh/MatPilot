@@ -11,16 +11,24 @@ import { Sun, Moon, Globe, Menu, X, Zap } from "lucide-react";
 const publicNav = [
   { href: "/", label: "Home" },
   { href: "/services", label: "Services" },
+  { href: "/pricing", label: "Pricing" },
   { href: "/about", label: "About" },
 ] as const;
 
 export function PublicHeader() {
   const path = usePathname() ?? "";
   const { theme, toggle } = useTheme();
-  const { locale, setLocale, dir } = useLanguage();
+  const { locale, setLocale, dir, t } = useLanguage();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
   const langRef = useRef<HTMLDivElement>(null);
+
+  const navLabels: Record<string, string> = {
+    "/": t.nav_home,
+    "/services": t.nav_services,
+    "/pricing": t.nav_pricing,
+    "/about": t.nav_about,
+  };
 
   const isActive = (href: string) => {
     if (href === "/") return path === "/";
@@ -59,7 +67,7 @@ export function PublicHeader() {
 
         {/* Desktop Nav */}
         <div style={{ display: "flex", alignItems: "center", gap: 4, marginLeft: 48 }} className="nav-links-desktop">
-          {publicNav.map(({ href, label }) => {
+          {publicNav.map(({ href }) => {
             const active = isActive(href);
             return (
               <Link key={href} href={href} style={{
@@ -70,7 +78,7 @@ export function PublicHeader() {
                 background: active ? "var(--accent-orange-bg)" : "transparent",
                 textDecoration: "none", transition: "all 0.15s",
               }}>
-                {label}
+                {navLabels[href]}
               </Link>
             );
           })}
@@ -139,7 +147,7 @@ export function PublicHeader() {
             transition: "all 0.15s", whiteSpace: "nowrap",
           }}>
             <Zap size={14} />
-            Launch Workspace
+            {t.nav_launch}
           </Link>
 
           {/* Mobile Toggle */}
@@ -165,14 +173,14 @@ export function PublicHeader() {
           background: "var(--bg-primary)", zIndex: 40, padding: 16, overflowY: "auto",
           display: "none",
         }}>
-          {publicNav.map(({ href, label }) => (
+          {publicNav.map(({ href }) => (
             <Link key={href} href={href} onClick={() => setMobileOpen(false)} style={{
               display: "block", padding: "14px", borderRadius: "var(--radius-sm)",
               fontSize: 15, fontWeight: isActive(href) ? 600 : 450,
               color: isActive(href) ? "var(--accent-orange)" : "var(--text-primary)",
               textDecoration: "none", marginBottom: 4,
             }}>
-              {label}
+              {navLabels[href]}
             </Link>
           ))}
         </div>
@@ -182,6 +190,7 @@ export function PublicHeader() {
 }
 
 export function PublicFooter() {
+  const { t } = useLanguage();
   return (
     <footer style={{
       borderTop: "1px solid var(--border-subtle)",
@@ -207,15 +216,24 @@ export function PublicFooter() {
           <div>
             <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 10 }}>Product</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <Link href="/services" style={{ fontSize: 13, color: "var(--text-secondary)", textDecoration: "none" }}>Services</Link>
-              <Link href="/dashboard" style={{ fontSize: 13, color: "var(--text-secondary)", textDecoration: "none" }}>Launch Platform</Link>
+              <Link href="/services" style={{ fontSize: 13, color: "var(--text-secondary)", textDecoration: "none" }}>{t.nav_services}</Link>
+              <Link href="/pricing" style={{ fontSize: 13, color: "var(--text-secondary)", textDecoration: "none" }}>{t.nav_pricing}</Link>
+              <Link href="/dashboard" style={{ fontSize: 13, color: "var(--text-secondary)", textDecoration: "none" }}>{t.nav_launch}</Link>
             </div>
           </div>
           <div>
             <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 10 }}>Company</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <Link href="/about" style={{ fontSize: 13, color: "var(--text-secondary)", textDecoration: "none" }}>About</Link>
+              <Link href="/about" style={{ fontSize: 13, color: "var(--text-secondary)", textDecoration: "none" }}>{t.nav_about}</Link>
               <a href="https://github.com" style={{ fontSize: 13, color: "var(--text-secondary)", textDecoration: "none" }}>GitHub</a>
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 10 }}>Legal</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <Link href="/privacy" style={{ fontSize: 13, color: "var(--text-secondary)", textDecoration: "none" }}>Privacy Policy</Link>
+              <Link href="/terms" style={{ fontSize: 13, color: "var(--text-secondary)", textDecoration: "none" }}>Terms of Service</Link>
+              <Link href="/cookies" style={{ fontSize: 13, color: "var(--text-secondary)", textDecoration: "none" }}>Cookie Policy</Link>
             </div>
           </div>
         </div>

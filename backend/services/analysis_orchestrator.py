@@ -176,6 +176,44 @@ class AnalysisOrchestrator:
 
         return result
 
+    def submit_experiment_analysis(
+        self,
+        experiment_id: str,
+        file_id: Optional[str],
+        project_id: Optional[str],
+        analysis_type: str = "analysis",
+        parameters: Optional[Dict[str, Any]] = None,
+        provider_preferences: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """Create a job for an existing experiment and start it in the background.
+
+        Jobs created here flow through the same JobManager as upload-driven
+        jobs, so they appear in ``/jobs`` and are executed by the pipeline.
+        """
+        job = self._job_manager.create_job(
+            experiment_id=experiment_id,
+            job_type=analysis_type,
+            parameters={
+                "file_id": file_id,
+                "project_id": project_id,
+                "analysis_type": analysis_type,
+                **(parameters or {}),
+            },
+            provider_preferences=provider_preferences or [],
+        )
+
+        self._logger.info(
+            "Analysis job submitted for experiment",
+            job_id=job.job_id,
+            experiment_id=experiment_id,
+            analysis_type=analysis_type,
+        )
+
+        if file_id:
+            asyncio.create_task(self._execute_pipeline_background(job.job_id, file_id))
+
+        return job.to_dict()
+
     async def execute_analysis(self, job_id: str) -> Dict[str, Any]:
         """Execute the analysis pipeline for a job."""
         job = self._job_manager.get_job(job_id)

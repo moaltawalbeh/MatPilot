@@ -30,9 +30,10 @@ interface AuthContextType {
     email: string,
     password: string,
     fullName?: string,
-  ) => Promise<void>;
+  ) => Promise<string>;
   logout: () => Promise<void>;
   verifyEmail: (token: string) => Promise<string>;
+  verifyEmailByCode: (email: string, code: string) => Promise<string>;
   resendVerification: (email: string) => Promise<string>;
   forgotPassword: (email: string) => Promise<string>;
   resetPassword: (token: string, newPassword: string) => Promise<string>;
@@ -101,10 +102,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         password,
         full_name: fullName,
       });
-      saveTokens(res.access_token, res.refresh_token);
-      setUser(res.user);
+      // No session is issued at registration: the account is inactive until
+      // the owner verifies their email address.
+      return res.message;
     },
-    [saveTokens],
+    [],
   );
 
   const logout = useCallback(async () => {
@@ -119,14 +121,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const verifyEmail = useCallback(async (token: string) => {
     const res = await apiService.verifyEmail(token);
-    if (token) {
-      try {
-        const me = await apiService.getMe();
-        setUser(me);
-      } catch {
-        // Ignore refresh failures here; the user can reload.
-      }
-    }
+    return res.message;
+  }, []);
+
+  const verifyEmailByCode = useCallback(async (email: string, code: string) => {
+    const res = await apiService.verifyEmailCode(email, code);
     return res.message;
   }, []);
 
@@ -164,6 +163,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         register,
         logout,
         verifyEmail,
+        verifyEmailByCode,
         resendVerification,
         forgotPassword,
         resetPassword,

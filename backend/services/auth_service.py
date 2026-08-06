@@ -1,12 +1,17 @@
 """Authentication Service.
 
-Handles JWT token creation/validation, password hashing, user registration/login,
+Handles JWT token creation/validation, password hashing, user registration,
 email verification, password reset, and token revocation via a per-user
 ``token_version`` embedded in every issued JWT. Bumping ``token_version``
 (e.g. on logout or password change) invalidates all outstanding tokens.
+
+Accounts are created in the INACTIVE state and are only activated after the
+owner verifies their email address via the emailed link or code. No tokens are
+issued at registration time, so a user cannot sign in before verifying.
 """
 
 import os
+import secrets
 from datetime import datetime, timedelta
 from typing import Optional
 from uuid import UUID, uuid4
@@ -15,6 +20,8 @@ import jwt
 from passlib.context import CryptContext
 
 from backend.domain.entities.user import User, UserRole, UserStatus
+from backend.infrastructure.email.provider import EmailMessage, IEmailProvider
+from backend.infrastructure.logging.structured_logger import MatPilotLogger, get_logger
 
 SECRET_KEY = os.environ.get(
     "MATPILOT_SECRET_KEY", "matpilot-secret-key-change-in-production"
@@ -29,8 +36,19 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 class AuthService:
-    def __init__(self, uow):
+    def __init__(
+        self,
+        uow,
+        email_provider: Optional[IEmailProvider] = None,
+        app_url: str = "http://localhost:3000",
+        verification_code_length: int = 6,
+        logger: Optional[MatPilotLogger] = None,
+    ):
         self.uow = uow
+        self.email_provider = email_provider
+        self.app_url = app_url.rstrip("/")
+        self.verification_code_length = max(4, min(int(verification_code_length or 6), 12))
+        self._logger = logger or get_logger("auth_service")
 
     def hash_password(self, password: str) -> str:
         return pwd_context.hash(password)
@@ -52,6 +70,11 @@ class AuthService:
 
     def create_verification_token(self) -> str:
         return uuid4().hex
+
+    def create_verification_code(self) -> str:
+        """Generate a numeric verification code (CSPRNG)."""
+        length = self.verification_code_length
+        return f"{secrets.randbelow(10 ** length):0{length}d}"
 
     def decode_token(self, token: str) -> dict:
         return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -88,6 +111,77 @@ class AuthService:
             "refresh_token": refresh_token,
         }
 
+    def _issue_verification(self, user: User) -> None:
+        """Issue a fresh verification token + code with an expiry timestamp."""
+        user.email_verification_token = self.create_verification_token()
+        user.email_verification_code = self.create_verification_code()
+        user.email_verification_expires_at = datetime.utcnow() + timedelta(
+            minutes=VERIFY_TOKEN_EXPIRE_MINUTES
+        )
+
+    def _activate(self, user: User) -> None:
+        """Mark the user verified and active; clear verification state."""
+        user.is_verified = True
+        user.status = UserStatus.ACTIVE
+        user.email_verification_token = None
+        user.email_verification_code = None
+        user.email_verification_expires_at = None
+        user.touch()
+
+    async def _notify(self, message: EmailMessage) -> None:
+        """Send an email, logging (never surfacing) delivery failures."""
+        if not self.email_provider:
+            return
+        try:
+            await self.email_provider.send(message)
+        except Exception as exc:  # pragma: no cover - depends on external SMTP
+            self._logger.error(
+                "Failed to send email",
+                to=message.to,
+                subject=message.subject,
+                error=str(exc),
+            )
+
+    async def _send_verification_email(self, user: User) -> None:
+        if not self.email_provider:
+            return
+        code = user.email_verification_code or ""
+        link = f"{self.app_url}/verify?token={user.email_verification_token}"
+        text = (
+            f"Hello {user.username},\n\n"
+            f"Welcome to MatPilot. Please verify your email address to activate your account.\n\n"
+            f"Your verification code is: {code}\n\n"
+            f"Or click the link below:\n{link}\n\n"
+            f"This link and code expire in {VERIFY_TOKEN_EXPIRE_MINUTES} minutes.\n\n"
+            f"If you did not create this account, you can safely ignore this email."
+        )
+        await self._notify(
+            EmailMessage(
+                to=user.email,
+                subject="Verify your MatPilot email",
+                text=text,
+            )
+        )
+
+    async def _send_password_reset_email(self, user: User) -> None:
+        if not self.email_provider:
+            return
+        link = f"{self.app_url}/reset-password?token={user.password_reset_token}"
+        text = (
+            f"Hello {user.username},\n\n"
+            f"We received a request to reset your MatPilot password.\n\n"
+            f"Open the link below to choose a new password:\n{link}\n\n"
+            f"This link expires in {VERIFY_TOKEN_EXPIRE_MINUTES} minutes.\n\n"
+            f"If you did not request this, you can safely ignore this email."
+        )
+        await self._notify(
+            EmailMessage(
+                to=user.email,
+                subject="Reset your MatPilot password",
+                text=text,
+            )
+        )
+
     async def register(self, username: str, email: str, password: str, full_name: str = "") -> dict:
         existing = await self.uow.users.get_by_username(username)
         if existing:
@@ -103,15 +197,18 @@ class AuthService:
             email=email,
             full_name=full_name,
             role=UserRole.RESEARCHER,
-            status=UserStatus.ACTIVE,
+            status=UserStatus.INACTIVE,
             hashed_password=self.hash_password(password),
-            email_verification_token=self.create_verification_token(),
+            is_verified=False,
         )
+        self._issue_verification(user)
         await self.uow.users.add(user)
         await self.uow.commit()
-        result = self._create_tokens(user)
-        result["verification_token"] = user.email_verification_token
-        return result
+        await self._send_verification_email(user)
+        return {
+            "message": "Verification email has been sent. Please check your inbox to activate your account.",
+            "email": email,
+        }
 
     async def login(self, username_or_email: str, password: str) -> dict:
         user = await self.uow.users.get_by_username(username_or_email)
@@ -124,6 +221,8 @@ class AuthService:
         if not self.verify_password(password, user.hashed_password):
             raise ValueError("Invalid credentials")
 
+        if not user.is_verified:
+            raise ValueError("Please verify your email address before signing in")
         if user.status != UserStatus.ACTIVE:
             raise ValueError("Account is not active")
 
@@ -184,11 +283,29 @@ class AuthService:
     async def verify_email(self, token: str) -> dict:
         user = await self.uow.users.get_by_email_verification_token(token)
         if not user:
-            raise ValueError("Invalid or expired verification token")
+            raise ValueError("Invalid or expired verification link")
+        if user.is_verified:
+            return {"message": "Email already verified"}
+        if user.email_verification_expires_at and datetime.utcnow() > user.email_verification_expires_at:
+            raise ValueError("Verification link has expired. Please request a new one.")
 
-        user.is_verified = True
-        user.email_verification_token = None
-        user.touch()
+        self._activate(user)
+        await self.uow.users.update(user)
+        await self.uow.commit()
+        return {"message": "Email verified successfully"}
+
+    async def verify_code(self, email: str, code: str) -> dict:
+        user = await self.uow.users.get_by_email(email)
+        if not user:
+            raise ValueError("Invalid verification code")
+        if user.is_verified:
+            return {"message": "Email already verified"}
+        if not user.email_verification_code or user.email_verification_code != str(code).strip():
+            raise ValueError("Invalid verification code")
+        if user.email_verification_expires_at and datetime.utcnow() > user.email_verification_expires_at:
+            raise ValueError("Verification code has expired. Please request a new one.")
+
+        self._activate(user)
         await self.uow.users.update(user)
         await self.uow.commit()
         return {"message": "Email verified successfully"}
@@ -201,14 +318,12 @@ class AuthService:
         if user.is_verified:
             return {"message": "Email already verified"}
 
-        user.email_verification_token = self.create_verification_token()
+        self._issue_verification(user)
         user.touch()
         await self.uow.users.update(user)
         await self.uow.commit()
-        return {
-            "message": "If the account exists, a verification email has been sent",
-            "verification_token": user.email_verification_token,
-        }
+        await self._send_verification_email(user)
+        return {"message": "If the account exists, a verification email has been sent"}
 
     async def forgot_password(self, email: str) -> dict:
         user = await self.uow.users.get_by_email(email)
@@ -216,17 +331,24 @@ class AuthService:
             return {"message": "If the account exists, a password reset email has been sent"}
 
         user.password_reset_token = self.create_verification_token()
+        user.password_reset_expires_at = datetime.utcnow() + timedelta(
+            minutes=VERIFY_TOKEN_EXPIRE_MINUTES
+        )
         user.touch()
         await self.uow.users.update(user)
         await self.uow.commit()
-        return {
-            "message": "If the account exists, a password reset email has been sent",
-            "reset_token": user.password_reset_token,
-        }
+        await self._send_password_reset_email(user)
+        return {"message": "If the account exists, a password reset email has been sent"}
 
     async def reset_password(self, token: str, new_password: str) -> dict:
         user = await self.uow.users.get_by_password_reset_token(token)
         if not user:
+            raise ValueError("Invalid or expired reset token")
+        if user.password_reset_expires_at and datetime.utcnow() > user.password_reset_expires_at:
+            user.password_reset_token = None
+            user.touch()
+            await self.uow.users.update(user)
+            await self.uow.commit()
             raise ValueError("Invalid or expired reset token")
 
         user.hashed_password = self.hash_password(new_password)

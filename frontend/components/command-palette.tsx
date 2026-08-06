@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { Search, FileText, FolderKanban, FlaskConical, Upload, Plus, Clock, ArrowRight, Beaker, Ruler, Box, Download, Settings, Shield, BarChart3, FileUp, SearchCode } from "lucide-react";
+import { Search, FileText, FolderKanban, FlaskConical, Upload, Plus, ArrowRight, Beaker, Ruler, Box, Download, Settings, Shield, BarChart3, FileUp, SearchCode } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 type CommandItem = {
@@ -107,28 +107,28 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
         action: () => router.push("/admin"),
       },
       {
-        id: "recent-project-1",
-        label: "Li-ion Cathode Screening",
-        description: "Updated 2 hours ago",
-        icon: Clock,
-        group: "Recent",
-        action: () => router.push("/projects/1"),
+        id: "nav-reports",
+        label: "Reports",
+        description: "Generate and export reports",
+        icon: BarChart3,
+        group: "Navigation",
+        action: () => router.push("/reports"),
       },
       {
-        id: "recent-experiment-1",
-        label: "XRD Refinement - Sample #42",
-        description: "Updated yesterday",
-        icon: Clock,
-        group: "Recent",
-        action: () => router.push("/experiments/5"),
+        id: "nav-search",
+        label: "Search",
+        description: "Search all records",
+        icon: SearchCode,
+        group: "Navigation",
+        action: () => router.push("/search"),
       },
       {
         id: "action-new-project",
         label: "New Project",
-        description: "Ctrl+N",
+        description: "Create a new project",
         icon: Plus,
         group: "Actions",
-        action: () => router.push("/projects/new"),
+        action: () => router.push("/projects"),
       },
       {
         id: "action-new-sample",
@@ -136,7 +136,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
         description: "Create a new sample",
         icon: Plus,
         group: "Actions",
-        action: () => router.push("/samples/new"),
+        action: () => router.push("/samples"),
       },
       {
         id: "action-upload",
@@ -155,14 +155,6 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
         action: () => router.push("/upload"),
       },
       {
-        id: "action-search",
-        label: "Search",
-        description: "Ctrl+K",
-        icon: SearchCode,
-        group: "Actions",
-        action: () => {},
-      },
-      {
         id: "action-reports",
         label: "View Reports",
         description: "Analytics & reports",
@@ -173,10 +165,10 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
       {
         id: "action-new-experiment",
         label: "New Experiment",
-        description: "Create a new experiment",
+        description: "Upload XRD data",
         icon: Plus,
         group: "Actions",
-        action: () => router.push("/experiments/new"),
+        action: () => router.push("/upload"),
       },
     ],
     [router],

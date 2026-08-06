@@ -43,9 +43,9 @@ type QueuedFile = {
 
 const TECHNIQUES = [
   { id: "xrd", name: "X-ray Diffraction", icon: FileBarChart, description: "Crystal structure analysis and phase identification", color: "var(--accent-orange)", available: true },
-  { id: "raman", name: "Raman Spectroscopy", icon: Waves, description: "Molecular vibration analysis", color: "var(--accent-cyan)", available: false },
-  { id: "ftir", name: "FTIR Spectroscopy", icon: AudioLines, description: "Infrared molecular fingerprinting", color: "var(--accent-emerald)", available: false },
-  { id: "uvvis", name: "UV-Vis Spectroscopy", icon: Sun, description: "Optical absorption properties", color: "var(--accent-amber)", available: false },
+  { id: "raman", name: "Raman Spectroscopy", icon: Waves, description: "Molecular vibration analysis", color: "var(--accent-cyan)", available: true },
+  { id: "ftir", name: "FTIR Spectroscopy", icon: AudioLines, description: "Infrared molecular fingerprinting", color: "var(--accent-emerald)", available: true },
+  { id: "uvvis", name: "UV-Vis Spectroscopy", icon: Sun, description: "Optical absorption properties", color: "var(--accent-amber)", available: true },
   { id: "sem", name: "SEM", icon: Microscope, description: "Surface morphology imaging", color: "var(--accent-violet)", available: false },
   { id: "eds", name: "EDS/EDX", icon: Atom, description: "Elemental composition analysis", color: "var(--accent-rose)", available: false },
   { id: "tem", name: "TEM", icon: ScanEye, description: "High-resolution transmission imaging", color: "var(--accent-cyan)", available: false },

@@ -17,7 +17,13 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
 async def get_db_auth_service(request: Request = None):
     """Provide an AuthService backed by the container's unit of work."""
     container = get_container(request)
-    yield AuthService(container.uow)
+    email_cfg = container.config.email
+    yield AuthService(
+        container.uow,
+        email_provider=container.email_provider,
+        app_url=email_cfg.app_url,
+        verification_code_length=email_cfg.verification_code_length,
+    )
 
 
 class RegisterRequest(BaseModel):
@@ -38,6 +44,11 @@ class RefreshRequest(BaseModel):
 
 class VerifyEmailRequest(BaseModel):
     token: str
+
+
+class VerifyCodeRequest(BaseModel):
+    email: str
+    code: str
 
 
 class ResendVerificationRequest(BaseModel):
@@ -109,6 +120,14 @@ async def refresh(request: RefreshRequest, auth_service: AuthService = Depends(g
 async def verify_email(request: VerifyEmailRequest, auth_service: AuthService = Depends(get_db_auth_service)):
     try:
         return await auth_service.verify_email(request.token)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/verify-code")
+async def verify_code(request: VerifyCodeRequest, auth_service: AuthService = Depends(get_db_auth_service)):
+    try:
+        return await auth_service.verify_code(request.email, request.code)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

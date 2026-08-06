@@ -83,6 +83,37 @@ class AnalysisConfig:
 
 
 @dataclass(frozen=True)
+class EmailConfig:
+    """Outbound email configuration."""
+    backend: str = field(
+        default_factory=lambda: os.environ.get("MATPILOT_EMAIL_BACKEND", "console")
+    )
+    from_address: str = field(
+        default_factory=lambda: os.environ.get(
+            "MATPILOT_EMAIL_FROM", "MatPilot <no-reply@matpilot.app>"
+        )
+    )
+    app_url: str = field(
+        default_factory=lambda: os.environ.get("MATPILOT_APP_URL", "http://localhost:3000")
+    )
+    smtp_host: Optional[str] = field(default_factory=lambda: os.environ.get("MATPILOT_SMTP_HOST"))
+    smtp_port: int = field(
+        default_factory=lambda: int(os.environ.get("MATPILOT_SMTP_PORT", "587"))
+    )
+    smtp_user: Optional[str] = field(default_factory=lambda: os.environ.get("MATPILOT_SMTP_USER"))
+    smtp_password: Optional[str] = field(default_factory=lambda: os.environ.get("MATPILOT_SMTP_PASSWORD"))
+    smtp_use_tls: bool = field(
+        default_factory=lambda: os.environ.get("MATPILOT_SMTP_USE_TLS", "true").lower() == "true"
+    )
+    smtp_use_ssl: bool = field(
+        default_factory=lambda: os.environ.get("MATPILOT_SMTP_USE_SSL", "false").lower() == "true"
+    )
+    verification_code_length: int = field(
+        default_factory=lambda: int(os.environ.get("MATPILOT_VERIFY_CODE_LENGTH", "6"))
+    )
+
+
+@dataclass(frozen=True)
 class APIConfig:
     """API server configuration."""
     host: str = field(default_factory=lambda: os.environ.get("MATPILOT_API_HOST", "0.0.0.0"))
@@ -131,6 +162,7 @@ class MatPilotConfig:
     reference: ReferenceConfig = field(default_factory=ReferenceConfig)
     analysis: AnalysisConfig = field(default_factory=AnalysisConfig)
     api: APIConfig = field(default_factory=APIConfig)
+    email: EmailConfig = field(default_factory=EmailConfig)
     logging: LoggingConfig = field(default_factory=LoggingConfig)
 
 

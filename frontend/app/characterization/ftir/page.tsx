@@ -1,8 +1,21 @@
 "use client";
 
+import { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { Page } from "@/components/ui/page";
-import { ComingSoonCard } from "@/components/characterization/coming-soon-card";
+import { TechniqueWorkspace } from "@/components/spectroscopy/technique-workspace";
 import { AudioLines } from "lucide-react";
+
+function FtirWorkspace() {
+  const searchParams = useSearchParams();
+  const sampleId = searchParams.get("sample_id") ?? undefined;
+  return (
+    <TechniqueWorkspace
+      technique="ftir"
+      initialSampleId={sampleId}
+    />
+  );
+}
 
 export default function FtirPage() {
   return (
@@ -10,21 +23,16 @@ export default function FtirPage() {
       eyebrow="Characterization Module"
       title="FTIR Spectroscopy"
       description="Fourier-transform infrared analysis for molecular functional group identification and chemical characterization"
+      actions={
+        <span className="badge" style={{ fontSize: 11 }}>
+          <AudioLines size={12} style={{ verticalAlign: -2, marginRight: 4 }} />
+          Upload · Analyze · Report
+        </span>
+      }
     >
-      <ComingSoonCard
-        icon={AudioLines}
-        name="FTIR Spectroscopy"
-        accentColor="var(--accent-purple)"
-        description="FTIR spectroscopy measures the absorption of infrared radiation by molecular bonds, providing a unique fingerprint for identifying functional groups, chemical composition, and molecular structure of organic and inorganic materials."
-        features={[
-          "ATR and transmission mode spectral analysis",
-          "Automatic atmospheric correction (CO₂, H₂O)",
-          "Functional group identification and assignment",
-          "Library search against reference spectra",
-          "Quantitative concentration determination",
-          "Kramers-Kronig transformation for optical constants",
-        ]}
-      />
+      <Suspense fallback={null}>
+        <FtirWorkspace />
+      </Suspense>
     </Page>
   );
 }

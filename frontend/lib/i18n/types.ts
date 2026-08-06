@@ -12,6 +12,7 @@ export type TranslationKeys = {
   nav_database: string;
   nav_settings: string;
   nav_services: string;
+  nav_pricing: string;
   nav_about: string;
   nav_launch: string;
   nav_characterization: string;

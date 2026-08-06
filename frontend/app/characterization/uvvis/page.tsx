@@ -1,8 +1,21 @@
 "use client";
 
+import { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { Page } from "@/components/ui/page";
-import { ComingSoonCard } from "@/components/characterization/coming-soon-card";
+import { TechniqueWorkspace } from "@/components/spectroscopy/technique-workspace";
 import { Sun } from "lucide-react";
+
+function UvvisWorkspace() {
+  const searchParams = useSearchParams();
+  const sampleId = searchParams.get("sample_id") ?? undefined;
+  return (
+    <TechniqueWorkspace
+      technique="uvvis"
+      initialSampleId={sampleId}
+    />
+  );
+}
 
 export default function UvvisPage() {
   return (
@@ -10,21 +23,16 @@ export default function UvvisPage() {
       eyebrow="Characterization Module"
       title="UV-Vis Spectroscopy"
       description="Ultraviolet-visible absorption analysis for electronic transitions and optical property determination"
+      actions={
+        <span className="badge" style={{ fontSize: 11 }}>
+          <Sun size={12} style={{ verticalAlign: -2, marginRight: 4 }} />
+          Upload · Analyze · Report
+        </span>
+      }
     >
-      <ComingSoonCard
-        icon={Sun}
-        name="UV-Vis Spectroscopy"
-        accentColor="var(--accent-orange)"
-        description="UV-Vis spectroscopy measures electronic transitions in the ultraviolet and visible regions, providing information on bandgap energies, optical absorption, electronic structure, and concentration of chromophoric species in materials."
-        features={[
-          "Absorption and transmittance spectrum analysis",
-          "Tauc plot determination of optical bandgap",
-          "Concentration analysis via Beer-Lambert law",
-          "Film thickness estimation from interference fringes",
-          "Reflector and absorber characterization",
-          "Multi-wavelength kinetic measurements",
-        ]}
-      />
+      <Suspense fallback={null}>
+        <UvvisWorkspace />
+      </Suspense>
     </Page>
   );
 }

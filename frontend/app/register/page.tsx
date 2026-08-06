@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth";
-import { Eye, EyeOff, UserPlus, Atom, Check, X } from "lucide-react";
+import { Eye, EyeOff, UserPlus, Atom, Check, X, MailCheck } from "lucide-react";
 
 function getPasswordStrength(password: string): { score: number; label: string; color: string } {
   let score = 0;
@@ -21,7 +21,7 @@ function getPasswordStrength(password: string): { score: number; label: string; 
 }
 
 export default function RegisterPage() {
-  const { register: registerUser, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { register: registerUser, resendVerification, isAuthenticated, isLoading: authLoading } = useAuth();
   const router = useRouter();
 
   const [username, setUsername] = useState("");
@@ -33,6 +33,9 @@ export default function RegisterPage() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [registeredEmail, setRegisteredEmail] = useState<string | null>(null);
+  const [resendMessage, setResendMessage] = useState("");
+  const [resending, setResending] = useState(false);
 
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
@@ -68,12 +71,26 @@ export default function RegisterPage() {
     setLoading(true);
     try {
       await registerUser(username.trim(), email.trim(), password, fullName.trim() || undefined);
-      router.push("/dashboard");
+      setRegisteredEmail(email.trim());
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Registration failed. Please try again.";
       setError(msg);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    if (!registeredEmail) return;
+    setResending(true);
+    setResendMessage("");
+    try {
+      const msg = await resendVerification(registeredEmail);
+      setResendMessage(msg);
+    } catch (err: unknown) {
+      setResendMessage(err instanceof Error ? err.message : "Could not resend the verification email.");
+    } finally {
+      setResending(false);
     }
   };
 
@@ -138,13 +155,92 @@ export default function RegisterPage() {
             <Atom size={26} style={{ color: "var(--accent-orange)" }} />
           </div>
           <h1 style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.5px", color: "var(--text-primary)" }}>
-            Create your account
+            {registeredEmail ? "Check your email" : "Create your account"}
           </h1>
           <p style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 4 }}>
-            Join MatPilot for advanced materials analysis
+            {registeredEmail
+              ? "One more step before you can sign in"
+              : "Join MatPilot for advanced materials analysis"}
           </p>
         </div>
 
+        {registeredEmail ? (
+          <div style={{ textAlign: "center", padding: "4px 0 8px" }}>
+            <div
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: "50%",
+                background: "var(--accent-emerald-bg)",
+                border: "1px solid rgba(16,185,129,0.25)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                margin: "0 auto 16px",
+              }}
+            >
+              <MailCheck size={26} style={{ color: "var(--accent-emerald)" }} />
+            </div>
+            <p style={{ fontSize: 14, lineHeight: 1.6, color: "var(--text-primary)" }}>
+              Verification email has been sent to{" "}
+              <strong style={{ fontWeight: 600 }}>{registeredEmail}</strong>.
+            </p>
+            <p style={{ fontSize: 13, lineHeight: 1.6, color: "var(--text-secondary)", marginTop: 8 }}>
+              Open the link in the email, or enter the 6-digit code from the email, to
+              activate your account. Your account becomes active only after verification.
+            </p>
+
+            <div style={{ marginTop: 20, display: "flex", flexDirection: "column", gap: 10 }}>
+              <Link
+                href={`/verify?email=${encodeURIComponent(registeredEmail)}`}
+                className="button primary lg"
+                style={{
+                  width: "100%",
+                  justifyContent: "center",
+                  height: 42,
+                  fontWeight: 600,
+                  fontSize: 14,
+                  textDecoration: "none",
+                }}
+              >
+                Enter verification code
+              </Link>
+              <button
+                type="button"
+                className="button secondary lg"
+                onClick={handleResend}
+                disabled={resending}
+                style={{ width: "100%", justifyContent: "center", height: 42, fontWeight: 600, fontSize: 14 }}
+              >
+                {resending ? "Sending..." : "Resend verification email"}
+              </button>
+            </div>
+
+            {resendMessage && (
+              <div
+                style={{
+                  marginTop: 14,
+                  padding: "10px 14px",
+                  borderRadius: "var(--radius-sm)",
+                  background: "var(--accent-emerald-bg)",
+                  color: "var(--accent-emerald)",
+                  fontSize: 13,
+                  border: "1px solid rgba(16,185,129,0.2)",
+                }}
+              >
+                {resendMessage}
+              </div>
+            )}
+
+            <div style={{ marginTop: 20, textAlign: "center", fontSize: 13, color: "var(--text-tertiary)" }}>
+              Already verified?{" "}
+              <Link href="/login" style={{ color: "var(--accent-orange)", fontWeight: 500, textDecoration: "none" }}>
+                Sign in
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <>
         {error && (
           <div
             style={{
@@ -335,6 +431,8 @@ export default function RegisterPage() {
             Sign in
           </Link>
         </div>
+          </>
+        )}
       </div>
     </div>
   );

@@ -88,7 +88,10 @@ _MISSING_COLUMNS: dict[str, list[str]] = {
     "users": [
         "is_verified BOOLEAN NOT NULL DEFAULT FALSE",
         "email_verification_token VARCHAR(255) NULL",
+        "email_verification_code VARCHAR(10) NULL",
+        "email_verification_expires_at TIMESTAMP NULL",
         "password_reset_token VARCHAR(255) NULL",
+        "password_reset_expires_at TIMESTAMP NULL",
         "token_version INTEGER NOT NULL DEFAULT 0",
         "role VARCHAR(50) NOT NULL DEFAULT 'RESEARCHER'",
         "status VARCHAR(50) NOT NULL DEFAULT 'ACTIVE'",

@@ -18,6 +18,8 @@ from backend.infrastructure.storage.s3_storage import S3StorageProvider
 from backend.infrastructure.storage.azure_storage import AzureStorageProvider
 from backend.infrastructure.storage.gcs_storage import GCSStorageProvider
 from backend.infrastructure.storage.storage_provider import IStorageProvider
+from backend.infrastructure.email.factory import create_email_provider
+from backend.infrastructure.email.provider import IEmailProvider
 from backend.infrastructure.database.sql_uow import InMemoryUnitOfWork
 from backend.infrastructure.database.async_uow import build_async_uow
 from backend.reference.engine.reference_engine import ReferenceEngine
@@ -78,6 +80,9 @@ class DIContainer:
         # Storage Provider
         self.storage_provider = self._create_storage_provider()
         self.storage_service = StorageService(self.storage_provider)
+
+        # Email Provider
+        self.email_provider: IEmailProvider = create_email_provider(self.config.email)
 
         # Reference Engine (Sprint 6: with CIF cache + theoretical pattern generation)
         self.reference_engine = ReferenceEngine(

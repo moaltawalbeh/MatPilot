@@ -52,6 +52,34 @@ class GetAnalysisResultUseCase:
                 "confidence": m.confidence
             })
 
+        phases = []
+        for ph in result.identified_phases:
+            phases.append({
+                "name": ph.name,
+                "formula": ph.formula,
+                "source": ph.source,
+                "source_id": ph.source_id,
+                "confidence": ph.confidence,
+                "match_score": ph.match_score,
+                "matched_peaks": ph.matched_peaks,
+                "total_peaks": ph.total_peaks,
+                "space_group": ph.space_group,
+                "crystal_system": ph.crystal_system,
+                "fom": ph.fom,
+                "rmse_2theta": ph.rmse_2theta,
+                "cosine_similarity": ph.cosine_similarity,
+                "quality_mark": ph.quality_mark,
+                "theoretical_peaks": [
+                    {
+                        "two_theta": tp.two_theta,
+                        "intensity": tp.intensity,
+                        "d_spacing": tp.d_spacing,
+                        "hkl": tp.hkl,
+                    }
+                    for tp in ph.theoretical_peaks
+                ],
+            })
+
         return AnalysisResultDTO(
             result_id=str(result.id),
             job_id=job_id,
@@ -59,7 +87,7 @@ class GetAnalysisResultUseCase:
             status=job.status.name.lower(),
             peaks=peaks,
             matches=matches,
-            phases=[],
+            phases=phases,
             parameters=result.parameters_used,
             confidence=result.confidence_scores,
             created_at=result.created_at.isoformat()

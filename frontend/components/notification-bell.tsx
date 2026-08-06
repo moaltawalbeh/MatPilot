@@ -13,48 +13,7 @@ type Notification = {
   read: boolean;
 };
 
-const defaultNotifications: Notification[] = [
-  {
-    id: "1",
-    type: "success",
-    title: "Rietveld refinement complete",
-    message: "Sample #42 refinement converged with Rwp = 4.2%",
-    time: "2m ago",
-    read: false,
-  },
-  {
-    id: "2",
-    type: "warning",
-    title: "Low memory warning",
-    message: "Server memory usage is at 85%",
-    time: "15m ago",
-    read: false,
-  },
-  {
-    id: "3",
-    type: "info",
-    title: "New update available",
-    message: "MatPilot v2.3.0 is ready to install",
-    time: "1h ago",
-    read: false,
-  },
-  {
-    id: "4",
-    type: "experiment",
-    title: "Experiment completed",
-    message: "Phase identification finished for batch #7",
-    time: "3h ago",
-    read: true,
-  },
-  {
-    id: "5",
-    type: "info",
-    title: "Data export ready",
-    message: "Your XRD dataset export is available for download",
-    time: "5h ago",
-    read: true,
-  },
-];
+const KNOWN_TYPES = ["info", "warning", "success", "experiment"] as const;
 
 const typeIcons: Record<Notification["type"], React.ComponentType<{ size?: number }>> = {
   info: Info,
@@ -70,17 +29,47 @@ const typeColors: Record<Notification["type"], string> = {
   experiment: "var(--accent-orange)",
 };
 
+function toNotification(raw: any): Notification {
+  const type = KNOWN_TYPES.includes(raw.type)
+    ? (raw.type as Notification["type"])
+    : "info";
+  return {
+    id: raw.id,
+    type,
+    title: raw.title || "Notification",
+    message: raw.message || "",
+    time: raw.created_at ? new Date(raw.created_at).toLocaleString() : "",
+    read: Boolean(raw.read),
+  };
+}
+
 type NotificationBellProps = {
   count?: number;
 };
 
 export function NotificationBell({ count = 0 }: NotificationBellProps) {
   const [open, setOpen] = useState(false);
-  const [notifications, setNotifications] =
-    useState<Notification[]>(defaultNotifications);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const ref = useRef<HTMLDivElement>(null);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
+
+  useEffect(() => {
+    let active = true;
+    import("@/lib/api-client")
+      .then(({ apiService }) => apiService.listNotifications({ limit: 10 }))
+      .then((data) => {
+        if (!active) return;
+        const items = (data?.notifications ?? []) as any[];
+        setNotifications(items.slice(0, 10).map(toNotification));
+      })
+      .catch(() => {
+        if (active) setNotifications([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {

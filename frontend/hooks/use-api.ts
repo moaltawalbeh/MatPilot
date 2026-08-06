@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiService } from "@/lib/api-client";
-import type { RefinementParameter, ManualRefinementSession } from "@/types";
+import type { RefinementParameter, ManualRefinementSession, SpectroscopyTechnique } from "@/types";
 
 export function useProjects() {
   return useQuery({
@@ -676,5 +676,116 @@ export function useRefinementParameters() {
   return useQuery({
     queryKey: ["refinement-parameters"],
     queryFn: apiService.getRefinementParameters,
+  });
+}
+
+// ── Spectroscopy (FTIR / Raman / UV-Vis) Hooks ───────────────────────
+
+export function useSpectroscopySummary() {
+  return useQuery({
+    queryKey: ["spectroscopy-summary"],
+    queryFn: apiService.spectroscopySummary,
+    refetchInterval: 30_000,
+  });
+}
+
+export function useCharacterizationDashboard() {
+  return useQuery({
+    queryKey: ["characterization-dashboard"],
+    queryFn: apiService.characterizationDashboard,
+    refetchInterval: 30_000,
+  });
+}
+
+export function useSpectra(technique: SpectroscopyTechnique, params?: { sample_id?: string }) {
+  return useQuery({
+    queryKey: ["spectra", technique, params?.sample_id],
+    queryFn: () => apiService.listSpectra(technique, params),
+    enabled: !!technique,
+  });
+}
+
+export function useSpectrum(technique: SpectroscopyTechnique, id: string | null) {
+  return useQuery({
+    queryKey: ["spectrum", technique, id],
+    queryFn: () => apiService.getSpectrum(technique, id!),
+    enabled: !!technique && !!id,
+  });
+}
+
+export function useUploadSpectrum(technique: SpectroscopyTechnique) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ file, sample_id, name, description }: { file: File; sample_id?: string; name?: string; description?: string }) =>
+      apiService.uploadSpectrum(technique, file, { sample_id, name, description }),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["spectra", technique] });
+      qc.invalidateQueries({ queryKey: ["spectrum"] });
+      qc.invalidateQueries({ queryKey: ["spectroscopy-summary"] });
+      qc.invalidateQueries({ queryKey: ["characterization-dashboard"] });
+      qc.invalidateQueries({ queryKey: ["measurements"] });
+      if (data.spectrum.sample_id) {
+        qc.invalidateQueries({ queryKey: ["spectra-by-sample"] });
+        qc.invalidateQueries({ queryKey: ["samples"] });
+      }
+    },
+  });
+}
+
+export function useAnalyzeSpectrum(technique: SpectroscopyTechnique) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: { window?: number; baseline_order?: number; prominence?: number } }) =>
+      apiService.analyzeSpectrum(technique, id, data),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ["spectrum", technique, vars.id] });
+      qc.invalidateQueries({ queryKey: ["spectra", technique] });
+      qc.invalidateQueries({ queryKey: ["characterization-dashboard"] });
+    },
+  });
+}
+
+export function useSpectrumReport(technique: SpectroscopyTechnique) {
+  return useMutation({
+    mutationFn: (id: string) => apiService.spectrumReport(technique, id),
+  });
+}
+
+export function useDeleteSpectrum(technique: SpectroscopyTechnique) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiService.deleteSpectrum(technique, id),
+    onSuccess: (_data, id) => {
+      qc.invalidateQueries({ queryKey: ["spectra", technique] });
+      qc.invalidateQueries({ queryKey: ["spectrum", technique, id] });
+      qc.invalidateQueries({ queryKey: ["spectroscopy-summary"] });
+      qc.invalidateQueries({ queryKey: ["characterization-dashboard"] });
+      qc.invalidateQueries({ queryKey: ["measurements"] });
+    },
+  });
+}
+
+export function useSpectraBySample(sampleId: string | null) {
+  return useQuery({
+    queryKey: ["spectra-by-sample", sampleId],
+    queryFn: () => apiService.spectraBySample(sampleId!),
+    enabled: !!sampleId,
+  });
+}
+
+export function useDownloadSpectrum(technique: SpectroscopyTechnique) {
+  return useMutation({
+    mutationFn: async ({ id, format }: { id: string; format: "txt" | "csv" | "json" }) => {
+      const { blob, filename } = await apiService.downloadSpectrumReport(technique, id, format);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      return filename;
+    },
   });
 }

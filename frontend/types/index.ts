@@ -660,3 +660,128 @@ export interface ManualRefinementSession {
 export type ParameterCategory =
   | "scale" | "background" | "profile" | "lattice"
   | "phase" | "instrument" | "sample" | "microstructure";
+
+// ── Spectroscopy (FTIR / Raman / UV-Vis) Types ─────────────────────────
+
+export type SpectroscopyTechnique = "ftir" | "raman" | "uvvis";
+
+export type SpectrumPeak = {
+  position: number;
+  intensity: number;
+  fwhm: number | null;
+  prominence: number | null;
+  assignment: string | null;
+};
+
+export type SpectrumStats = {
+  peak_count: number;
+  max_intensity: number | null;
+  noise_estimate: number | null;
+  snr: number | null;
+  y_min: number | null;
+  y_max: number | null;
+};
+
+export type SpectrumAnalysisResult = {
+  smoothed: number[];
+  baseline: number[];
+  corrected: number[];
+  peaks: SpectrumPeak[];
+  stats: SpectrumStats;
+  parameters: {
+    window: number;
+    baseline_order: number;
+    prominence: number;
+  };
+};
+
+export type SpectrumHistoryEntry = {
+  action: string;
+  timestamp: string;
+  details: Record<string, unknown>;
+};
+
+export type SpectrumListItem = {
+  id: string;
+  technique: SpectroscopyTechnique;
+  filename: string;
+  name: string;
+  description: string;
+  sample_id: string | null;
+  data_points: number;
+  x_range: [number, number] | null;
+  has_results: boolean;
+  analysis_count: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SpectrumDetail = SpectrumListItem & {
+  x: number[];
+  y: number[];
+  x_unit: string;
+  y_unit: string;
+  processed_y: number[] | null;
+  baseline: number[] | null;
+  peaks: SpectrumPeak[];
+  results: SpectrumAnalysisResult | null;
+  history: SpectrumHistoryEntry[];
+  metadata: Record<string, unknown>;
+};
+
+export type SpectrumUploadResponse = {
+  spectrum: SpectrumListItem;
+  data_points: number;
+  message: string;
+  warnings: string[];
+};
+
+export type SpectrumListResponse = {
+  technique: SpectroscopyTechnique;
+  spectra: SpectrumListItem[];
+  total: number;
+};
+
+export type SpectroscopySummary = {
+  techniques: { technique: SpectroscopyTechnique; count: number }[];
+  total: number;
+  with_results: number;
+  samples_covered: number;
+};
+
+export type CharacterizationTechniqueStat = {
+  technique: SpectroscopyTechnique;
+  display_name: string;
+  count: number;
+  completed: number;
+  pending: number;
+};
+
+export type RecentSpectrumItem = {
+  id: string;
+  technique: SpectroscopyTechnique;
+  name: string;
+  filename: string;
+  sample_id: string | null;
+  data_points: number;
+  has_results: boolean;
+  created_at: string;
+};
+
+export type CharacterizationDashboard = {
+  techniques: CharacterizationTechniqueStat[];
+  total_spectra: number;
+  completed_spectra: number;
+  pending_spectra: number;
+  samples_covered: number;
+  recent_spectra: RecentSpectrumItem[];
+};
+
+export type SpectrumReport = {
+  spectrum_id: string;
+  technique: SpectroscopyTechnique;
+  title: string;
+  markdown: string;
+  created_at: string;
+  stats: SpectrumStats;
+};

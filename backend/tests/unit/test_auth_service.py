@@ -1,46 +1,53 @@
 """Tests for the authentication service.
 
-Covers registration, login, token-version revocation (logout / password
-change), email verification, and password reset flows against the in-memory
-unit of work.
+Covers registration, email verification (link and code), login gating,
+token-version revocation (logout / password change), and password reset flows
+against the in-memory unit of work.
 """
 
 import pytest
 
 from backend.domain.entities.user import UserStatus
 from backend.infrastructure.database.sql_uow import InMemoryUnitOfWork
+from backend.infrastructure.email.console_provider import ConsoleEmailProvider
 from backend.services.auth_service import AuthService
 
 
 @pytest.fixture
 def auth():
     uow = InMemoryUnitOfWork()
-    return AuthService(uow)
+    return AuthService(uow, email_provider=ConsoleEmailProvider())
 
 
 @pytest.fixture
 async def registered(auth):
-    result = await auth.register(
-        username="alice",
-        email="alice@example.com",
-        password="secret123",
-        full_name="Alice Wonder",
-    )
-    return result
+    """A fully verified 'alice' account ready to log in."""
+    await auth.register("alice", "alice@example.com", "secret123", "Alice Wonder")
+    user = await auth.uow.users.get_by_email("alice@example.com")
+    await auth.verify_email(user.email_verification_token)
+    return await auth.uow.users.get_by_email("alice@example.com")
 
 
-async def test_register_creates_user_and_verification_token(auth):
+async def test_register_creates_inactive_user_and_sends_verification(auth):
     result = await auth.register("bob", "bob@example.com", "password1")
-    assert result["user"]["username"] == "bob"
-    assert result["user"]["is_verified"] is False
-    assert result["verification_token"]
-    assert result["access_token"]
-    assert result["refresh_token"]
+    assert "Verification email has been sent" in result["message"]
+    assert result["email"] == "bob@example.com"
 
     user = await auth.uow.users.get_by_email("bob@example.com")
     assert user is not None
-    assert user.email_verification_token == result["verification_token"]
+    assert user.is_verified is False
+    assert user.status == UserStatus.INACTIVE
+    assert user.email_verification_token
+    assert user.email_verification_code
+    assert user.email_verification_expires_at is not None
     assert user.hashed_password and user.hashed_password != "password1"
+
+
+async def test_register_does_not_issue_tokens(auth):
+    result = await auth.register("bob", "bob@example.com", "password1")
+    assert "access_token" not in result
+    assert "refresh_token" not in result
+    assert "verification_token" not in result
 
 
 async def test_register_duplicate_username_raises(auth, registered):
@@ -54,8 +61,7 @@ async def test_register_duplicate_email_raises(auth, registered):
 
 
 async def test_login_success_and_records_login(auth, registered):
-    user_before = await auth.uow.users.get_by_username("alice")
-    login_count_before = user_before.login_count
+    login_count_before = registered.login_count
     result = await auth.login("alice", "secret123")
     assert result["user"]["username"] == "alice"
     assert result["access_token"] and result["refresh_token"]
@@ -73,6 +79,12 @@ async def test_login_with_email_works(auth, registered):
 async def test_login_invalid_credentials_raises(auth, registered):
     with pytest.raises(ValueError, match="Invalid credentials"):
         await auth.login("alice", "wrong-password")
+
+
+async def test_login_unverified_email_rejected(auth):
+    await auth.register("bob", "bob@example.com", "password1")
+    with pytest.raises(ValueError, match="verify your email"):
+        await auth.login("bob@example.com", "password1")
 
 
 async def test_login_suspended_account_rejected(auth, registered):
@@ -129,25 +141,104 @@ async def test_refresh_with_access_token_rejected(auth, registered):
         await auth.refresh(result["access_token"])
 
 
-async def test_verify_email(auth, registered):
-    assert registered["user"]["is_verified"] is False
-    resp = await auth.verify_email(registered["verification_token"])
+async def test_verify_email_activates_account(auth):
+    await auth.register("bob", "bob@example.com", "password1")
+    user = await auth.uow.users.get_by_email("bob@example.com")
+
+    resp = await auth.verify_email(user.email_verification_token)
     assert resp["message"] == "Email verified successfully"
 
-    user = await auth.uow.users.get_by_username("alice")
-    assert user.is_verified is True
-    assert user.email_verification_token is None
+    verified = await auth.uow.users.get_by_email("bob@example.com")
+    assert verified.is_verified is True
+    assert verified.status == UserStatus.ACTIVE
+    assert verified.email_verification_token is None
+    assert verified.email_verification_code is None
+
+    # The now-verified user can sign in.
+    result = await auth.login("bob@example.com", "password1")
+    assert result["access_token"]
 
 
 async def test_verify_email_invalid_token_raises(auth):
-    with pytest.raises(ValueError, match="verification token"):
+    with pytest.raises(ValueError, match="verification link"):
         await auth.verify_email("bogus-token")
 
 
-async def test_resend_verification_generates_new_token(auth, registered):
-    resp = await auth.resend_verification("alice@example.com")
-    assert resp["verification_token"]
-    assert resp["verification_token"] != registered["verification_token"]
+async def test_verify_email_expired_link_raises(auth):
+    await auth.register("bob", "bob@example.com", "password1")
+    user = await auth.uow.users.get_by_email("bob@example.com")
+    from datetime import datetime, timedelta
+
+    user.email_verification_expires_at = datetime.utcnow() - timedelta(minutes=1)
+    await auth.uow.users.update(user)
+    await auth.uow.commit()
+
+    with pytest.raises(ValueError, match="expired"):
+        await auth.verify_email(user.email_verification_token)
+
+
+async def test_verify_email_already_verified_ok(auth):
+    await auth.register("bob", "bob@example.com", "password1")
+    user = await auth.uow.users.get_by_email("bob@example.com")
+    await auth.verify_email(user.email_verification_token)
+
+    user = await auth.uow.users.get_by_email("bob@example.com")
+    resp = await auth.verify_email(user.email_verification_token)
+    assert resp["message"] == "Email already verified"
+
+
+async def test_verify_code_activates_account(auth):
+    await auth.register("bob", "bob@example.com", "password1")
+    user = await auth.uow.users.get_by_email("bob@example.com")
+
+    resp = await auth.verify_code("bob@example.com", user.email_verification_code)
+    assert resp["message"] == "Email verified successfully"
+
+    verified = await auth.uow.users.get_by_email("bob@example.com")
+    assert verified.is_verified is True
+    assert verified.status == UserStatus.ACTIVE
+
+    result = await auth.login("bob@example.com", "password1")
+    assert result["access_token"]
+
+
+async def test_verify_code_wrong_code_raises(auth):
+    await auth.register("bob", "bob@example.com", "password1")
+    with pytest.raises(ValueError, match="Invalid verification code"):
+        await auth.verify_code("bob@example.com", "000000")
+
+
+async def test_verify_code_unknown_email_raises(auth):
+    with pytest.raises(ValueError, match="Invalid verification code"):
+        await auth.verify_code("nobody@example.com", "123456")
+
+
+async def test_verify_code_expired_raises(auth):
+    await auth.register("bob", "bob@example.com", "password1")
+    user = await auth.uow.users.get_by_email("bob@example.com")
+    from datetime import datetime, timedelta
+
+    user.email_verification_expires_at = datetime.utcnow() - timedelta(minutes=1)
+    await auth.uow.users.update(user)
+    await auth.uow.commit()
+
+    with pytest.raises(ValueError, match="expired"):
+        await auth.verify_code("bob@example.com", user.email_verification_code)
+
+
+async def test_resend_verification_generates_new_code(auth):
+    result = await auth.register("bob", "bob@example.com", "password1")
+    user = await auth.uow.users.get_by_email("bob@example.com")
+    original_token = user.email_verification_token
+    original_code = user.email_verification_code
+
+    resp = await auth.resend_verification("bob@example.com")
+    assert "has been sent" in resp["message"]
+    assert "verification_token" not in resp
+
+    refreshed = await auth.uow.users.get_by_email("bob@example.com")
+    assert refreshed.email_verification_token != original_token
+    assert refreshed.email_verification_code != original_code
 
 
 async def test_resend_verification_unknown_email_is_generic(auth):
@@ -158,10 +249,12 @@ async def test_resend_verification_unknown_email_is_generic(auth):
 
 async def test_forgot_password_sets_reset_token(auth, registered):
     resp = await auth.forgot_password("alice@example.com")
-    assert resp["reset_token"]
+    assert "reset_token" not in resp
+    assert "has been sent" in resp["message"]
 
     user = await auth.uow.users.get_by_username("alice")
-    assert user.password_reset_token == resp["reset_token"]
+    assert user.password_reset_token
+    assert user.password_reset_expires_at is not None
 
 
 async def test_forgot_password_unknown_email_is_generic(auth):
@@ -171,9 +264,10 @@ async def test_forgot_password_unknown_email_is_generic(auth):
 
 async def test_reset_password_revokes_old_tokens(auth, registered):
     login_result = await auth.login("alice", "secret123")
-    reset_resp = await auth.forgot_password("alice@example.com")
+    await auth.forgot_password("alice@example.com")
+    user = await auth.uow.users.get_by_username("alice")
 
-    resp = await auth.reset_password(reset_resp["reset_token"], "new-secret")
+    resp = await auth.reset_password(user.password_reset_token, "new-secret")
     assert resp["message"] == "Password reset successfully"
 
     # Old token no longer valid.
