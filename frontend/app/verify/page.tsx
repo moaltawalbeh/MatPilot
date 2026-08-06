@@ -10,7 +10,7 @@ import { Atom, MailCheck, KeyRound, RefreshCw, LogIn } from "lucide-react";
 function VerifyWorkspace() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { verifyEmail, verifyEmailByCode, resendVerification, isAuthenticated } = useAuth();
+  const { verifyEmail, verifyEmailByCode, resendVerification } = useAuth();
 
   const token = searchParams.get("token") ?? "";
   const emailFromQuery = searchParams.get("email") ?? "";
@@ -46,10 +46,11 @@ function VerifyWorkspace() {
   }, [token, handleLinkVerification]);
 
   useEffect(() => {
-    if (status === "success" && isAuthenticated) {
-      router.push("/dashboard");
-    }
-  }, [status, isAuthenticated, router]);
+    if (status !== "success") return;
+    // Redirect to the login page once the account is verified and active.
+    const timer = setTimeout(() => router.push("/login"), 2500);
+    return () => clearTimeout(timer);
+  }, [status, router]);
 
   const handleCodeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -190,7 +191,7 @@ function VerifyWorkspace() {
             </div>
             <p style={{ fontSize: 14, lineHeight: 1.6, color: "var(--text-primary)" }}>{message}</p>
             <p style={{ fontSize: 13, lineHeight: 1.6, color: "var(--text-secondary)", marginTop: 8 }}>
-              Your account is now active. You can sign in and start analyzing your materials.
+              Your account is now active. Redirecting you to sign in...
             </p>
             <Link
               href="/login"

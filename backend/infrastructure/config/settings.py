@@ -86,7 +86,7 @@ class AnalysisConfig:
 class EmailConfig:
     """Outbound email configuration."""
     backend: str = field(
-        default_factory=lambda: os.environ.get("MATPILOT_EMAIL_BACKEND", "console")
+        default_factory=lambda: os.environ.get("MATPILOT_EMAIL_BACKEND", "")
     )
     from_address: str = field(
         default_factory=lambda: os.environ.get(
@@ -95,6 +95,10 @@ class EmailConfig:
     )
     app_url: str = field(
         default_factory=lambda: os.environ.get("MATPILOT_APP_URL", "http://localhost:3000")
+    )
+    # Resend (https://resend.com) — auto-selected when RESEND_API_KEY is set.
+    resend_api_key: Optional[str] = field(
+        default_factory=lambda: os.environ.get("RESEND_API_KEY")
     )
     smtp_host: Optional[str] = field(default_factory=lambda: os.environ.get("MATPILOT_SMTP_HOST"))
     smtp_port: int = field(
@@ -110,6 +114,10 @@ class EmailConfig:
     )
     verification_code_length: int = field(
         default_factory=lambda: int(os.environ.get("MATPILOT_VERIFY_CODE_LENGTH", "6"))
+    )
+    # Email verification / password-reset tokens expire after 24 hours.
+    verification_token_ttl_hours: int = field(
+        default_factory=lambda: int(os.environ.get("MATPILOT_VERIFY_TOKEN_TTL_HOURS", "24"))
     )
 
 

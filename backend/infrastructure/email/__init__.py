@@ -1,8 +1,9 @@
 """Outbound email support.
 
 Transport is pluggable: the console provider logs messages locally for
-development; the SMTP provider delivers real mail in production. Select the
-backend via ``MATPILOT_EMAIL_BACKEND`` (``console`` or ``smtp``).
+development; the Resend provider delivers real mail when ``RESEND_API_KEY``
+is set; the SMTP provider can be selected explicitly. Backend resolution
+happens in :func:`backend.infrastructure.email.factory.create_email_provider`.
 """
 
 from backend.infrastructure.email.factory import create_email_provider

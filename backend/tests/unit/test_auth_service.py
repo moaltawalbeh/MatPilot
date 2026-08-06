@@ -43,6 +43,37 @@ async def test_register_creates_inactive_user_and_sends_verification(auth):
     assert user.hashed_password and user.hashed_password != "password1"
 
 
+async def test_verification_tokens_expire_after_24_hours(auth):
+    from datetime import timedelta
+
+    await auth.register("bob", "bob@example.com", "password1")
+    user = await auth.uow.users.get_by_email("bob@example.com")
+    expected = user.created_at + timedelta(hours=24)
+    assert user.email_verification_expires_at is not None
+    assert abs((user.email_verification_expires_at - expected).total_seconds()) < 5
+
+
+async def test_verification_email_contains_link_and_code(auth):
+    from backend.infrastructure.email.console_provider import ConsoleEmailProvider
+
+    sent = []
+
+    class CapturingProvider(ConsoleEmailProvider):
+        async def send(self, message):
+            sent.append(message)
+
+    captured_auth = AuthService(auth.uow, email_provider=CapturingProvider())
+    await captured_auth.register("bob", "bob@example.com", "password1")
+    user = await auth.uow.users.get_by_email("bob@example.com")
+
+    assert len(sent) == 1
+    msg = sent[0]
+    assert "6-digit verification code" in msg.html
+    assert user.email_verification_code in msg.html
+    assert f"/verify?token={user.email_verification_token}" in msg.html
+    assert "24 hours" in msg.text or "24 hours" in msg.html
+
+
 async def test_register_does_not_issue_tokens(auth):
     result = await auth.register("bob", "bob@example.com", "password1")
     assert "access_token" not in result

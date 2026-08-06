@@ -30,9 +30,20 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.environ.get("MATPILOT_ACCESS_TOKEN_MINUTES", "30"))
 REFRESH_TOKEN_EXPIRE_DAYS = int(os.environ.get("MATPILOT_REFRESH_TOKEN_DAYS", "7"))
 # Number of minutes the email verification / password reset tokens stay valid.
-VERIFY_TOKEN_EXPIRE_MINUTES = int(os.environ.get("MATPILOT_VERIFY_TOKEN_MINUTES", "60"))
+# Default: 24 hours (24 * 60).
+VERIFY_TOKEN_EXPIRE_MINUTES = int(
+    os.environ.get("MATPILOT_VERIFY_TOKEN_MINUTES", str(24 * 60))
+)
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+def _format_ttl(minutes: int) -> str:
+    """Human-friendly expiry string, e.g. '24 hours' or '90 minutes'."""
+    if minutes % 60 == 0 and minutes >= 60:
+        hours = minutes // 60
+        return f"{hours} hour{'s' if hours != 1 else ''}"
+    return f"{minutes} minute{'s' if minutes != 1 else ''}"
 
 
 class AuthService:
@@ -42,12 +53,16 @@ class AuthService:
         email_provider: Optional[IEmailProvider] = None,
         app_url: str = "http://localhost:3000",
         verification_code_length: int = 6,
+        verification_token_ttl_minutes: Optional[int] = None,
         logger: Optional[MatPilotLogger] = None,
     ):
         self.uow = uow
         self.email_provider = email_provider
         self.app_url = app_url.rstrip("/")
         self.verification_code_length = max(4, min(int(verification_code_length or 6), 12))
+        self.verification_token_ttl_minutes = int(
+            verification_token_ttl_minutes or VERIFY_TOKEN_EXPIRE_MINUTES
+        )
         self._logger = logger or get_logger("auth_service")
 
     def hash_password(self, password: str) -> str:
@@ -116,7 +131,7 @@ class AuthService:
         user.email_verification_token = self.create_verification_token()
         user.email_verification_code = self.create_verification_code()
         user.email_verification_expires_at = datetime.utcnow() + timedelta(
-            minutes=VERIFY_TOKEN_EXPIRE_MINUTES
+            minutes=self.verification_token_ttl_minutes
         )
 
     def _activate(self, user: User) -> None:
@@ -147,31 +162,70 @@ class AuthService:
             return
         code = user.email_verification_code or ""
         link = f"{self.app_url}/verify?token={user.email_verification_token}"
+        ttl = _format_ttl(self.verification_token_ttl_minutes)
         text = (
             f"Hello {user.username},\n\n"
             f"Welcome to MatPilot. Please verify your email address to activate your account.\n\n"
             f"Your verification code is: {code}\n\n"
             f"Or click the link below:\n{link}\n\n"
-            f"This link and code expire in {VERIFY_TOKEN_EXPIRE_MINUTES} minutes.\n\n"
+            f"This link and code expire in {ttl}.\n\n"
             f"If you did not create this account, you can safely ignore this email."
+        )
+        html = (
+            "<div style='font-family: Arial, Helvetica, sans-serif; max-width: 560px; "
+            "margin: 0 auto; color: #1f2937;'>"
+            "<h2 style='margin-bottom: 16px;'>Verify your MatPilot email</h2>"
+            f"<p>Hello {self._html_escape(user.username)},</p>"
+            "<p>Welcome to MatPilot. Please verify your email address to activate "
+            "your account.</p>"
+            "<div style='text-align: center; padding: 24px 0;'>"
+            "<p style='color: #6b7280; font-size: 13px; margin: 0 0 8px;'>"
+            "Your 6-digit verification code</p>"
+            f"<p style='font-size: 36px; font-weight: 700; letter-spacing: 8px; "
+            "margin: 0; color: #1f2937;'>"
+            f"{self._html_escape(code)}</p>"
+            "</div>"
+            "<p style='text-align: center; color: #6b7280; font-size: 13px;'>or</p>"
+            "<div style='text-align: center;'>"
+            f"<a href='{self._html_escape(link)}' style='display: inline-block; "
+            "background: #f97316; color: #ffffff; text-decoration: none; "
+            "padding: 12px 28px; border-radius: 8px; font-weight: 600;'>"
+            "Verify my email</a>"
+            "</div>"
+            f"<p style='color: #6b7280; font-size: 12px; margin-top: 24px;'>"
+            f"This link and code expire in {self._html_escape(ttl)}. "
+            "If you did not create this account, you can safely ignore this email.</p>"
+            "</div>"
         )
         await self._notify(
             EmailMessage(
                 to=user.email,
                 subject="Verify your MatPilot email",
                 text=text,
+                html=html,
             )
+        )
+
+    @staticmethod
+    def _html_escape(value: str) -> str:
+        return (
+            value.replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace('"', "&quot;")
+            .replace("'", "&#39;")
         )
 
     async def _send_password_reset_email(self, user: User) -> None:
         if not self.email_provider:
             return
         link = f"{self.app_url}/reset-password?token={user.password_reset_token}"
+        ttl = _format_ttl(self.verification_token_ttl_minutes)
         text = (
             f"Hello {user.username},\n\n"
             f"We received a request to reset your MatPilot password.\n\n"
             f"Open the link below to choose a new password:\n{link}\n\n"
-            f"This link expires in {VERIFY_TOKEN_EXPIRE_MINUTES} minutes.\n\n"
+            f"This link expires in {ttl}.\n\n"
             f"If you did not request this, you can safely ignore this email."
         )
         await self._notify(
@@ -332,7 +386,7 @@ class AuthService:
 
         user.password_reset_token = self.create_verification_token()
         user.password_reset_expires_at = datetime.utcnow() + timedelta(
-            minutes=VERIFY_TOKEN_EXPIRE_MINUTES
+            minutes=self.verification_token_ttl_minutes
         )
         user.touch()
         await self.uow.users.update(user)
