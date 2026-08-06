@@ -32,6 +32,7 @@ import {
   BarChart3,
 } from "lucide-react";
 import { useCallback, useState, useRef, useEffect } from "react";
+import InstrumentWorkspace from "@/components/instrument-workspace";
 
 type QueuedFile = {
   file: File;
@@ -836,6 +837,9 @@ export default function ProjectDetail() {
           ))}
         </div>
       </section>
+
+      {/* ── Instrument Workspaces ───────────────────────────── */}
+      <InstrumentWorkspace projectId={id} />
 
       {/* ── Recent Experiments Table ─────────────────────── */}
       <section style={{ marginBottom: 32 }}>

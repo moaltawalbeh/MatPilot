@@ -34,6 +34,18 @@ from backend.reference.providers.user_private_provider import UserPrivateProvide
 from backend.reference.providers.org_private_provider import OrgPrivateProvider
 from backend.reference.providers.local_cache_provider import LocalCacheProvider
 from backend.reference.providers.local_cod_provider import LocalCODProvider
+from backend.reference.spectral_providers.local_reference_library import LocalSpectralLibraryProvider
+from backend.reference.spectral_providers.ramanbase_provider import RamanbaseProvider
+from backend.reference.spectral_providers.archived_providers import (
+    OpenSpecyProvider,
+    SDBSProvider,
+    NISTWebBookProvider,
+    PhotochemCADProvider,
+    RamanOpenDBProvider,
+    SpectraBaseProvider,
+    RRUFFProvider,
+)
+from backend.reference.spectral_providers.spectral_reference_service import SpectralReferenceService
 from backend.reference.providers.pubchem_provider import PubChemProvider
 from backend.reference.providers.user_private_provider import UserPrivateProvider
 from backend.reference.providers.org_private_provider import OrgPrivateProvider
@@ -90,6 +102,11 @@ class DIContainer:
             wavelength=self.config.reference.wavelength,
         )
         self._register_providers()
+
+        # Spectral Reference Service (FTIR / Raman / UV-Vis databases)
+        self.spectral_reference_service = SpectralReferenceService(
+            providers=self._spectral_providers()
+        )
 
         # Parser Factory
         self.parser_factory = ParserFactory()
@@ -151,6 +168,27 @@ class DIContainer:
         else:
             self.logger.warning(f"Unknown storage backend {backend}, falling back to local")
             return LocalStorageProvider(self.config.storage.local_base_path)
+
+    def _spectral_providers(self):
+        """Spectral database adapters: offline library first, live on top."""
+        providers = [LocalSpectralLibraryProvider()]
+        # Live providers (network reachability is checked lazily on use).
+        providers.append(RamanbaseProvider())
+        # Architected providers that are not yet live (Open Specy, SDBS, NIST,
+        # PhotochemCAD, Raman Open Database, SpectraBase, RRUFF) — always
+        # reported unavailable.
+        providers.extend(
+            [
+                OpenSpecyProvider(),
+                SDBSProvider(),
+                NISTWebBookProvider(),
+                PhotochemCADProvider(),
+                RamanOpenDBProvider(),
+                SpectraBaseProvider(),
+                RRUFFProvider(),
+            ]
+        )
+        return providers
 
     def _register_providers(self):
         self.reference_engine.register_provider(LocalCODProvider())

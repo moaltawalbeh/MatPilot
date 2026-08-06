@@ -785,3 +785,104 @@ export type SpectrumReport = {
   created_at: string;
   stats: SpectrumStats;
 };
+
+// ── Instrument Workspace (technique-scoped experiments) Types ────────
+
+export type InstrumentTechnique = "xrd" | "ftir" | "raman" | "uvvis";
+
+export type InstrumentSummary = {
+  technique: InstrumentTechnique;
+  display_name: string;
+  experiment_count: number;
+  analyzed_count: number;
+  data_count: number;
+};
+
+export type WorkspaceExperiment = {
+  id: string;
+  project_id: string;
+  technique: InstrumentTechnique;
+  name: string;
+  description: string;
+  material: string;
+  status: string;
+  data_points: number;
+  x_range: [number, number] | null;
+  has_results: boolean;
+  summary: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export type WorkspaceExperimentDetail = WorkspaceExperiment & {
+  x: number[] | null;
+  y: number[] | null;
+  analysis_results: Record<string, unknown> | null;
+  detected_peaks: Record<string, unknown>[];
+  history: Record<string, unknown>[];
+};
+
+export type SpectralReferenceResult = {
+  reference_id: string;
+  title: string;
+  technique: string;
+  category: string;
+  formula: string | null;
+  x_axis: string;
+  x: number[] | null;
+  y: number[] | null;
+  peaks: Record<string, unknown>[] | null;
+  source: string;
+  source_url: string;
+  license: string | null;
+  metadata: Record<string, unknown>;
+};
+
+export type SpectralReferenceMatch = {
+  reference: SpectralReferenceResult;
+  score: number;
+  algorithm: string;
+  details: Record<string, unknown>;
+};
+
+export type SpectralProviderStatus = {
+  name: string;
+  display_name: string;
+  description: string;
+  available: boolean;
+  version: string | null;
+  techniques: string[];
+  features: string[];
+};
+
+export type WorkspaceReport = {
+  project: {
+    id: string;
+    name: string;
+    material: string;
+    status: string;
+    created_at: string | null;
+  };
+  generated_at: string;
+  summary: {
+    experiment_count: number;
+    analyzed_count: number;
+    technique_count: number;
+  };
+  techniques: Array<{
+    technique: InstrumentTechnique;
+    display_name: string;
+    experiment_count: number;
+    analyzed_count: number;
+    experiments: Array<{
+      id: string;
+      name: string;
+      material: string;
+      status: string;
+      data_points: number;
+      has_results: boolean;
+      summary: Record<string, unknown>;
+      findings: string[];
+    }>;
+  }>;
+};

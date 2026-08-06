@@ -39,6 +39,14 @@ import type {
   SpectrumReport,
   SpectrumHistoryEntry,
   SpectroscopyTechnique,
+  InstrumentTechnique,
+  InstrumentSummary,
+  WorkspaceExperiment,
+  WorkspaceExperimentDetail,
+  SpectralReferenceResult,
+  SpectralReferenceMatch,
+  SpectralProviderStatus,
+  WorkspaceReport,
 } from "@/types";
 
 function resolveApiUrl(): string {
@@ -710,4 +718,83 @@ export const apiService = {
     }
     return { blob, filename };
   },
+
+  // ── Instrument Workspace (technique-scoped experiments) ─────────────
+
+  listInstruments: (projectId: string) =>
+    apiFetch<InstrumentSummary[]>(`/projects/${projectId}/instruments`),
+
+  createInstrumentExperiment: (
+    projectId: string,
+    technique: InstrumentTechnique,
+    data: {
+      name: string;
+      description?: string;
+      material?: string;
+      x?: number[];
+      y?: number[];
+      parameters?: Record<string, unknown>;
+      run_analysis?: boolean;
+    },
+  ) =>
+    apiFetch<WorkspaceExperimentDetail>(
+      `/projects/${projectId}/instruments/${technique}/experiments`,
+      { method: "POST", body: JSON.stringify(data) },
+    ),
+
+  listInstrumentExperiments: (projectId: string, technique: InstrumentTechnique) =>
+    apiFetch<WorkspaceExperiment[]>(
+      `/projects/${projectId}/instruments/${technique}/experiments`,
+    ),
+
+  getInstrumentExperiment: (projectId: string, technique: InstrumentTechnique, experimentId: string) =>
+    apiFetch<WorkspaceExperimentDetail>(
+      `/projects/${projectId}/instruments/${technique}/experiments/${experimentId}`,
+    ),
+
+  deleteInstrumentExperiment: (projectId: string, technique: InstrumentTechnique, experimentId: string) =>
+    apiFetch<{ success: boolean; message: string }>(
+      `/projects/${projectId}/instruments/${technique}/experiments/${experimentId}`,
+      { method: "DELETE" },
+    ),
+
+  analyzeInstrumentExperiment: (
+    projectId: string,
+    technique: InstrumentTechnique,
+    experimentId: string,
+    data: { parameters?: Record<string, unknown>; x?: number[]; y?: number[] } = {},
+  ) =>
+    apiFetch<{
+      experiment_id: string;
+      technique: string;
+      success: boolean;
+      message: string;
+      results: Record<string, unknown> | null;
+    }>(
+      `/projects/${projectId}/instruments/${technique}/experiments/${experimentId}/analyze`,
+      { method: "POST", body: JSON.stringify(data) },
+    ),
+
+  instrumentReferenceProviders: (projectId: string, technique: InstrumentTechnique) =>
+    apiFetch<{ technique: string; providers: SpectralProviderStatus[] }>(
+      `/projects/${projectId}/instruments/${technique}/reference/providers`,
+    ),
+
+  instrumentReferenceSearch: (projectId: string, technique: InstrumentTechnique, query: string, limit?: number) =>
+    apiFetch<{ query: string; technique: string; results: SpectralReferenceResult[] }>(
+      `/projects/${projectId}/instruments/${technique}/reference/search?query=${encodeURIComponent(query)}${limit ? `&limit=${limit}` : ""}`,
+    ),
+
+  instrumentReferenceMatch: (
+    projectId: string,
+    technique: InstrumentTechnique,
+    data: { experiment_id?: string; x?: number[]; y?: number[]; limit?: number },
+  ) =>
+    apiFetch<{ technique: string; matches: SpectralReferenceMatch[] }>(
+      `/projects/${projectId}/instruments/${technique}/reference/match`,
+      { method: "POST", body: JSON.stringify(data) },
+    ),
+
+  workspaceReport: (projectId: string) =>
+    apiFetch<WorkspaceReport>(`/projects/${projectId}/instruments/report`),
 };
