@@ -264,8 +264,96 @@ def test_workspace_report_download_txt(client):
     assert "attachment" in r.headers["content-disposition"]
     assert "MatPilot Workspace Report" in r.text
     assert "FTIR" in r.text
+    assert "CONCLUSIONS" in r.text
+    assert "REFERENCES" in r.text
 
 
 def test_workspace_report_requires_project(client):
     r = client.get("/projects/00000000-0000-0000-0000-000000000000/instruments/report")
     assert r.status_code == 404
+
+
+def test_interpret_returns_technique_interpretation(client):
+    pid = _project(client)
+    x, y = _gaussian([1740.0, 2925.0])
+    r = client.post(f"/projects/{pid}/instruments/ftir/experiments",
+                    json={"name": "PET film", "x": x, "y": y})
+    eid = r.json()["id"]
+
+    r = client.post(f"/projects/{pid}/instruments/ftir/experiments/{eid}/interpret",
+                    json={})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["technique"] == "ftir"
+    assert "FTIR" in body["interpretation"] or "functional" in body["interpretation"].lower()
+    assert body["experiment_id"] == eid
+
+
+def test_interpret_accepts_custom_question(client):
+    pid = _project(client)
+    x, y = _gaussian([1740.0])
+    r = client.post(f"/projects/{pid}/instruments/ftir/experiments",
+                    json={"name": "PET", "x": x, "y": y})
+    eid = r.json()["id"]
+    r = client.post(f"/projects/{pid}/instruments/ftir/experiments/{eid}/interpret",
+                    json={"question": "Is carbonyl present?"})
+    assert r.status_code == 200
+    assert "carbonyl" in r.json()["interpretation"].lower() or r.json()["model"] == "none"
+
+
+def test_interpret_rejects_wrong_technique(client):
+    pid = _project(client)
+    x, y = _raman_si()
+    r = client.post(f"/projects/{pid}/instruments/raman/experiments",
+                    json={"name": "Si", "x": x, "y": y})
+    eid = r.json()["id"]
+    r = client.post(f"/projects/{pid}/instruments/ftir/experiments/{eid}/interpret",
+                    json={})
+    assert r.status_code == 404
+
+
+def test_interpret_without_analysis_uses_raw_data(client):
+    pid = _project(client)
+    x, y = _raman_si()
+    r = client.post(f"/projects/{pid}/instruments/raman/experiments",
+                    json={"name": "Si", "x": x, "y": y, "run_analysis": False})
+    eid = r.json()["id"]
+    r = client.post(f"/projects/{pid}/instruments/raman/experiments/{eid}/interpret",
+                    json={})
+    assert r.status_code == 200
+    assert r.json()["technique"] == "raman"
+
+
+def test_workspace_report_has_conclusions_references(client):
+    pid = _project(client)
+    x, y = _gaussian([1740.0])
+    client.post(f"/projects/{pid}/instruments/ftir/experiments",
+                json={"name": "one", "x": x, "y": y})
+    r = client.get(f"/projects/{pid}/instruments/report")
+    assert r.status_code == 200
+    body = r.json()
+    assert isinstance(body["conclusions"], str)
+    assert len(body["conclusions"]) > 0
+    assert isinstance(body["references"], list)
+    assert len(body["references"]) > 0
+    assert body["ai_summary"] is None
+
+
+def test_workspace_report_ai_summary_endpoint(client):
+    pid = _project(client)
+    x, y = _gaussian([1740.0])
+    client.post(f"/projects/{pid}/instruments/ftir/experiments",
+                json={"name": "one", "x": x, "y": y})
+    r = client.post(f"/projects/{pid}/instruments/report/ai-summary")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["project_id"] == pid
+    assert isinstance(body["ai_summary"], str)
+    assert body["model"] == "none"  # no GROQ_API_KEY in test env
+
+
+def test_workspace_report_ai_summary_empty_project(client):
+    pid = _project(client)
+    r = client.post(f"/projects/{pid}/instruments/report/ai-summary")
+    assert r.status_code == 200
+    assert isinstance(r.json()["ai_summary"], str)

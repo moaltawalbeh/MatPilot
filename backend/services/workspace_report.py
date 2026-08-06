@@ -71,6 +71,9 @@ class WorkspaceReportService:
                 "analyzed_count": analyzed,
                 "technique_count": len(sections),
             },
+            "conclusions": _build_conclusions(sections, total),
+            "references": _references(),
+            "ai_summary": None,
             "techniques": sections,
         }
 
@@ -94,6 +97,51 @@ class WorkspaceReportService:
             "analyzed_count": sum(1 for e in entries if e["has_results"]),
             "experiments": entries,
         }
+
+
+def _build_conclusions(sections: List[Dict[str, Any]], total: int) -> str:
+    """Aggregate per-experiment findings into a narrative conclusions block."""
+    if total == 0:
+        return "No experiments have been analyzed yet in this project."
+    technique_count = len(sections)
+    sentences: List[str] = [
+        f"Across {technique_count} instrument{'s' if technique_count != 1 else ''} "
+        f"and {total} experiment{'s' if total != 1 else ''}, the workspace analysis "
+        "characterized the material as follows:"
+    ]
+    for section in sections:
+        names = []
+        for exp in section["experiments"]:
+            label = exp["name"]
+            if exp["material"]:
+                label += f" ({exp['material']})"
+            names.append(label)
+        sentences.append(
+            f"{section['display_name']} ({len(section['experiments'])} experiment"
+            f"{'s' if len(section['experiments']) != 1 else ''}): "
+            + "; ".join(names)
+        )
+        for exp in section["experiments"]:
+            if exp["findings"] and exp["findings"] != ["No findings recorded"]:
+                sentences.append("- " + "; ".join(exp["findings"]))
+    return " ".join(sentences)
+
+
+def _references() -> List[Dict[str, str]]:
+    """Standard reference databases used by the spectral/crystallographic layer."""
+    return [
+        {"name": "Crystallography Open Database (COD)", "usage": "XRD phase identification reference"},
+        {"name": "Materials Project", "usage": "XRD phase and crystal structure reference"},
+        {"name": "Local Spectral Library", "usage": "Curated FTIR / Raman reference spectra"},
+        {"name": "Ramanbase", "usage": "Raman spectra database (token-gated)"},
+        {"name": "Open Specy", "usage": "FTIR / Raman reference spectra"},
+        {"name": "SDBS (Spectral Database for Organic Compounds)", "usage": "Organic FTIR reference spectra"},
+        {"name": "NIST Chemistry WebBook", "usage": "Gas-phase IR and Raman reference"},
+        {"name": "PhotochemCAD", "usage": "UV-Vis reference spectra"},
+        {"name": "Raman Open Database (RamanOpenDB)", "usage": "Raman spectra reference"},
+        {"name": "SpectraBase", "usage": "FTIR / Raman / UV-Vis reference spectra"},
+        {"name": "RRUFF", "usage": "Raman spectroscopy of minerals"},
+    ]
 
 
 def render_text(report: Dict[str, Any]) -> str:
@@ -129,6 +177,27 @@ def render_text(report: Dict[str, Any]) -> str:
             lines.append(f"    status: {exp['status']}  |  points: {exp['data_points']}")
             for finding in exp["findings"]:
                 lines.append(f"    - {finding}")
+
+    lines.append("")
+    lines.append("=" * 74)
+    lines.append("CONCLUSIONS")
+    lines.append("=" * 74)
+    lines.append(report.get("conclusions", "No conclusions available."))
+
+    ai_summary = report.get("ai_summary")
+    if ai_summary:
+        lines.append("")
+        lines.append("=" * 74)
+        lines.append("AI SUMMARY")
+        lines.append("=" * 74)
+        lines.append(ai_summary)
+
+    lines.append("")
+    lines.append("=" * 74)
+    lines.append("REFERENCES")
+    lines.append("=" * 74)
+    for ref in report.get("references", []):
+        lines.append(f"  - {ref['name']}: {ref['usage']}")
 
     lines.append("")
     lines.append("=" * 74)

@@ -99,6 +99,23 @@ class AnalyzeResponse(BaseModel):
     results: Optional[Dict[str, Any]] = None
 
 
+class InterpretRequest(BaseModel):
+    question: Optional[str] = None
+
+
+class InterpretResponse(BaseModel):
+    experiment_id: str
+    technique: str
+    interpretation: str
+    model: str
+
+
+class AiSummaryResponse(BaseModel):
+    project_id: str
+    ai_summary: str
+    model: str
+
+
 class ReferenceSearchResponse(BaseModel):
     query: str
     technique: str
@@ -126,6 +143,9 @@ class WorkspaceReportResponse(BaseModel):
     project: Dict[str, Any]
     generated_at: str
     summary: Dict[str, Any]
+    conclusions: str
+    references: List[Dict[str, str]]
+    ai_summary: Optional[str] = None
     techniques: List[Dict[str, Any]]
 
 
@@ -475,7 +495,66 @@ async def reference_match(
     )
 
 
+# ── AI interpretation ───────────────────────────────────────────────
+
+@router.post("/{technique}/experiments/{experiment_id}/interpret", response_model=InterpretResponse)
+async def interpret_experiment(
+    project_id: str,
+    technique: str,
+    experiment_id: str,
+    request: InterpretRequest,
+    container=Depends(get_container),
+):
+    """Technique-specific AI interpretation of an experiment's results."""
+    tech = _validate_technique(technique)
+    exp = await _require_experiment(container, project_id, experiment_id)
+    if (exp.technique or "").lower() != tech:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Experiment {experiment_id} is not a {tech} experiment",
+        )
+
+    from backend.services.ai_interpretation import interpret
+
+    result = interpret(
+        tech,
+        getattr(exp, "name", "") or "Untitled Experiment",
+        getattr(exp, "analysis_results", None),
+        question=request.question or "Interpret these results for me.",
+    )
+    return InterpretResponse(
+        experiment_id=experiment_id,
+        technique=tech,
+        interpretation=result["interpretation"],
+        model=result["model"],
+    )
+
+
 # ── Workspace report ────────────────────────────────────────────────
+
+@router.post("/report/ai-summary", response_model=AiSummaryResponse)
+async def workspace_report_ai_summary(
+    project_id: str,
+    container=Depends(get_container),
+):
+    """Generate a cross-technique AI summary of the unified workspace report."""
+    await _require_project(project_id, container)
+
+    from backend.services.workspace_report import WorkspaceReportService, render_text
+    from backend.services.ai_interpretation import summarize_report
+
+    service = WorkspaceReportService(container.uow)
+    report = await service.generate(project_id)
+    if report is None:  # pragma: no cover - guarded by _require_project
+        raise HTTPException(status_code=404, detail=f"Project {project_id} not found")
+    text = render_text(report)
+    result = summarize_report(text, report["project"].get("name", "Untitled Project"))
+    return AiSummaryResponse(
+        project_id=project_id,
+        ai_summary=result["ai_summary"],
+        model=result["model"],
+    )
+
 
 @router.get("/report", response_model=WorkspaceReportResponse)
 async def workspace_report(

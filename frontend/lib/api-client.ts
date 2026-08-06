@@ -797,4 +797,26 @@ export const apiService = {
 
   workspaceReport: (projectId: string) =>
     apiFetch<WorkspaceReport>(`/projects/${projectId}/instruments/report`),
+
+  workspaceReportAiSummary: (projectId: string) =>
+    apiFetch<{ project_id: string; ai_summary: string; model: string }>(
+      `/projects/${projectId}/instruments/report/ai-summary`,
+      { method: "POST" },
+    ),
+
+  interpretInstrumentExperiment: (
+    projectId: string,
+    technique: InstrumentTechnique,
+    experimentId: string,
+    question?: string,
+  ) =>
+    apiFetch<{
+      experiment_id: string;
+      technique: string;
+      interpretation: string;
+      model: string;
+    }>(
+      `/projects/${projectId}/instruments/${technique}/experiments/${experimentId}/interpret`,
+      { method: "POST", body: JSON.stringify({ question: question ?? undefined }) },
+    ),
 };

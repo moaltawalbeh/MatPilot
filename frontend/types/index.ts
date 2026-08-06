@@ -869,6 +869,9 @@ export type WorkspaceReport = {
     analyzed_count: number;
     technique_count: number;
   };
+  conclusions: string;
+  references: Array<{ name: string; usage: string }>;
+  ai_summary: string | null;
   techniques: Array<{
     technique: InstrumentTechnique;
     display_name: string;

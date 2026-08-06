@@ -808,6 +808,19 @@ export function useInstrumentExperiments(projectId: string, technique: Instrumen
   });
 }
 
+export function useGetInstrumentExperiment(
+  projectId: string,
+  technique: InstrumentTechnique | null,
+  experimentId: string | null,
+) {
+  return useQuery({
+    queryKey: ["instrument-experiment", projectId, technique, experimentId],
+    queryFn: () =>
+      apiService.getInstrumentExperiment(projectId, technique as InstrumentTechnique, experimentId as string),
+    enabled: !!projectId && !!technique && !!experimentId,
+  });
+}
+
 export function useCreateInstrumentExperiment(projectId: string) {
   const qc = useQueryClient();
   return useMutation({
@@ -887,5 +900,29 @@ export function useWorkspaceReport(projectId: string) {
     queryKey: ["workspace-report", projectId],
     queryFn: () => apiService.workspaceReport(projectId),
     enabled: !!projectId,
+  });
+}
+
+export function useWorkspaceReportAiSummary(projectId: string) {
+  return useMutation({
+    mutationFn: () => apiService.workspaceReportAiSummary(projectId),
+  });
+}
+
+export function useInterpretInstrumentExperiment(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      technique,
+      experimentId,
+      question,
+    }: {
+      technique: InstrumentTechnique;
+      experimentId: string;
+      question?: string;
+    }) => apiService.interpretInstrumentExperiment(projectId, technique, experimentId, question),
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ["instrument-interpretation", projectId, vars.technique, vars.experimentId] });
+    },
   });
 }

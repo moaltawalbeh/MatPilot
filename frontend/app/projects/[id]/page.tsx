@@ -32,7 +32,6 @@ import {
   BarChart3,
 } from "lucide-react";
 import { useCallback, useState, useRef, useEffect } from "react";
-import InstrumentWorkspace from "@/components/instrument-workspace";
 
 type QueuedFile = {
   file: File;
@@ -839,7 +838,38 @@ export default function ProjectDetail() {
       </section>
 
       {/* ── Instrument Workspaces ───────────────────────────── */}
-      <InstrumentWorkspace projectId={id} />
+      <section style={{ marginBottom: 32 }}>
+        <div
+          style={{
+            padding: 16,
+            borderRadius: "var(--radius-lg)",
+            border: "1px solid var(--border-subtle)",
+            background: "var(--bg-secondary)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            flexWrap: "wrap",
+          }}
+        >
+          <div>
+            <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)", marginBottom: 4 }}>
+              Instrument Workspaces
+            </h2>
+            <p style={{ fontSize: 13, color: "var(--text-tertiary)" }}>
+              Run XRD, FTIR, Raman and UV-Vis as independent per-technique workflows with a
+              unified workspace report.
+            </p>
+          </div>
+          <Link
+            className="button primary"
+            href={`/workspaces/${id}`}
+            style={{ fontSize: 13 }}
+          >
+            <Layers size={14} /> Open Workspace
+          </Link>
+        </div>
+      </section>
 
       {/* ── Recent Experiments Table ─────────────────────── */}
       <section style={{ marginBottom: 32 }}>
