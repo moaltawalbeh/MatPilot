@@ -18,7 +18,7 @@ from backend.domain.entities.experiment import Experiment, ExperimentMetadata
 from backend.domain.entities.measurement import Measurement, MeasurementStatus
 from backend.domain.entities.notification import Notification, NotificationType
 from backend.domain.entities.organization import Organization
-from backend.domain.entities.project import Project
+from backend.domain.entities.project import ANONYMOUS_OWNER_ID, Project
 from backend.domain.entities.report import Report, ReportFormat
 from backend.domain.entities.sample import Sample, SampleStatus, CrystalSystem
 from backend.domain.entities.search_config import SearchConfig
@@ -131,7 +131,7 @@ def _project_model_to_entity(m: ProjectModel) -> Project:
         name=m.name,
         description=m.description or "",
         material=m.material or "",
-        owner_id=m.owner_id,
+        owner_id=str(m.owner_id) if m.owner_id else ANONYMOUS_OWNER_ID,
         status=m.status or "Active",
         tags=m.tags if isinstance(m.tags, list) else [],
         created_at=m.created_at,
@@ -954,6 +954,12 @@ class AsyncExperimentRepository(IExperimentRepository):
     async def get_by_dataset(self, dataset_id: UUID) -> List[Experiment]:
         result = await self._session.execute(
             select(ExperimentModel).where(ExperimentModel.project_id == dataset_id)
+        )
+        return [_experiment_model_to_entity(m) for m in result.scalars().all()]
+
+    async def get_by_project_id(self, project_id: UUID) -> List[Experiment]:
+        result = await self._session.execute(
+            select(ExperimentModel).where(ExperimentModel.project_id == project_id)
         )
         return [_experiment_model_to_entity(m) for m in result.scalars().all()]
 

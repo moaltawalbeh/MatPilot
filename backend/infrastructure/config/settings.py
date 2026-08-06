@@ -10,6 +10,13 @@ import tempfile
 from dataclasses import dataclass, field
 from typing import List, Optional
 
+from dotenv import load_dotenv
+
+# Load .env from the current/project working directory (without overriding
+# real environment variables) so the app honors the env file regardless of
+# how the process was launched.
+load_dotenv()
+
 
 @dataclass(frozen=True)
 class UploadConfig:
