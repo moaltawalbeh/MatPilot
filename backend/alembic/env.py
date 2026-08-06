@@ -16,7 +16,7 @@ target_metadata = Base.metadata
 
 DATABASE_URL: str = os.getenv(
     "DATABASE_URL",
-    config.get_main_option("sqlalchemy.url", "postgresql+asyncpg://postgres:postgres@localhost:5432/matpilot"),
+    config.get_main_option("sqlalchemy.url", ""),
 )
 
 

@@ -23,7 +23,7 @@ class ResendEmailProvider(IEmailProvider):
     def __init__(
         self,
         api_key: str,
-        from_address: str = "MatPilot <no-reply@matpilot.app>",
+        from_address: str = "MatPilot <no-reply@matpilot.site>",
         timeout: float = 15.0,
         api_base_url: str = RESEND_API_BASE_URL,
         transport: Optional[httpx.AsyncBaseTransport] = None,

@@ -1,9 +1,10 @@
 """Debug Rietveld API step by step with timeouts."""
+import os
 import requests
 import math
 import sys
 
-BASE = "http://localhost:8000"
+BASE = os.getenv("MATPILOT_API_URL", "https://matpilot.site")
 s = requests.Session()
 
 # 1. Create project

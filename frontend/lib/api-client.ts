@@ -48,11 +48,11 @@ function resolveApiUrl(): string {
   if (typeof window !== "undefined" && process.env.NODE_ENV === "production") {
     throw new Error(
       "[MatPilot] NEXT_PUBLIC_API_URL is not set. " +
-      "Configure it in your Vercel project settings to point to your backend (e.g. https://matpilot-1.onrender.com)."
+      "Configure it in your Vercel project settings to point to your backend (e.g. https://matpilot.site)."
     );
   }
 
-  return "http://localhost:8000";
+  return "https://matpilot.site";
 }
 
 export const API_URL = resolveApiUrl();

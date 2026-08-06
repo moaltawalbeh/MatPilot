@@ -70,7 +70,8 @@ async def test_verification_email_contains_link_and_code(auth):
     msg = sent[0]
     assert "6-digit verification code" in msg.html
     assert user.email_verification_code in msg.html
-    assert f"/verify?token={user.email_verification_token}" in msg.html
+    assert f"https://matpilot.site/verify?token={user.email_verification_token}" in msg.html
+    assert "https://matpilot.site" in msg.html
     assert "24 hours" in msg.text or "24 hours" in msg.html
 
 

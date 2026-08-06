@@ -14,55 +14,57 @@ from sqlalchemy.pool import NullPool
 
 from backend.infrastructure.database.models import Base
 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql+asyncpg://postgres:postgres@localhost:5432/matpilot",
-)
-
-# Convert postgres:// or postgresql:// to asyncpg
-if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace(
-        "postgres://",
-        "postgresql+asyncpg://",
-        1,
-    )
-
-elif DATABASE_URL.startswith("postgresql://"):
-    DATABASE_URL = DATABASE_URL.replace(
-        "postgresql://",
-        "postgresql+asyncpg://",
-        1,
-    )
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 
 connect_args = {}
 
-# Neon SSL support
-if "sslmode=require" in DATABASE_URL or "channel_binding=require" in DATABASE_URL:
-    DATABASE_URL = DATABASE_URL.replace("?sslmode=require", "")
-    DATABASE_URL = DATABASE_URL.replace("&sslmode=require", "")
-    DATABASE_URL = DATABASE_URL.replace("?channel_binding=require", "")
-    DATABASE_URL = DATABASE_URL.replace("&channel_binding=require", "")
-    DATABASE_URL = DATABASE_URL.rstrip("?&")
+engine = None
+AsyncSessionLocal = None
 
-    ssl_context = ssl.create_default_context()
-    connect_args["ssl"] = ssl_context
+if DATABASE_URL:
+    # Convert postgres:// or postgresql:// to asyncpg
+    if DATABASE_URL.startswith("postgres://"):
+        DATABASE_URL = DATABASE_URL.replace(
+            "postgres://",
+            "postgresql+asyncpg://",
+            1,
+        )
+    elif DATABASE_URL.startswith("postgresql://"):
+        DATABASE_URL = DATABASE_URL.replace(
+            "postgresql://",
+            "postgresql+asyncpg://",
+            1,
+        )
 
-engine = create_async_engine(
-    DATABASE_URL,
-    connect_args=connect_args,
-    poolclass=NullPool,
-    echo=False,
-)
+    # Neon SSL support
+    if "sslmode=require" in DATABASE_URL or "channel_binding=require" in DATABASE_URL:
+        DATABASE_URL = DATABASE_URL.replace("?sslmode=require", "")
+        DATABASE_URL = DATABASE_URL.replace("&sslmode=require", "")
+        DATABASE_URL = DATABASE_URL.replace("?channel_binding=require", "")
+        DATABASE_URL = DATABASE_URL.replace("&channel_binding=require", "")
+        DATABASE_URL = DATABASE_URL.rstrip("?&")
 
-AsyncSessionLocal: async_sessionmaker[AsyncSession] = async_sessionmaker(
-    bind=engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-    autoflush=False,
-)
+        ssl_context = ssl.create_default_context()
+        connect_args["ssl"] = ssl_context
+
+    engine = create_async_engine(
+        DATABASE_URL,
+        connect_args=connect_args,
+        poolclass=NullPool,
+        echo=False,
+    )
+
+    AsyncSessionLocal = async_sessionmaker(
+        bind=engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+        autoflush=False,
+    )
 
 
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
+    if AsyncSessionLocal is None:
+        raise RuntimeError("DATABASE_URL is not configured")
     async with AsyncSessionLocal() as session:
         try:
             yield session
@@ -75,6 +77,8 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def init_db() -> None:
+    if engine is None:
+        raise RuntimeError("DATABASE_URL is not configured")
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     await _sync_missing_columns()
@@ -123,4 +127,5 @@ async def _sync_missing_columns() -> None:
 
 
 async def close_db() -> None:
-    await engine.dispose()
+    if engine is not None:
+        await engine.dispose()

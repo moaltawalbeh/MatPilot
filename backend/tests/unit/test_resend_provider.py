@@ -14,7 +14,7 @@ def _provider(handler):
     transport = httpx.MockTransport(handler)
     return ResendEmailProvider(
         api_key="re_test_key",
-        from_address="MatPilot <no-reply@matpilot.app>",
+        from_address="MatPilot <no-reply@matpilot.site>",
         transport=transport,
     )
 
@@ -43,7 +43,7 @@ async def test_send_posts_payload_to_resend():
     import json
 
     body = json.loads(captured["payload"])
-    assert body["from"] == "MatPilot <no-reply@matpilot.app>"
+    assert body["from"] == "MatPilot <no-reply@matpilot.site>"
     assert body["to"] == ["user@example.com"]
     assert body["subject"] == "Verify your MatPilot email"
     assert body["text"] == "Your code is 123456"

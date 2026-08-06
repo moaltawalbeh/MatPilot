@@ -35,10 +35,13 @@ pip install -r requirements.txt
 uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-The API will be available at:
-- **API Base**: http://localhost:8000
-- **Swagger UI**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
+The API is available at:
+- **API Base**: https://matpilot.site
+- **Swagger UI**: https://matpilot.site/docs
+- **ReDoc**: https://matpilot.site/redoc
+
+> Running locally: the server binds `0.0.0.0:8000`. Point the frontend at your
+> local backend via `NEXT_PUBLIC_API_URL` (see `frontend/.env.example`).
 
 ### Run the Frontend
 
@@ -50,14 +53,14 @@ npm install
 npm run dev
 ```
 
-The production-ready Next.js frontend will be available at:
-- **MatPilot UI**: http://localhost:3000
+The production-ready Next.js frontend is available at:
+- **MatPilot UI**: https://matpilot.site
 
 The legacy Streamlit prototype remains at `frontend/app.py` for reference; it is no longer the primary interface.
 
 ### Verify the System
 
-1. Open Swagger at http://localhost:8000/docs
+1. Open Swagger at https://matpilot.site/docs
 2. Test `GET /health` — should return `{"status": "healthy", "version": "0.2"}`
 3. Test `GET /providers` — should return all registered providers
 4. Test `POST /upload` with a `.csv` or `.cif` file

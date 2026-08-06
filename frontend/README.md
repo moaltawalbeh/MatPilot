@@ -10,7 +10,7 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000. Use `npm run build` for a production build and `npm run lint` for static linting.
+Run the dev server, then open the URL printed in the terminal (default: https://matpilot.site when `NEXT_PUBLIC_API_URL` is set to the deployed backend). Use `npm run build` for a production build and `npm run lint` for static linting.
 
 ## Structure
 

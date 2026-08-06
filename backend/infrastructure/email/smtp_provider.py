@@ -20,7 +20,7 @@ class SmtpEmailProvider(IEmailProvider):
         port: int = 587,
         username: Optional[str] = None,
         password: Optional[str] = None,
-        from_address: str = "MatPilot <no-reply@matpilot.app>",
+        from_address: str = "MatPilot <no-reply@matpilot.site>",
         use_tls: bool = True,
         use_ssl: bool = False,
         timeout: int = 30,

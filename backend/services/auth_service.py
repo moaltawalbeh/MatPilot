@@ -51,7 +51,7 @@ class AuthService:
         self,
         uow,
         email_provider: Optional[IEmailProvider] = None,
-        app_url: str = "http://localhost:3000",
+        app_url: str = "https://matpilot.site",
         verification_code_length: int = 6,
         verification_token_ttl_minutes: Optional[int] = None,
         logger: Optional[MatPilotLogger] = None,

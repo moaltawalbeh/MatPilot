@@ -90,11 +90,16 @@ class EmailConfig:
     )
     from_address: str = field(
         default_factory=lambda: os.environ.get(
-            "MATPILOT_EMAIL_FROM", "MatPilot <no-reply@matpilot.app>"
+            "EMAIL_FROM",
+            os.environ.get(
+                "MATPILOT_EMAIL_FROM", "MatPilot <no-reply@matpilot.site>"
+            ),
         )
     )
     app_url: str = field(
-        default_factory=lambda: os.environ.get("MATPILOT_APP_URL", "http://localhost:3000")
+        default_factory=lambda: os.environ.get(
+            "APP_URL", os.environ.get("MATPILOT_APP_URL", "https://matpilot.site")
+        )
     )
     # Resend (https://resend.com) — auto-selected when RESEND_API_KEY is set.
     resend_api_key: Optional[str] = field(
@@ -131,7 +136,12 @@ class APIConfig:
 
 
 def _parse_cors_origins() -> List[str]:
-    """Parse CORS origins from MATPILOT_CORS_ORIGINS env var (comma-separated)."""
+    """Parse CORS origins from MATPILOT_CORS_ORIGINS env var (comma-separated).
+
+    Falls back to the application's own origin (``APP_URL`` /
+    ``MATPILOT_APP_URL``, defaulting to ``https://matpilot.site``). Local
+    development should set ``MATPILOT_CORS_ORIGINS`` explicitly.
+    """
     raw = os.environ.get("MATPILOT_CORS_ORIGINS", "")
     if raw:
         origins = []
@@ -140,10 +150,10 @@ def _parse_cors_origins() -> List[str]:
             if o:
                 origins.append(o)
         return origins
-    env = os.environ.get("MATPILOT_ENV", "development")
-    if env == "development":
-        return ["http://localhost:3000", "http://localhost:3001"]
-    return ["*"]
+    app_url = os.environ.get("APP_URL") or os.environ.get("MATPILOT_APP_URL")
+    if app_url:
+        return [app_url.rstrip("/")]
+    return ["https://matpilot.site"]
 
 
 @dataclass(frozen=True)
