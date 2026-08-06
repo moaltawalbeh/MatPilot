@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { FileText, CheckCircle2, Circle, Loader2 } from "lucide-react";
+import { CheckCircle2, Circle } from "lucide-react";
 import type { SpectroscopyTechnique, SpectrumAnalysisResult } from "@/types";
 import { getTechnique } from "./technique-config";
 import type { SpectrumChartSeries } from "./spectrum-chart";
@@ -22,7 +22,6 @@ import {
   useUploadSpectrum,
   useAnalyzeSpectrum,
   useDeleteSpectrum,
-  useSpectrumReport,
 } from "@/hooks/use-api";
 
 type TechniqueWorkspaceProps = {
@@ -55,7 +54,6 @@ export function TechniqueWorkspace({ technique, initialSampleId }: TechniqueWork
   const upload = useUploadSpectrum(technique);
   const analyze = useAnalyzeSpectrum(technique);
   const remove = useDeleteSpectrum(technique);
-  const report = useSpectrumReport(technique);
 
   const spectrum = detail.data;
   const analysis: SpectrumAnalysisResult | null = spectrum?.results ?? null;
@@ -125,11 +123,6 @@ export function TechniqueWorkspace({ technique, initialSampleId }: TechniqueWork
     setSelectedId(null);
   };
 
-  const handleGenerateReport = async () => {
-    if (!spectrum) return;
-    await report.mutateAsync(spectrum.id);
-  };
-
   return (
     <div
       style={{
@@ -191,7 +184,6 @@ export function TechniqueWorkspace({ technique, initialSampleId }: TechniqueWork
                       key={item.id}
                       onClick={() => {
                         setSelectedId(item.id);
-                        report.reset();
                       }}
                       style={{
                         display: "flex",
@@ -287,10 +279,6 @@ export function TechniqueWorkspace({ technique, initialSampleId }: TechniqueWork
                     Analyzed
                   </span>
                 )}
-                <button className="button" onClick={handleGenerateReport} disabled={report.isPending || !spectrum.has_results} style={{ fontSize: 13 }}>
-                  {report.isPending ? <Loader2 size={13} style={{ animation: "spin 1s linear infinite" }} /> : <FileText size={13} />}
-                  {report.isPending ? "Generating…" : "Report"}
-                </button>
               </div>
             </div>
 
@@ -303,33 +291,6 @@ export function TechniqueWorkspace({ technique, initialSampleId }: TechniqueWork
               emptyTitle="No data"
               emptyDescription="This spectrum has no points to display."
             />
-
-            {report.data && (
-              <div className="card" style={{ display: "flex", flexDirection: "column" }}>
-                <div className="section">
-                  <h2>Generated report</h2>
-                  <span className="muted">Scientific summary for this spectrum</span>
-                </div>
-                <pre
-                  style={{
-                    margin: "0 20px 20px",
-                    padding: 14,
-                    fontSize: 12.5,
-                    lineHeight: 1.7,
-                    whiteSpace: "pre-wrap",
-                    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-                    color: "var(--text-primary)",
-                    background: "var(--surface-1)",
-                    border: "1px solid var(--border-subtle)",
-                    borderRadius: "var(--radius-md)",
-                    maxHeight: 360,
-                    overflowY: "auto",
-                  }}
-                >
-                  {report.data.markdown}
-                </pre>
-              </div>
-            )}
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, alignItems: "start" }}>
               <MetadataPanel

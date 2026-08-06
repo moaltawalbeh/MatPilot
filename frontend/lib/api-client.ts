@@ -36,7 +36,6 @@ import type {
   SpectrumAnalysisResult,
   SpectroscopySummary,
   CharacterizationDashboard,
-  SpectrumReport,
   SpectrumHistoryEntry,
   SpectroscopyTechnique,
   InstrumentTechnique,
@@ -673,11 +672,6 @@ export const apiService = {
       { method: "POST", body: JSON.stringify(data) },
     ),
 
-  spectrumReport: (technique: SpectroscopyTechnique, id: string) =>
-    apiFetch<SpectrumReport>(`/spectroscopy/${technique}/${id}/report`, {
-      method: "POST",
-    }),
-
   deleteSpectrum: (technique: SpectroscopyTechnique, id: string) =>
     apiFetch<{ success: boolean; message: string }>(`/spectroscopy/${technique}/${id}`, {
       method: "DELETE",
@@ -694,29 +688,26 @@ export const apiService = {
     id: string,
     format: "txt" | "csv" | "json" = "txt",
   ): Promise<{ blob: Blob; filename: string }> => {
-    const report = await apiFetch<SpectrumReport>(`/spectroscopy/${technique}/${id}/report`, {
-      method: "POST",
+    const detail = await apiFetch<SpectrumDetail>(`/spectroscopy/${technique}/${id}`);
+    const header = `x,processed_y,is_peak\n`;
+    const rows = detail.x.map((xv, i) => {
+      const isPeak = (detail.peaks ?? []).some((p) => Math.abs(p.position - xv) < 1e-6);
+      return `${xv},${detail.y[i] ?? ""},${detail.processed_y?.[i] ?? ""},${isPeak ? 1 : 0}`;
     });
-    let blob: Blob;
-    let filename: string;
+    const dataTable = rows.join("\n");
     if (format === "csv") {
-      const detail = await apiFetch<SpectrumDetail>(`/spectroscopy/${technique}/${id}`);
-      const header = `x,y,processed_y,is_peak\n`;
-      const rows = detail.x.map((xv, i) => {
-        const isPeak = (detail.peaks ?? []).some((p) => Math.abs(p.position - xv) < 1e-6);
-        return `${xv},${detail.y[i] ?? ""},${detail.processed_y?.[i] ?? ""},${isPeak ? 1 : 0}`;
-      });
-      blob = new Blob([header + rows.join("\n")], { type: "text/csv;charset=utf-8" });
-      filename = `${technique}-${id}-data.csv`;
-    } else if (format === "json") {
-      const detail = await apiFetch<SpectrumDetail>(`/spectroscopy/${technique}/${id}`);
-      blob = new Blob([JSON.stringify(detail, null, 2)], { type: "application/json;charset=utf-8" });
-      filename = `${technique}-${id}-data.json`;
-    } else {
-      blob = new Blob([report.markdown], { type: "text/markdown;charset=utf-8" });
-      filename = `${technique}-${id}-report.md`;
+      const blob = new Blob([header + dataTable], { type: "text/csv;charset=utf-8" });
+      return { blob, filename: `${technique}-${id}-data.csv` };
     }
-    return { blob, filename };
+    if (format === "json") {
+      const blob = new Blob([JSON.stringify(detail, null, 2)], { type: "application/json;charset=utf-8" });
+      return { blob, filename: `${technique}-${id}-data.json` };
+    }
+    const text = `${technique} spectrum ${id} (${detail.filename})\n` +
+      `Points: ${detail.data_points}  Range: ${detail.x_range?.[0] ?? ""} – ${detail.x_range?.[1] ?? ""}\n\n` +
+      header + dataTable;
+    const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+    return { blob, filename: `${technique}-${id}-data.txt` };
   },
 
   // ── Instrument Workspace (technique-scoped experiments) ─────────────

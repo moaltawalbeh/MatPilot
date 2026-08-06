@@ -122,17 +122,6 @@ def test_analyze_links_results_to_spectrum(client):
     assert detail["baseline"] is not None
 
 
-def test_report_requires_analysis(client):
-    r = _upload(client)
-    spectrum_id = r.json()["spectrum"]["id"]
-    rep = client.post(f"/spectroscopy/ftir/{spectrum_id}/report")
-    assert rep.status_code == 422
-    client.post(f"/spectroscopy/ftir/{spectrum_id}/analyze", json={})
-    rep = client.post(f"/spectroscopy/ftir/{spectrum_id}/report")
-    assert rep.status_code == 200
-    assert "Detected Peaks" in rep.json()["markdown"]
-
-
 def test_spectra_linked_to_sample_and_dashboard(client):
     s = client.post("/samples", json={"name": "TiO2", "material": "TiO2"})
     sample_id = s.json()["id"]

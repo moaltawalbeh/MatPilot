@@ -663,7 +663,7 @@ export default function ExperimentResults({
         )}
       </div>
 
-      {meta.id !== "xrd" && (
+      {meta.id !== "xrd" && detail.has_results && (
         <AiInterpretation
           projectId={projectId}
           technique={meta.id}

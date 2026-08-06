@@ -745,12 +745,6 @@ export function useAnalyzeSpectrum(technique: SpectroscopyTechnique) {
   });
 }
 
-export function useSpectrumReport(technique: SpectroscopyTechnique) {
-  return useMutation({
-    mutationFn: (id: string) => apiService.spectrumReport(technique, id),
-  });
-}
-
 export function useDeleteSpectrum(technique: SpectroscopyTechnique) {
   const qc = useQueryClient();
   return useMutation({

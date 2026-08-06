@@ -777,17 +777,7 @@ export type CharacterizationDashboard = {
   recent_spectra: RecentSpectrumItem[];
 };
 
-export type SpectrumReport = {
-  spectrum_id: string;
-  technique: SpectroscopyTechnique;
-  title: string;
-  markdown: string;
-  created_at: string;
-  stats: SpectrumStats;
-};
-
 // ── Instrument Workspace (technique-scoped experiments) Types ────────
-
 export type InstrumentTechnique = "xrd" | "ftir" | "raman" | "uvvis";
 
 export type InstrumentSummary = {

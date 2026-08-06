@@ -19,7 +19,6 @@ from backend.services.spectroscopy_service import (
     TECHNIQUES,
     analyze_spectrum,
     create_spectrum,
-    generate_report,
     get_spectra_store,
     normalize_technique,
     parse_spectrum_data,
@@ -89,15 +88,6 @@ class AnalyzeResponse(BaseModel):
     message: str
     results: Optional[dict] = None
     history: List[dict] = []
-
-
-class ReportResponse(BaseModel):
-    spectrum_id: str
-    technique: str
-    title: str
-    markdown: str
-    created_at: str
-    stats: dict
 
 
 class SpectroscopyStats(BaseModel):
@@ -299,19 +289,6 @@ async def analyze_spectrum_endpoint(
         results=results,
         history=record.history,
     )
-
-
-@router.post("/{technique}/{spectrum_id}/report", response_model=ReportResponse)
-async def spectrum_report(technique: str, spectrum_id: str):
-    """Generate a scientific summary report for a spectrum."""
-    normalized = _require_technique(technique)
-    record = _require_spectrum(normalized, spectrum_id)
-    if record.results is None:
-        raise HTTPException(
-            status_code=422,
-            detail="Run analysis before generating a report",
-        )
-    return ReportResponse(**generate_report(record, {}))
 
 
 @router.post("/by-sample/{sample_id}", response_model=BySampleResponse)
