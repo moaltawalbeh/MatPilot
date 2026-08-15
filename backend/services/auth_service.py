@@ -8,7 +8,7 @@ email verification, password reset, and token revocation via a per-user
 
 import os
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, Any
 from uuid import UUID, uuid4
 
 import jwt
@@ -29,8 +29,9 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 class AuthService:
-    def __init__(self, uow):
+    def __init__(self, uow, email_service: Optional[Any] = None):
         self.uow = uow
+        self.email_service = email_service
 
     def hash_password(self, password: str) -> str:
         return pwd_context.hash(password)
@@ -109,6 +110,20 @@ class AuthService:
         )
         await self.uow.users.add(user)
         await self.uow.commit()
+        if self.email_service and user.email:
+            try:
+                self.email_service.send_verification_email(
+                    recipient=user.email,
+                    username=user.username,
+                    token=user.email_verification_token,
+                )
+                self.email_service.send_welcome_email(
+                    recipient=user.email,
+                    username=user.username,
+                    full_name=user.full_name or user.username,
+                )
+            except Exception:
+                pass
         result = self._create_tokens(user)
         result["verification_token"] = user.email_verification_token
         return result
@@ -205,6 +220,15 @@ class AuthService:
         user.touch()
         await self.uow.users.update(user)
         await self.uow.commit()
+        if self.email_service and user.email:
+            try:
+                self.email_service.send_verification_email(
+                    recipient=user.email,
+                    username=user.username,
+                    token=user.email_verification_token,
+                )
+            except Exception:
+                pass
         return {
             "message": "If the account exists, a verification email has been sent",
             "verification_token": user.email_verification_token,
@@ -219,6 +243,15 @@ class AuthService:
         user.touch()
         await self.uow.users.update(user)
         await self.uow.commit()
+        if self.email_service and user.email:
+            try:
+                self.email_service.send_password_reset_email(
+                    recipient=user.email,
+                    username=user.username,
+                    token=user.password_reset_token,
+                )
+            except Exception:
+                pass
         return {
             "message": "If the account exists, a password reset email has been sent",
             "reset_token": user.password_reset_token,
@@ -236,6 +269,14 @@ class AuthService:
         user.touch()
         await self.uow.users.update(user)
         await self.uow.commit()
+        if self.email_service and user.email:
+            try:
+                self.email_service.send_password_changed_email(
+                    recipient=user.email,
+                    username=user.username,
+                )
+            except Exception:
+                pass
         return {"message": "Password reset successfully"}
 
     async def change_password(self, user: User, old_password: str, new_password: str) -> dict:
@@ -247,5 +288,13 @@ class AuthService:
         user.touch()
         await self.uow.users.update(user)
         await self.uow.commit()
+        if self.email_service and user.email:
+            try:
+                self.email_service.send_password_changed_email(
+                    recipient=user.email,
+                    username=user.username,
+                )
+            except Exception:
+                pass
         result = self._create_tokens(user)
         return {"message": "Password changed successfully", **result}

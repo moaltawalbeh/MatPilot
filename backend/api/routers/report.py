@@ -161,3 +161,88 @@ async def generate_pdf_report(
             "Content-Disposition": f'attachment; filename="{safe_name}_report.{fmt}"'
         },
     )
+
+
+@router.post("/project/{project_id}")
+async def generate_project_report(
+    project_id: str,
+    format: str = Query("pdf", description="Output format: pdf, docx, txt, pptx"),
+    container=Depends(get_container),
+):
+    """Generate an integrated publication-quality report for an entire Project."""
+    from uuid import UUID
+
+    fmt = (format or "pdf").lower()
+    if fmt not in SUPPORTED_FORMATS:
+        raise UnsupportedFormatException(
+            f"Unsupported report format: {format}. Supported: {', '.join(SUPPORTED_FORMATS)}"
+        )
+
+    try:
+        puid = UUID(project_id)
+    except ValueError:
+        raise EntityNotFoundError(f"Project {project_id} not found")
+
+    project = await container.uow.projects.get_by_id(puid)
+    if not project:
+        raise EntityNotFoundError(f"Project {project_id} not found")
+
+    # Fetch all experiments belonging to this project
+    experiments = await container.uow.experiments.get_by_project_id(puid)
+    
+    project_data = {
+        "name": getattr(project, "name", "Project Report"),
+        "description": getattr(project, "description", ""),
+        "material": getattr(project, "material", ""),
+        "created_at": getattr(project, "created_at", None),
+        "status": getattr(project, "status", ""),
+        "experiment_count": len(experiments) if experiments else 0,
+    }
+    if project_data["created_at"] is not None:
+        project_data["created_at"] = project_data["created_at"].isoformat()
+
+    # Use the primary experiment or aggregate experiment payload
+    primary_exp = experiments[0] if experiments else None
+    if primary_exp:
+        experiment_data = _build_experiment_data(primary_exp)
+    else:
+        experiment_data = {
+            "name": project_data["name"],
+            "two_theta": [],
+            "intensity": [],
+            "processed_pattern": {},
+            "detected_peaks": [],
+            "candidate_phases": [],
+            "rietveld_results": None,
+            "pipeline_stages": [],
+            "wavelength": 1.5406,
+            "metadata": {},
+        }
+
+    from backend.services.report_generator import FORMAT_MIME, ReportGenerator
+
+    generator = ReportGenerator()
+    if fmt == "pdf":
+        content = generator.generate_report_bytes(project_data, experiment_data)
+    elif fmt == "docx":
+        content = generator.generate_docx_bytes(project_data, experiment_data)
+    elif fmt == "txt":
+        content = generator.generate_txt_bytes(project_data, experiment_data)
+    elif fmt == "pptx":
+        content = generator.generate_pptx_bytes(project_data, experiment_data)
+    else:
+        raise UnsupportedFormatException(f"Unsupported report format: {format}")
+
+    safe_name = "".join(
+        c if c.isalnum() or c in ("-", "_") else "_"
+        for c in (getattr(project, "name", None) or "project_report")
+    ).strip("._ ") or "project_report"
+
+    return Response(
+        content=content,
+        media_type=FORMAT_MIME[fmt],
+        headers={
+            "Content-Disposition": f'attachment; filename="{safe_name}_report.{fmt}"'
+        },
+    )
+

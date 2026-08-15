@@ -11,6 +11,7 @@ class UserDataset:
     id: UUID = field(default_factory=uuid4)
     name: str = ""
     description: str = ""
+    owner_id: str = ""  # User ID of the owner
     experiment_ids: List[UUID] = field(default_factory=list)
     created_at: datetime = field(default_factory=datetime.utcnow)
     metadata: Dict[str, Any] = field(default_factory=dict)

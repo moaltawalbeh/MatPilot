@@ -39,6 +39,8 @@ class ExperimentDetailResponse(BaseModel):
     job_ids: List[str]
     has_results: bool
     candidate_phases: List[Dict[str, Any]]
+    confirmed_phase_ids: List[str] = []
+    phases_confirmed: bool = False
     cif_files: List[Dict[str, Any]]
     selected_refinement_phases: List[Dict[str, Any]]
     rietveld_results: Optional[Dict[str, Any]]
@@ -75,6 +77,17 @@ class PhaseIdResponse(BaseModel):
     cif_files: List[Dict[str, Any]]
     peaks_detected: int = 0
     candidates_searched: int = 0
+
+
+class PhaseConfirmationRequest(BaseModel):
+    selected_cif_ids: List[str]
+
+
+class PhaseConfirmationResponse(BaseModel):
+    success: bool
+    message: str
+    confirmed_phase_ids: List[str]
+    phases_confirmed: bool
 
 
 class RietveldResponse(BaseModel):
@@ -165,6 +178,18 @@ async def run_phase_identification(
     )
 
 
+@router.get("/{experiment_id}/cifs")
+async def list_cif_files(
+    experiment_id: str,
+    container=Depends(get_container),
+):
+    """List CIF files associated with an experiment."""
+    exp = await container.uow.experiments.get_by_id(UUID(experiment_id))
+    if not exp:
+        raise HTTPException(status_code=404, detail="Experiment not found")
+    return {"cifs": getattr(exp, "cif_files", [])}
+
+
 @router.post("/{experiment_id}/cifs", response_model=CIFUploadResponse)
 async def upload_cif_files(
     experiment_id: str,
@@ -217,14 +242,50 @@ async def upload_cif_files(
     )
 
 
-@router.get("/{experiment_id}/cifs")
-async def list_cif_files(experiment_id: str, container=Depends(get_container)):
-    """List all CIF files (auto-downloaded + user-uploaded) for this experiment."""
+@router.post("/{experiment_id}/confirm-phases", response_model=PhaseConfirmationResponse)
+async def confirm_candidate_phases(
+    experiment_id: str,
+    request: PhaseConfirmationRequest,
+    container=Depends(get_container),
+):
+    """Confirm candidate phases for refinement (enforces mandatory user candidate selection step)."""
     exp = await container.uow.experiments.get_by_id(UUID(experiment_id))
     if not exp:
         raise HTTPException(status_code=404, detail="Experiment not found")
 
-    return {"cif_files": exp.cif_files}
+    if not request.selected_cif_ids:
+        raise HTTPException(
+            status_code=400,
+            detail="At least one candidate phase must be selected and confirmed before refinement."
+        )
+
+    exp.confirmed_phase_ids = request.selected_cif_ids
+    exp.phases_confirmed = True
+    exp.add_history("phase_confirmation", {
+        "confirmed_cif_ids": request.selected_cif_ids,
+        "count": len(request.selected_cif_ids)
+    })
+
+    # Record candidate_selection stage in pipeline_stages
+    from datetime import datetime, timezone
+    completed = [s.get("stage_id") for s in exp.pipeline_stages]
+    if "candidate_selection" not in completed:
+        exp.pipeline_stages.append({
+            "stage_id": "candidate_selection",
+            "name": "Candidate Selection",
+            "status": "completed",
+            "completed_at": datetime.now(timezone.utc).isoformat(),
+            "parameters": {"confirmed_ids": request.selected_cif_ids}
+        })
+
+    await container.uow.experiments.update(exp)
+
+    return PhaseConfirmationResponse(
+        success=True,
+        message=f"Confirmed {len(request.selected_cif_ids)} candidate phase(s) for refinement.",
+        confirmed_phase_ids=exp.confirmed_phase_ids,
+        phases_confirmed=True
+    )
 
 
 @router.post("/{experiment_id}/rietveld", response_model=RietveldResponse)
@@ -235,12 +296,25 @@ async def run_rietveld(
 ):
     """Run Rietveld refinement.
 
+    Enforces mandatory phase confirmation prior to refinement.
     Workflow A ("auto"): Select from CIFs already downloaded during phase identification.
     Workflow B ("upload"): Use CIF files uploaded via the /cifs endpoint.
     """
     exp = await container.uow.experiments.get_by_id(UUID(experiment_id))
     if not exp:
         raise HTTPException(status_code=404, detail="Experiment not found")
+
+    # Automatically persist selection if selected_cif_ids are provided
+    if request.selected_cif_ids:
+        exp.confirmed_phase_ids = request.selected_cif_ids
+        exp.phases_confirmed = True
+
+    # Enforce workflow rule: Never allow refinement before user confirmation
+    if not exp.phases_confirmed and not exp.confirmed_phase_ids:
+        raise HTTPException(
+            status_code=400,
+            detail="Scientific Workflow Violation: You must select and confirm candidate phases before running Rietveld refinement."
+        )
 
     selected_phases = []
 
@@ -440,6 +514,8 @@ def _experiment_to_response(exp) -> ExperimentDetailResponse:
         job_ids=[str(jid) for jid in exp.job_ids],
         has_results=exp.has_results,
         candidate_phases=exp.candidate_phases,
+        confirmed_phase_ids=getattr(exp, "confirmed_phase_ids", []),
+        phases_confirmed=getattr(exp, "phases_confirmed", False),
         cif_files=exp.cif_files,
         selected_refinement_phases=exp.selected_refinement_phases,
         rietveld_results=exp.rietveld_results,

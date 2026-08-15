@@ -17,7 +17,7 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
 async def get_db_auth_service(request: Request = None):
     """Provide an AuthService backed by the container's unit of work."""
     container = get_container(request)
-    yield AuthService(container.uow)
+    yield AuthService(container.uow, getattr(container, "email_service", None))
 
 
 class RegisterRequest(BaseModel):
@@ -164,3 +164,15 @@ async def logout(
 @router.get("/me")
 async def me(user=Depends(get_current_user_dep), auth_service: AuthService = Depends(get_db_auth_service)):
     return auth_service._user_to_dict(user)
+
+
+@router.get("/dev-emails")
+async def get_dev_emails(
+    recipient: Optional[str] = None,
+    container=Depends(get_container),
+):
+    """Get sent transactional emails (Console / Dev preview mode)."""
+    email_service = getattr(container, "email_service", None)
+    if not email_service:
+        return {"emails": []}
+    return {"emails": email_service.get_sent_emails(recipient)}

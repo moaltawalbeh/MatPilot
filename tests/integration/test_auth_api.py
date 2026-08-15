@@ -15,9 +15,12 @@ from backend.services.auth_service import AuthService
 @pytest.fixture
 def client(app):
     uow = InMemoryUnitOfWork()
+    from backend.services.email_service import EmailService
 
     def _override():
-        yield AuthService(uow)
+        email_service = EmailService()
+        app.state.container.email_service = email_service
+        yield AuthService(uow, email_service)
 
     app.dependency_overrides[auth_router.get_db_auth_service] = _override
     with TestClient(app) as c:
@@ -138,3 +141,19 @@ def test_reset_password_invalid_token_returns_400(client):
 def test_login_invalid_credentials_returns_401(client):
     resp = client.post("/auth/login", json={"username_or_email": "ghost", "password": "x"})
     assert resp.status_code == 401
+
+
+def test_dev_emails_endpoint_and_email_templates(client):
+    resp = client.post(
+        "/auth/register",
+        json={"username": "dr_curie", "email": "curie@example.com", "password": "secret123"},
+    )
+    assert resp.status_code == 200
+
+    dev_resp = client.get("/auth/dev-emails?recipient=curie@example.com")
+    assert dev_resp.status_code == 200
+    emails = dev_resp.json()["emails"]
+    assert len(emails) >= 2
+    subjects = [e["subject"] for e in emails]
+    assert any("Verify" in s for s in subjects)
+    assert any("Welcome" in s for s in subjects)

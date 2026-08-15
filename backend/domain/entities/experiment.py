@@ -38,6 +38,7 @@ class Experiment:
     """
     id: UUID = field(default_factory=uuid4)
     project_id: Optional[UUID] = None
+    owner_id: Optional[UUID] = None  # Owner user ID for strict multi-tenant scoping
     name: str = ""
     description: str = ""
     material: str = ""
@@ -60,6 +61,8 @@ class Experiment:
 
     # Phase identification results
     candidate_phases: List[Dict[str, Any]] = field(default_factory=list)
+    confirmed_phase_ids: List[str] = field(default_factory=list)
+    phases_confirmed: bool = False
 
     # CIF files (auto-downloaded or user-uploaded)
     cif_files: List[Dict[str, Any]] = field(default_factory=list)

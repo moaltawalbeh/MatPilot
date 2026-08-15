@@ -307,64 +307,91 @@ class ReferenceEngine:
             results.sort(key=lambda r: r.match_score, reverse=True)
             return results[:limit]
 
-        cod_provider = self._providers.get("COD")
-        cod_available = cod_provider is not None and cod_provider._availability_cache is True
+        remote_provider_names = [
+            name
+            for name, p in self._providers.items()
+            if name != "LocalCOD" and (getattr(p, "_availability_cache", None) is not False)
+        ]
 
-        if cod_available:
+        if remote_provider_names:
             try:
-                cod_candidates = await asyncio.wait_for(
+                remote_candidates = await asyncio.wait_for(
                     self.search(
                         query=search_query,
-                        providers=["COD"],
+                        providers=remote_provider_names,
                         filters=filters,
                         limit=limit,
                     ),
                     timeout=15,
                 )
-            except asyncio.TimeoutError:
-                logger.warning("COD search timed out, using local results only")
-                cod_candidates = []
-            except Exception as exc:
-                logger.warning("COD search failed: %s", exc)
-                cod_candidates = []
+            except (asyncio.TimeoutError, Exception) as exc:
+                logger.warning("Remote provider search failed/timed out: %s", exc)
+                remote_candidates = []
 
-            for candidate in cod_candidates:
-                cod_id = candidate.metadata.get("cod_id", candidate.source_id)
-
-                parsed_data = await self.get_parsed_cif_async(cod_id)
-                if not parsed_data:
-                    logger.warning(f"Could not get CIF for COD {cod_id}")
-                    continue
-
+            for candidate in remote_candidates:
+                source_id = candidate.source_id
+                cod_id = candidate.metadata.get("cod_id", source_id)
+                parsed_data = {}
                 theoretical_peaks = None
-                if self._pymatgen_generator.available:
-                    cif_content = await self.get_or_download_cif_async(cod_id)
-                    if cif_content:
-                        theoretical_peaks = self._pymatgen_generator.generate_from_cif_content(
-                            cif_content, max_two_theta=max_two_theta
-                        )
-                if not theoretical_peaks:
-                    theoretical_peaks = self._pattern_generator.generate_pattern(
-                        parsed_data, max_two_theta=max_two_theta
+
+                # 1. Use peaks embedded in record metadata if available
+                if "peaks" in candidate.metadata or "peak_details" in candidate.metadata:
+                    ref_peaks = candidate.metadata.get(
+                        "peak_details", candidate.metadata.get("peaks", [])
                     )
+                    if ref_peaks and isinstance(ref_peaks[0], (int, float)):
+                        ref_peaks = [{"two_theta": t, "intensity": 100} for t in ref_peaks]
+                    theoretical_peaks = ref_peaks
+
+                # 2. Otherwise retrieve and parse CIF
                 if not theoretical_peaks:
-                    logger.warning(f"No theoretical peaks for COD {cod_id}")
+                    parsed_data = await self.get_parsed_cif_async(cod_id)
+                    if parsed_data:
+                        if self._pymatgen_generator.available:
+                            cif_content = await self.get_or_download_cif_async(cod_id)
+                            if cif_content:
+                                theoretical_peaks = (
+                                    self._pymatgen_generator.generate_from_cif_content(
+                                        cif_content, max_two_theta=max_two_theta
+                                    )
+                                )
+                        if not theoretical_peaks:
+                            theoretical_peaks = self._pattern_generator.generate_pattern(
+                                parsed_data, max_two_theta=max_two_theta
+                            )
+
+                if not theoretical_peaks:
+                    logger.warning(
+                        f"No theoretical peaks for provider candidate {candidate.source_provider}:{candidate.source_id}"
+                    )
                     continue
 
-                material_name = parsed_data.get("name", "") or candidate.name or f"COD {cod_id}"
-                material_formula = parsed_data.get("formula", "") or candidate.formula
+                material_name = (
+                    parsed_data.get("name", "")
+                    or candidate.name
+                    or f"{candidate.source_provider} {candidate.source_id}"
+                )
+                material_formula = (
+                    parsed_data.get("formula", "") or candidate.formula
+                )
 
                 sim_result = self._similarity_engine.compare_patterns(
                     experimental_peaks=experimental_peaks,
                     reference_peaks=theoretical_peaks,
                     material_name=material_name,
                     material_formula=material_formula,
-                    source_id=cod_id,
-                    source_provider="COD",
-                    crystal_system=parsed_data.get("crystal_system", ""),
-                    space_group=parsed_data.get("space_group", ""),
-                    quality_mark=parsed_data.get("quality_mark", ""),
-                    cif_data=parsed_data,
+                    source_id=candidate.source_id,
+                    source_provider=candidate.source_provider,
+                    crystal_system=parsed_data.get(
+                        "crystal_system", candidate.metadata.get("crystal_system", "")
+                    ),
+                    space_group=parsed_data.get(
+                        "space_group", candidate.metadata.get("space_group", "")
+                    ),
+                    quality_mark=parsed_data.get(
+                        "quality_mark", candidate.metadata.get("quality_mark", "")
+                    ),
+                    cif_data=parsed_data or None,
                 )
 
                 results.append(sim_result)

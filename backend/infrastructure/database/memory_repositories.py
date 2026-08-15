@@ -56,6 +56,9 @@ class MemoryExperimentRepository(IExperimentRepository):
             project_id = UUID(project_id)
         return [e for e in self._data.values() if getattr(e, "project_id", None) == project_id]
 
+    async def get_by_owner(self, owner_id: UUID) -> List[object]:
+        return [e for e in self._data.values() if getattr(e, "owner_id", None) == owner_id]
+
 
 class MemoryAnalysisJobRepository(IAnalysisJobRepository):
     def __init__(self):

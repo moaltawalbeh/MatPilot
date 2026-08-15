@@ -51,6 +51,10 @@ from backend.application.use_cases.get_analysis_result import GetAnalysisResultU
 from backend.application.use_cases.search_reference import SearchReferenceUseCase, GetProvidersUseCase
 from backend.application.use_cases.generate_report import GenerateReportUseCase
 from backend.application.use_cases.project import ProjectUseCase
+from backend.services.email_service import EmailService
+from backend.services.ftir_service import FTIRService
+from backend.services.raman_service import RamanService
+from backend.services.uv_vis_service import UVVisService
 
 
 class DIContainer:
@@ -98,6 +102,14 @@ class DIContainer:
 
         # Job Manager
         self.job_manager = JobManager()
+
+        # Email Service
+        self.email_service = EmailService()
+
+        # Scientific Spectroscopy Services
+        self.ftir_service = FTIRService()
+        self.raman_service = RamanService()
+        self.uv_vis_service = UVVisService()
 
         # Analysis Pipeline (uses reference engine for real searches)
         self.pipeline = AnalysisPipeline(reference_engine=self.reference_engine)

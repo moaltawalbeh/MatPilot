@@ -96,3 +96,57 @@ async def send_message(req: ChatRequest):
             response=f"An error occurred while contacting the AI service: {exc}",
             model="llama-3.3-70b-versatile",
         )
+
+
+@router.post("/chat/explain-experiment/{experiment_id}")
+async def explain_experiment(experiment_id: str, request: Optional[ChatRequest] = None):
+    """Generate grounded scientific insights and interpretation for an experiment."""
+    from uuid import UUID
+    from backend.api.dependencies import get_container
+    
+    try:
+        container = get_container()
+        exp = await container.uow.experiments.get_by_id(UUID(experiment_id))
+    except Exception:
+        exp = None
+
+    if not exp:
+        return {
+            "success": False,
+            "response": f"Experiment '{experiment_id}' details could not be retrieved.",
+            "scientific_insights": []
+        }
+
+    # Extract grounding facts from experiment
+    peaks_count = len(getattr(exp, "detected_peaks", []) or [])
+    phases_count = len(getattr(exp, "candidate_phases", []) or [])
+    rietveld = getattr(exp, "rietveld_results", None)
+    
+    insights = [
+        f"Pattern scanned across range 2θ = {exp.two_theta_range[0] if exp.two_theta_range else 10.0}° to {exp.two_theta_range[1] if exp.two_theta_range else 90.0}°.",
+        f"Peak detection identified {peaks_count} characteristic Bragg diffraction reflections.",
+        f"Phase identification matched {phases_count} candidate crystalline structure(s) from reference database.",
+    ]
+
+    if rietveld:
+        rwp = rietveld.get("Rwp", rietveld.get("r_wp", 0))
+        gof = rietveld.get("gof", rietveld.get("GOF", 1.0))
+        insights.append(f"Rietveld refinement achieved R_wp = {rwp:.2f}% and Goodness-of-Fit GOF = {gof:.2f}.")
+        if rwp < 5.0:
+            insights.append("R_wp < 5.0% indicates an exceptional, publication-grade structural fit.")
+        elif rwp < 10.0:
+            insights.append("R_wp < 10.0% indicates a strong crystallographic agreement.")
+        else:
+            insights.append("Higher R_wp suggests potential preferred orientation or microstrain broadening.")
+
+    summary_text = f"Scientific Summary for '{exp.name}': " + " ".join(insights)
+
+    return {
+        "success": True,
+        "experiment_id": experiment_id,
+        "name": exp.name,
+        "material": exp.material,
+        "response": summary_text,
+        "scientific_insights": insights,
+    }
+

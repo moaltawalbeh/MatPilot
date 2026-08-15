@@ -120,22 +120,28 @@ export default function AboutPage() {
           </div>
         </section>
 
-        {/* Contact */}
+        {/* Contact & Governance */}
         <section className="card" style={{ padding: 28 }}>
           <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 16 }}>
             <Mail size={20} style={{ color: "var(--accent-orange)" }} />
-            <h2 style={{ fontSize: 17, fontWeight: 650 }}>Contact</h2>
+            <h2 style={{ fontSize: 17, fontWeight: 650 }}>Contact & Legal Governance</h2>
           </div>
           <p style={{ fontSize: 14, lineHeight: 1.8, color: "var(--text-secondary)", marginBottom: 16 }}>
-            For inquiries about MatPilot, collaborations, or scientific discussions, please reach out through the channels below.
+            For institutional licensing, GDPR inquiries, collaborations, or scientific discussions, please reach out through our official laboratory support channels.
           </p>
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <a href="https://github.com/Altawalbeh" className="button" target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
-              <ExternalLink size={14} /> GitHub
-            </a>
-            <a href="mailto:mohammad.altawalbeh@example.com" className="button" style={{ textDecoration: "none" }}>
-              <Mail size={14} /> Contact Developer
-            </a>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+            <Link href="/contact" className="button" style={{ textDecoration: "none", background: "var(--accent-orange-bg)", color: "var(--accent-orange)" }}>
+              <Mail size={14} /> Contact Laboratory Support
+            </Link>
+            <Link href="/pricing" className="button" style={{ textDecoration: "none" }}>
+              Pricing & Institutional Plans
+            </Link>
+            <Link href="/privacy-policy" className="button" style={{ textDecoration: "none" }}>
+              GDPR Privacy Policy
+            </Link>
+            <Link href="/security" className="button" style={{ textDecoration: "none" }}>
+              Security Architecture
+            </Link>
           </div>
         </section>
       </main>

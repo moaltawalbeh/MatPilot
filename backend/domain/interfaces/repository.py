@@ -38,6 +38,10 @@ class IExperimentRepository(IRepository):
     async def get_by_dataset(self, dataset_id: UUID) -> List[object]:
         raise NotImplementedError
 
+    @abstractmethod
+    async def get_by_owner(self, owner_id: UUID) -> List[object]:
+        raise NotImplementedError
+
 
 class IAnalysisJobRepository(IRepository):
     """Repository for AnalysisJob entities."""

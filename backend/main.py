@@ -12,9 +12,11 @@ from backend.api.routers import (
     upload, analysis, providers, report, health, jobs, config, system,
     projects, experiments, samples, measurements, structures, collections,
     downloads, notifications, search_configs, activities, dashboard, admin,
-    teams, organizations, search, manual_refinement, auth, chat,
+    teams, organizations, search, manual_refinement, auth, chat, legal, billing,
+    ftir, raman, uv_vis,
 )
 from backend.api.middleware.error_handler import register_exception_handlers
+from backend.api.routers.instruments import xrd as v2_xrd, ftir as v2_ftir, raman as v2_raman, uvvis as v2_uvvis
 from backend.api.middleware.activity_recorder import ActivityRecorderMiddleware
 from backend.infrastructure.config.settings import load_config
 from backend.infrastructure.di.container import create_container
@@ -106,6 +108,17 @@ def create_app() -> FastAPI:
     app.include_router(auth.router)
     app.include_router(manual_refinement.router)
     app.include_router(chat.router)
+    app.include_router(legal.router)
+    app.include_router(billing.router)
+    app.include_router(ftir.router)
+    app.include_router(raman.router)
+    app.include_router(uv_vis.router)
+    # V2 hub-and-spoke instrument APIs.  These are separate from the legacy
+    # convenience endpoints above and retain instrument-specific entities.
+    app.include_router(v2_xrd.router)
+    app.include_router(v2_ftir.router)
+    app.include_router(v2_raman.router)
+    app.include_router(v2_uvvis.router)
 
     return app
 

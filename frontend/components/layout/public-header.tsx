@@ -182,14 +182,20 @@ export function PublicHeader() {
 }
 
 export function PublicFooter() {
+  const openCookieSettings = () => {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("matpilot:openCookieSettings"));
+    }
+  };
+
   return (
     <footer style={{
       borderTop: "1px solid var(--border-subtle)",
-      padding: "40px 32px",
-      maxWidth: 1200, margin: "0 auto",
+      padding: "48px 32px 32px 32px",
+      maxWidth: 1200, margin: "0 auto", width: "100%",
     }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 32 }}>
-        <div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 36 }}>
+        <div style={{ minWidth: 240 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
             <div style={{
               width: 28, height: 28, borderRadius: "var(--radius-sm)",
@@ -197,31 +203,70 @@ export function PublicFooter() {
               display: "grid", placeItems: "center",
               fontSize: 13, fontWeight: 800, color: "white",
             }}>M</div>
-            <span style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)" }}>MatPilot</span>
+            <span style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)" }}>MatPilot</span>
           </div>
-          <p style={{ fontSize: 13, color: "var(--text-muted)", maxWidth: 320, lineHeight: 1.6 }}>
-            Scientific analysis platform for X-ray diffraction data processing and materials characterization.
+          <p style={{ fontSize: 13, color: "var(--text-muted)", maxWidth: 280, lineHeight: 1.6, marginBottom: 16 }}>
+            Scientific analysis platform for materials characterization: XRD, FTIR, Raman, and UV–Vis spectroscopy.
           </p>
-        </div>
-        <div style={{ display: "flex", gap: 48 }}>
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 10 }}>Product</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <Link href="/services" style={{ fontSize: 13, color: "var(--text-secondary)", textDecoration: "none" }}>Services</Link>
-              <Link href="/dashboard" style={{ fontSize: 13, color: "var(--text-secondary)", textDecoration: "none" }}>Launch Platform</Link>
-            </div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--accent-orange)" }}>
+            Public Launch: January 2027
           </div>
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 10 }}>Company</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <Link href="/about" style={{ fontSize: 13, color: "var(--text-secondary)", textDecoration: "none" }}>About</Link>
-              <a href="https://github.com" style={{ fontSize: 13, color: "var(--text-secondary)", textDecoration: "none" }}>GitHub</a>
-            </div>
+        </div>
+
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: 12 }}>Product & Tools</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <Link href="/services" style={{ fontSize: 13.5, color: "var(--text-secondary)", textDecoration: "none" }}>Platform Services</Link>
+            <Link href="/pricing" style={{ fontSize: 13.5, color: "var(--text-secondary)", textDecoration: "none" }}>Pricing & Plans</Link>
+            <Link href="/dashboard" style={{ fontSize: 13.5, color: "var(--text-secondary)", textDecoration: "none" }}>Launch Cloud Workspace</Link>
+            <Link href="/characterization/ftir" style={{ fontSize: 13.5, color: "var(--text-secondary)", textDecoration: "none" }}>FTIR Spectroscopy</Link>
+            <Link href="/characterization/raman" style={{ fontSize: 13.5, color: "var(--text-secondary)", textDecoration: "none" }}>Raman Spectroscopy</Link>
+            <Link href="/characterization/uvvis" style={{ fontSize: 13.5, color: "var(--text-secondary)", textDecoration: "none" }}>UV–Vis & Band Gap</Link>
+          </div>
+        </div>
+
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: 12 }}>Company & Support</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <Link href="/about" style={{ fontSize: 13.5, color: "var(--text-secondary)", textDecoration: "none" }}>About MatPilot</Link>
+            <Link href="/contact" style={{ fontSize: 13.5, color: "var(--text-secondary)", textDecoration: "none" }}>Contact Laboratory</Link>
+            <Link href="/security" style={{ fontSize: 13.5, color: "var(--text-secondary)", textDecoration: "none" }}>Security & SOC2</Link>
+          </div>
+        </div>
+
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: 12 }}>Legal & GDPR</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <Link href="/privacy-policy" style={{ fontSize: 13.5, color: "var(--text-secondary)", textDecoration: "none" }}>Privacy Policy</Link>
+            <Link href="/data-privacy" style={{ fontSize: 13.5, color: "var(--text-secondary)", textDecoration: "none" }}>Scientific Data Privacy</Link>
+            <Link href="/data-processing" style={{ fontSize: 13.5, color: "var(--text-secondary)", textDecoration: "none" }}>Data Processing (DPA)</Link>
+            <Link href="/terms-and-conditions" style={{ fontSize: 13.5, color: "var(--text-secondary)", textDecoration: "none" }}>Terms & Conditions</Link>
+            <Link href="/cookie-policy" style={{ fontSize: 13.5, color: "var(--text-secondary)", textDecoration: "none" }}>Cookie Policy</Link>
+            <Link href="/legal-notice" style={{ fontSize: 13.5, color: "var(--text-secondary)", textDecoration: "none" }}>Legal Notice / Imprint</Link>
           </div>
         </div>
       </div>
-      <div style={{ borderTop: "1px solid var(--border-subtle)", marginTop: 32, paddingTop: 16, fontSize: 12, color: "var(--text-muted)", textAlign: "center" }}>
-        © 2026 MatPilot. Built with scientific rigor and open-source principles.
+
+      <div style={{ borderTop: "1px solid var(--border-subtle)", marginTop: 40, paddingTop: 20, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16 }}>
+        <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
+          © 2026 MatPilot. Built with scientific rigor and GDPR compliance.
+        </div>
+        <button
+          onClick={openCookieSettings}
+          type="button"
+          style={{
+            background: "transparent",
+            border: "1px solid var(--border-subtle)",
+            color: "var(--text-secondary)",
+            fontSize: 12,
+            fontWeight: 600,
+            padding: "6px 12px",
+            borderRadius: 6,
+            cursor: "pointer",
+          }}
+        >
+          Cookie Settings
+        </button>
       </div>
     </footer>
   );

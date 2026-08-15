@@ -45,7 +45,7 @@ class ProjectModel(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     material: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    owner_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    owner_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("users.id"), index=True, nullable=True)
     status: Mapped[str | None] = mapped_column(String(50), nullable=True, default="Active")
     tags: Mapped[dict | list | None] = mapped_column(JSON, nullable=True, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
@@ -106,43 +106,81 @@ class CrystalStructureModel(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
-class ExperimentModel(Base):
-    __tablename__ = "experiments"
+class InstrumentExperimentModel(Base):
+    __tablename__ = "instrument_experiments"
 
     id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    project_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True)
+    project_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("projects.id"), index=True, nullable=True)
+    owner_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("users.id"), index=True, nullable=True)
+    
+    instrument_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     material: Mapped[str | None] = mapped_column(String(255), nullable=True)
     status: Mapped[str | None] = mapped_column(String(50), nullable=True, default="Created")
-    uploaded_filename: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    wavelength: Mapped[float | None] = mapped_column(Float, nullable=True)
-    radiation: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    data_points: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
-    two_theta_range: Mapped[dict | list | None] = mapped_column(JSON, nullable=True)
-    # File associations
-    file_ids: Mapped[dict | list | None] = mapped_column(JSON, nullable=True, default=list)
-    primary_file_id: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    # Experiment data flags
-    has_pattern_data: Mapped[bool | None] = mapped_column(Boolean, nullable=True, default=False)
-    has_crystal_structure: Mapped[bool | None] = mapped_column(Boolean, nullable=True, default=False)
-    # Analysis tracking
-    job_ids: Mapped[dict | list | None] = mapped_column(JSON, nullable=True, default=list)
-    has_results: Mapped[bool | None] = mapped_column(Boolean, nullable=True, default=False)
-    # Scientific payloads (stored as JSON so experiments round-trip losslessly)
+    
+    # Generic execution history
+    pipeline_stages: Mapped[dict | list | None] = mapped_column(JSON, nullable=True, default=list)
+    analysis_history: Mapped[dict | list | None] = mapped_column(JSON, nullable=True, default=list)
+    
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __mapper_args__ = {
+        "polymorphic_identity": "base",
+        "polymorphic_on": "instrument_type",
+    }
+
+
+class XRDExperimentModel(InstrumentExperimentModel):
+    __tablename__ = "xrd_experiments"
+
+    id: Mapped[uuid.UUID] = mapped_column(ForeignKey("instrument_experiments.id"), primary_key=True)
+    
     raw_two_theta: Mapped[dict | list | None] = mapped_column(JSON, nullable=True)
     raw_intensity: Mapped[dict | list | None] = mapped_column(JSON, nullable=True)
-    processed_pattern: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    processed_intensity: Mapped[dict | list | None] = mapped_column(JSON, nullable=True)
+    
+    radiation_type: Mapped[str | None] = mapped_column(String(50), nullable=True, default="Cu")
+    wavelength_angstrom: Mapped[float | None] = mapped_column(Float, nullable=True)
+    
     detected_peaks: Mapped[dict | list | None] = mapped_column(JSON, nullable=True, default=list)
     candidate_phases: Mapped[dict | list | None] = mapped_column(JSON, nullable=True, default=list)
     cif_files: Mapped[dict | list | None] = mapped_column(JSON, nullable=True, default=list)
+    
     selected_refinement_phases: Mapped[dict | list | None] = mapped_column(JSON, nullable=True, default=list)
     rietveld_results: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    pipeline_stages: Mapped[dict | list | None] = mapped_column(JSON, nullable=True, default=list)
-    analysis_history: Mapped[dict | list | None] = mapped_column(JSON, nullable=True, default=list)
-    metadata_: Mapped[dict | None] = mapped_column("metadata", JSON, nullable=True, default=dict)
-    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    goodness_of_fit: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    __mapper_args__ = {
+        "polymorphic_identity": "XRD",
+    }
+
+
+class FTIRExperimentModel(InstrumentExperimentModel):
+    __tablename__ = "ftir_experiments"
+
+    id: Mapped[uuid.UUID] = mapped_column(ForeignKey("instrument_experiments.id"), primary_key=True)
+    
+    raw_wavenumbers: Mapped[dict | list | None] = mapped_column(JSON, nullable=True)
+    raw_transmittance: Mapped[dict | list | None] = mapped_column(JSON, nullable=True)
+    processed_transmittance: Mapped[dict | list | None] = mapped_column(JSON, nullable=True)
+    
+    resolution_cm1: Mapped[float | None] = mapped_column(Float, nullable=True)
+    scan_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    background_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    
+    detected_peaks: Mapped[dict | list | None] = mapped_column(JSON, nullable=True, default=list)
+    functional_groups: Mapped[dict | list | None] = mapped_column(JSON, nullable=True, default=list)
+    library_matches: Mapped[dict | list | None] = mapped_column(JSON, nullable=True, default=list)
+    
+    signal_to_noise_ratio: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    __mapper_args__ = {
+        "polymorphic_identity": "FTIR",
+    }
+
 
 
 class AnalysisJobModel(Base):
@@ -278,3 +316,55 @@ class TeamMemberModel(Base):
     user_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     role: Mapped[str | None] = mapped_column(String(50), nullable=True)
     joined_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+class RamanExperimentModel(InstrumentExperimentModel):
+    __tablename__ = "raman_experiments"
+
+    id: Mapped[uuid.UUID] = mapped_column(ForeignKey("instrument_experiments.id"), primary_key=True)
+    
+    raw_raman_shift: Mapped[dict | list | None] = mapped_column(JSON, nullable=True)
+    raw_intensity: Mapped[dict | list | None] = mapped_column(JSON, nullable=True)
+    processed_intensity: Mapped[dict | list | None] = mapped_column(JSON, nullable=True)
+    
+    laser_wavelength_nm: Mapped[float | None] = mapped_column(Float, nullable=True)
+    laser_power_mw: Mapped[float | None] = mapped_column(Float, nullable=True)
+    exposure_time_s: Mapped[float | None] = mapped_column(Float, nullable=True)
+    accumulations: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    
+    detected_peaks: Mapped[dict | list | None] = mapped_column(JSON, nullable=True, default=list)
+    phonons: Mapped[dict | list | None] = mapped_column(JSON, nullable=True, default=list)
+    library_matches: Mapped[dict | list | None] = mapped_column(JSON, nullable=True, default=list)
+    
+    fluorescence_background_level: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    __mapper_args__ = {
+        "polymorphic_identity": "RAMAN",
+    }
+
+
+class UVVisExperimentModel(InstrumentExperimentModel):
+    __tablename__ = "uvvis_experiments"
+
+    id: Mapped[uuid.UUID] = mapped_column(ForeignKey("instrument_experiments.id"), primary_key=True)
+    
+    raw_wavelength_nm: Mapped[dict | list | None] = mapped_column(JSON, nullable=True)
+    raw_absorbance: Mapped[dict | list | None] = mapped_column(JSON, nullable=True)
+    processed_absorbance: Mapped[dict | list | None] = mapped_column(JSON, nullable=True)
+    
+    tauc_energy_ev: Mapped[dict | list | None] = mapped_column(JSON, nullable=True)
+    tauc_quantity: Mapped[dict | list | None] = mapped_column(JSON, nullable=True)
+    
+    measurement_mode: Mapped[str | None] = mapped_column(String(50), nullable=True, default="Transmission")
+    scan_speed: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    
+    detected_peaks: Mapped[dict | list | None] = mapped_column(JSON, nullable=True, default=list)
+    band_gap_ev: Mapped[float | None] = mapped_column(Float, nullable=True)
+    band_gap_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    library_matches: Mapped[dict | list | None] = mapped_column(JSON, nullable=True, default=list)
+    
+    linear_fit_r_squared: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    __mapper_args__ = {
+        "polymorphic_identity": "UVVIS",
+    }

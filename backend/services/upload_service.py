@@ -35,6 +35,7 @@ class UploadResult:
     filename: str
     detected_format: str
     is_valid: bool
+    owner_id: Optional[str] = None
     experiment: Optional[XRDExperiment] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
     validation: UploadValidationResult = field(default_factory=lambda: UploadValidationResult(is_valid=False, filename=""))
@@ -75,7 +76,8 @@ class UploadService:
         filename: str,
         content_type: str,
         file_data: bytes,
-        user_metadata: Optional[Dict[str, Any]] = None
+        user_metadata: Optional[Dict[str, Any]] = None,
+        owner_id: Optional[str] = None
     ) -> UploadResult:
         """
         Upload a single file through the complete pipeline.
@@ -85,6 +87,7 @@ class UploadService:
             content_type: MIME type
             file_data: Raw bytes
             user_metadata: Optional metadata from client
+            owner_id: Optional owner user ID for strict multi-tenant scoping
 
         Returns:
             UploadResult with file_id, detected_format, XRDExperiment, etc.
@@ -100,6 +103,7 @@ class UploadService:
                 filename=filename,
                 detected_format=validation.detected_format or "unknown",
                 is_valid=False,
+                owner_id=owner_id,
                 validation=validation,
                 metadata=user_metadata
             )
@@ -117,6 +121,7 @@ class UploadService:
                 filename=filename,
                 detected_format="unknown",
                 is_valid=False,
+                owner_id=owner_id,
                 validation=validation,
                 temp_path=temp_path,
                 metadata=user_metadata
@@ -145,6 +150,7 @@ class UploadService:
             filename=filename,
             detected_format=detected_format,
             is_valid=True,
+            owner_id=owner_id,
             experiment=experiment,
             validation=validation,
             temp_path=temp_path,
@@ -165,7 +171,8 @@ class UploadService:
                 filename=file_info["filename"],
                 content_type=file_info.get("content_type", "application/octet-stream"),
                 file_data=file_info["file_data"],
-                user_metadata=file_info.get("metadata")
+                user_metadata=file_info.get("metadata"),
+                owner_id=file_info.get("owner_id")
             )
             results.append(result)
         return results

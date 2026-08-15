@@ -3,6 +3,7 @@ import "./globals.css";
 import { Providers } from "@/components/providers";
 import { ThemeProvider } from "@/components/theme-provider";
 import { LanguageProvider } from "@/components/language-provider";
+import { CookieConsent } from "@/components/cookie-consent";
 
 export const metadata: Metadata = {
   title: "MatPilot — Materials Characterization Platform",
@@ -25,7 +26,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <body>
         <ThemeProvider>
           <LanguageProvider>
-            <Providers>{children}</Providers>
+            <Providers>
+              {children}
+              <CookieConsent />
+            </Providers>
           </LanguageProvider>
         </ThemeProvider>
       </body>
