@@ -18,7 +18,7 @@ from backend.domain.entities.experiment import Experiment, ExperimentMetadata
 from backend.domain.entities.measurement import Measurement, MeasurementStatus
 from backend.domain.entities.notification import Notification, NotificationType
 from backend.domain.entities.organization import Organization
-from backend.domain.entities.project import Project
+from backend.domain.entities.project import ANONYMOUS_OWNER_ID, Project
 from backend.domain.entities.report import Report, ReportFormat
 from backend.domain.entities.sample import Sample, SampleStatus, CrystalSystem
 from backend.domain.entities.search_config import SearchConfig
@@ -80,7 +80,10 @@ def _user_model_to_entity(m: UserModel) -> User:
         hashed_password=m.hashed_password,
         is_verified=m.is_verified or False,
         email_verification_token=m.email_verification_token,
+        email_verification_code=m.email_verification_code,
+        email_verification_expires_at=m.email_verification_expires_at,
         password_reset_token=m.password_reset_token,
+        password_reset_expires_at=m.password_reset_expires_at,
         token_version=m.token_version or 0,
         role=UserRole[m.role] if m.role and m.role in UserRole.__members__ else UserRole.RESEARCHER,
         status=UserStatus[m.status] if m.status and m.status in UserStatus.__members__ else UserStatus.ACTIVE,
@@ -106,7 +109,10 @@ def _user_entity_to_model(e: User) -> UserModel:
         hashed_password=e.hashed_password or "",
         is_verified=e.is_verified or False,
         email_verification_token=e.email_verification_token,
+        email_verification_code=e.email_verification_code,
+        email_verification_expires_at=e.email_verification_expires_at,
         password_reset_token=e.password_reset_token,
+        password_reset_expires_at=e.password_reset_expires_at,
         token_version=e.token_version or 0,
         role=e.role.name,
         status=e.status.name,
@@ -129,7 +135,7 @@ def _project_model_to_entity(m: ProjectModel) -> Project:
         name=m.name,
         description=m.description or "",
         material=m.material or "",
-        owner_id=m.owner_id,
+        owner_id=str(m.owner_id) if m.owner_id else ANONYMOUS_OWNER_ID,
         status=m.status or "Active",
         tags=m.tags if isinstance(m.tags, list) else [],
         created_at=m.created_at,
@@ -301,6 +307,7 @@ def _experiment_model_to_entity(m: InstrumentExperimentModel) -> Experiment:
         description=m.description or "",
         material=m.material or "",
         status=m.status or "Created",
+        technique=getattr(m, "technique", None) or "xrd",
         primary_file_id=getattr(m, "primary_file_id", getattr(m, "uploaded_filename", None)),
         data_points=getattr(m, "data_points", 0) or 0,
         wavelength_angstrom=wl,
@@ -314,6 +321,9 @@ def _experiment_model_to_entity(m: InstrumentExperimentModel) -> Experiment:
         cif_files=cifs if isinstance(cifs, list) else [],
         raw_two_theta=raw_2t,
         raw_intensity=raw_int,
+        raw_x=getattr(m, "raw_x", None),
+        raw_y=getattr(m, "raw_y", None),
+        analysis_results=getattr(m, "analysis_results", None),
         detected_peaks=det_peaks if isinstance(det_peaks, list) else [],
         selected_refinement_phases=sel_phases if isinstance(sel_phases, list) else [],
         rietveld_results=riet_res,
@@ -338,10 +348,23 @@ def _experiment_entity_to_model(e: Experiment) -> InstrumentExperimentModel:
         status=e.status,
         wavelength_angstrom=e.wavelength_angstrom,
         radiation_type=e.metadata.radiation_type if e.metadata else "Cu",
+        technique=getattr(e, "technique", "xrd"),
+        uploaded_filename=e.primary_file_id,
+        data_points=e.data_points,
+        two_theta_range=e.two_theta_range,
+        file_ids=e.file_ids,
+        primary_file_id=e.primary_file_id,
+        has_pattern_data=e.has_pattern_data,
+        has_crystal_structure=e.has_crystal_structure,
+        job_ids=e.job_ids,
+        has_results=e.has_results,
         candidate_phases=e.candidate_phases,
         cif_files=e.cif_files,
         raw_two_theta=e.raw_two_theta,
         raw_intensity=e.raw_intensity,
+        raw_x=getattr(e, "raw_x", None),
+        raw_y=getattr(e, "raw_y", None),
+        analysis_results=getattr(e, "analysis_results", None),
         processed_intensity=getattr(e, "_processed_pattern", None),
         detected_peaks=e.detected_peaks,
         selected_refinement_phases=e.selected_refinement_phases,
@@ -362,6 +385,29 @@ def _experiment_entity_to_values(e: Experiment) -> Dict[str, Any]:
         "description": e.description,
         "material": e.material,
         "status": e.status,
+        "technique": getattr(e, "technique", "xrd"),
+        "uploaded_filename": e.primary_file_id,
+        "wavelength": e.wavelength_angstrom,
+        "radiation": e.metadata.radiation_type if e.metadata else None,
+        "data_points": e.data_points,
+        "two_theta_range": e.two_theta_range,
+        "file_ids": e.file_ids,
+        "primary_file_id": e.primary_file_id,
+        "has_pattern_data": e.has_pattern_data,
+        "has_crystal_structure": e.has_crystal_structure,
+        "job_ids": e.job_ids,
+        "has_results": e.has_results,
+        "candidate_phases": e.candidate_phases,
+        "cif_files": e.cif_files,
+        "raw_two_theta": e.raw_two_theta,
+        "raw_intensity": e.raw_intensity,
+        "raw_x": getattr(e, "raw_x", None),
+        "raw_y": getattr(e, "raw_y", None),
+        "analysis_results": getattr(e, "analysis_results", None),
+        "processed_pattern": getattr(e, "_processed_pattern", None),
+        "detected_peaks": e.detected_peaks,
+        "selected_refinement_phases": e.selected_refinement_phases,
+        "rietveld_results": e.rietveld_results,
         "pipeline_stages": e.pipeline_stages,
         "analysis_history": e.analysis_history,
         "created_at": e.created_at,
@@ -942,6 +988,12 @@ class AsyncExperimentRepository(IExperimentRepository):
     async def get_by_owner(self, owner_id: UUID) -> List[Experiment]:
         result = await self._session.execute(
             select(InstrumentExperimentModel).where(InstrumentExperimentModel.owner_id == owner_id)
+        )
+        return [_experiment_model_to_entity(m) for m in result.scalars().all()]
+
+    async def get_by_project_id(self, project_id: UUID) -> List[Experiment]:
+        result = await self._session.execute(
+            select(ExperimentModel).where(ExperimentModel.project_id == project_id)
         )
         return [_experiment_model_to_entity(m) for m in result.scalars().all()]
 

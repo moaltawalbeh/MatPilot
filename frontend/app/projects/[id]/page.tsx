@@ -1,19 +1,13 @@
 "use client";
 
 import { Page } from "@/components/ui/page";
-import { useProject, useDeleteProject, useUploadFile, useProjectExperiments, useProjectFiles, useProjectJobs } from "@/hooks/use-api";
-import type { UploadResponse } from "@/types";
+import { useProject, useDeleteProject, useProjectExperiments, useProjectFiles, useProjectJobs } from "@/hooks/use-api";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft,
   Trash2,
   FlaskConical,
-  FileUp,
-  X,
-  Check,
-  AlertTriangle,
-  Upload,
   Activity,
   FileBarChart,
   Waves,
@@ -31,21 +25,13 @@ import {
   FolderOpen,
   BarChart3,
 } from "lucide-react";
-import { useCallback, useState, useRef, useEffect } from "react";
-
-type QueuedFile = {
-  file: File;
-  status: "pending" | "uploading" | "analyzing" | "done" | "error";
-  result?: UploadResponse;
-  error?: string;
-  jobId?: string | null;
-};
+import { useCallback, useState, useEffect } from "react";
 
 const TECHNIQUES = [
   { id: "xrd", name: "X-ray Diffraction", icon: FileBarChart, description: "Crystal structure analysis and phase identification", color: "var(--accent-orange)", available: true },
-  { id: "raman", name: "Raman Spectroscopy", icon: Waves, description: "Molecular vibration analysis", color: "var(--accent-cyan)", available: false },
-  { id: "ftir", name: "FTIR Spectroscopy", icon: AudioLines, description: "Infrared molecular fingerprinting", color: "var(--accent-emerald)", available: false },
-  { id: "uvvis", name: "UV-Vis Spectroscopy", icon: Sun, description: "Optical absorption properties", color: "var(--accent-amber)", available: false },
+  { id: "raman", name: "Raman Spectroscopy", icon: Waves, description: "Molecular vibration analysis", color: "var(--accent-cyan)", available: true },
+  { id: "ftir", name: "FTIR Spectroscopy", icon: AudioLines, description: "Infrared molecular fingerprinting", color: "var(--accent-emerald)", available: true },
+  { id: "uvvis", name: "UV-Vis Spectroscopy", icon: Sun, description: "Optical absorption properties", color: "var(--accent-amber)", available: true },
   { id: "sem", name: "SEM", icon: Microscope, description: "Surface morphology imaging", color: "var(--accent-violet)", available: false },
   { id: "eds", name: "EDS/EDX", icon: Atom, description: "Elemental composition analysis", color: "var(--accent-rose)", available: false },
   { id: "tem", name: "TEM", icon: ScanEye, description: "High-resolution transmission imaging", color: "var(--accent-cyan)", available: false },
@@ -55,275 +41,6 @@ const TECHNIQUES = [
   { id: "bet", name: "BET Surface Area", icon: Layers, description: "Surface area and porosity", color: "var(--accent-violet)", available: false },
   { id: "dls", name: "Dynamic Light Scattering", icon: CircleDot, description: "Particle size distribution", color: "var(--accent-amber)", available: false },
 ];
-
-function UploadZone({
-  projectId,
-  onUploadComplete,
-  onUploadData,
-}: {
-  projectId: string;
-  onUploadComplete?: () => void;
-  onUploadData?: (data: UploadResponse) => void;
-}) {
-  const input = useRef<HTMLInputElement>(null);
-  const [files, setFiles] = useState<QueuedFile[]>([]);
-  const uploadMutation = useUploadFile();
-
-  const add = useCallback((list: FileList | null) => {
-    if (!list) return;
-    setFiles((current) => [
-      ...current,
-      ...Array.from(list).map((f) => ({ file: f, status: "pending" as const })),
-    ]);
-  }, []);
-
-  const remove = useCallback((idx: number) => {
-    setFiles((current) => current.filter((_, i) => i !== idx));
-  }, []);
-
-  const uploadAll = useCallback(async () => {
-    const pending = files.filter((f) => f.status === "pending");
-    for (const item of pending) {
-      setFiles((current) =>
-        current.map((f) => (f.file === item.file ? { ...f, status: "uploading" } : f)),
-      );
-      try {
-        const result = await uploadMutation.mutateAsync({ file: item.file, projectId });
-        setFiles((current) =>
-          current.map((f) =>
-            f.file === item.file
-              ? {
-                  ...f,
-                  status: result.analysis_started ? "analyzing" : "done",
-                  result,
-                  jobId: result.job_id,
-                }
-              : f,
-          ),
-        );
-        onUploadData?.(result);
-        onUploadComplete?.();
-      } catch (err) {
-        setFiles((current) =>
-          current.map((f) =>
-            f.file === item.file ? { ...f, status: "error", error: String(err) } : f,
-          ),
-        );
-      }
-    }
-  }, [files, uploadMutation, projectId, onUploadComplete, onUploadData]);
-
-  const pendingCount = files.filter((f) => f.status === "pending").length;
-
-  return (
-    <div>
-      <input
-        hidden
-        ref={input}
-        type="file"
-        accept=".cif,.raw,.xrdml,.csv,.xy,.txt,.dat"
-        multiple
-        onChange={(e) => add(e.target.files)}
-      />
-      <div
-        onDragOver={(e) => e.preventDefault()}
-        onDrop={(e) => {
-          e.preventDefault();
-          add(e.dataTransfer.files);
-        }}
-        onClick={() => input.current?.click()}
-        style={{
-          border: "2px dashed var(--border-default)",
-          borderRadius: "var(--radius-lg)",
-          padding: "48px 24px",
-          textAlign: "center",
-          background: "var(--bg-secondary)",
-          transition:
-            "border-color var(--duration-normal) var(--ease-out), background var(--duration-normal) var(--ease-out)",
-          cursor: "pointer",
-        }}
-      >
-        <div
-          style={{
-            width: 56,
-            height: 56,
-            borderRadius: "var(--radius-lg)",
-            background: "rgba(249, 115, 22, 0.1)",
-            display: "grid",
-            placeItems: "center",
-            margin: "0 auto 16px",
-          }}
-        >
-          <FileUp size={24} style={{ color: "var(--accent-orange)" }} />
-        </div>
-        <h3
-          style={{
-            fontSize: 16,
-            fontWeight: 600,
-            marginBottom: 6,
-            color: "var(--text-primary)",
-          }}
-        >
-          Drop XRD files here
-        </h3>
-        <p style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 16 }}>
-          or click to browse from your computer
-        </p>
-        <div style={{ display: "flex", gap: 6, justifyContent: "center", flexWrap: "wrap" }}>
-          {["XY", "CSV", "RAW", "XRDML", "CIF", "TXT", "DAT"].map((x) => (
-            <span
-              key={x}
-              style={{
-                fontSize: 10,
-                fontWeight: 600,
-                padding: "3px 8px",
-                borderRadius: "var(--radius-xs)",
-                background: "var(--bg-tertiary)",
-                color: "var(--text-tertiary)",
-                border: "1px solid var(--border-subtle)",
-                letterSpacing: "0.03em",
-              }}
-            >
-              {x}
-            </span>
-          ))}
-        </div>
-      </div>
-
-      {files.length > 0 && (
-        <div style={{ marginTop: 20 }}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: 12,
-            }}
-          >
-            <div>
-              <h4
-                style={{
-                  fontSize: 13,
-                  fontWeight: 600,
-                  color: "var(--text-primary)",
-                  marginBottom: 2,
-                }}
-              >
-                Upload Queue
-              </h4>
-              <p style={{ fontSize: 12, color: "var(--text-tertiary)" }}>
-                Analysis starts automatically after upload
-              </p>
-            </div>
-            {pendingCount > 0 && (
-              <button className="button primary" onClick={uploadAll} style={{ fontSize: 13 }}>
-                <Upload size={14} />
-                Upload {pendingCount} file{pendingCount > 1 ? "s" : ""}
-              </button>
-            )}
-          </div>
-          {files.map((item, idx) => (
-            <div
-              key={item.file.name + idx}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-                padding: "12px 16px",
-                borderRadius: "var(--radius-md)",
-                background: "var(--bg-secondary)",
-                border: "1px solid var(--border-subtle)",
-                marginBottom: 8,
-              }}
-            >
-              <FileUp
-                size={16}
-                style={{ color: "var(--text-tertiary)", flexShrink: 0 }}
-              />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div
-                  style={{
-                    fontSize: 13,
-                    fontWeight: 500,
-                    color: "var(--text-primary)",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {item.file.name}
-                </div>
-                <div
-                  style={{ fontSize: 12, color: "var(--text-tertiary)", marginTop: 2 }}
-                >
-                  {(item.file.size / 1024).toFixed(1)} KB
-                  {item.status === "pending" && " \u00B7 Ready"}
-                  {item.status === "uploading" && (
-                    <span style={{ color: "var(--accent-orange)" }}>
-                      {" "}
-                      &middot;{" "}
-                      <Loader2
-                        size={11}
-                        className="spin"
-                        style={{ display: "inline", verticalAlign: "middle" }}
-                      />{" "}
-                      Uploading...
-                    </span>
-                  )}
-                  {item.status === "analyzing" && item.jobId && (
-                    <span style={{ color: "var(--accent-orange)" }}>
-                      {" "}
-                      &middot;{" "}
-                      <Activity
-                        size={11}
-                        style={{ display: "inline", verticalAlign: "middle" }}
-                      />{" "}
-                      Analyzing &middot; {item.result?.detected_format} &middot;{" "}
-                      {item.result?.data_points} pts
-                    </span>
-                  )}
-                  {item.status === "done" && item.result && (
-                    <span style={{ color: "var(--success)" }}>
-                      {" "}
-                      &middot;{" "}
-                      <Check
-                        size={11}
-                        style={{ display: "inline", verticalAlign: "middle" }}
-                      />{" "}
-                      {item.result.detected_format} &middot; {item.result.data_points}{" "}
-                      pts
-                    </span>
-                  )}
-                  {item.status === "error" && (
-                    <span style={{ color: "var(--error)" }}>
-                      {" "}
-                      &middot;{" "}
-                      <AlertTriangle
-                        size={11}
-                        style={{ display: "inline", verticalAlign: "middle" }}
-                      />{" "}
-                      {item.error}
-                    </span>
-                  )}
-                </div>
-              </div>
-              <button
-                className="button"
-                onClick={() => remove(idx)}
-                disabled={
-                  item.status === "uploading" || item.status === "analyzing"
-                }
-                style={{ padding: "6px", flexShrink: 0 }}
-              >
-                <X size={14} />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 function TechniqueCard({
   technique,
@@ -450,11 +167,10 @@ export default function ProjectDetail() {
   const id = params?.id as string;
   const { data: project, isLoading, refetch: refetchProject } = useProject(id);
   const deleteProject = useDeleteProject();
-  const { data: filesData, refetch: refetchFiles } = useProjectFiles(id);
+  const { data: filesData } = useProjectFiles(id);
   const { data: jobsData, refetch: refetchJobs } = useProjectJobs(id);
   const { data: experimentsData, refetch: refetchExperiments } =
     useProjectExperiments(id);
-  const [showUpload, setShowUpload] = useState(false);
 
   const files = filesData ?? [];
   const jobs = jobsData?.jobs ?? [];
@@ -484,22 +200,13 @@ export default function ProjectDetail() {
     router.push("/projects");
   }, [id, deleteProject, router]);
 
-  const handleUploadComplete = useCallback(() => {
-    refetchFiles();
-    refetchJobs();
-    refetchExperiments();
-    refetchProject();
-  }, [refetchFiles, refetchJobs, refetchExperiments, refetchProject]);
-
-  const handleUploadData = useCallback((_data: UploadResponse) => {}, []);
-
   const handleTechniqueClick = useCallback(
     (technique: (typeof TECHNIQUES)[number]) => {
       if (technique.available) {
-        setShowUpload(true);
+        router.push(`/workspaces/${id}/instruments/${technique.id}`);
       }
     },
-    [],
+    [router, id],
   );
 
   useEffect(() => {
@@ -837,6 +544,40 @@ export default function ProjectDetail() {
         </div>
       </section>
 
+      {/* ── Instrument Workspaces ───────────────────────────── */}
+      <section style={{ marginBottom: 32 }}>
+        <div
+          style={{
+            padding: 16,
+            borderRadius: "var(--radius-lg)",
+            border: "1px solid var(--border-subtle)",
+            background: "var(--bg-secondary)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            flexWrap: "wrap",
+          }}
+        >
+          <div>
+            <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)", marginBottom: 4 }}>
+              Instrument Workspaces
+            </h2>
+            <p style={{ fontSize: 13, color: "var(--text-tertiary)" }}>
+              Run XRD, FTIR, Raman and UV-Vis as independent per-technique workflows with a
+              unified workspace report.
+            </p>
+          </div>
+          <Link
+            className="button primary"
+            href={`/workspaces/${id}`}
+            style={{ fontSize: 13 }}
+          >
+            <Layers size={14} /> Open Workspace
+          </Link>
+        </div>
+      </section>
+
       {/* ── Recent Experiments Table ─────────────────────── */}
       <section style={{ marginBottom: 32 }}>
         <div
@@ -864,13 +605,13 @@ export default function ProjectDetail() {
             </p>
           </div>
           {experiments.length > 0 && (
-            <button
+            <Link
               className="button"
-              onClick={() => setShowUpload(true)}
-              style={{ fontSize: 13 }}
+              href={`/workspaces/${id}`}
+              style={{ fontSize: 13, textDecoration: "none" }}
             >
-              <Upload size={14} /> New Upload
-            </button>
+              <Layers size={14} /> New Experiment
+            </Link>
           )}
         </div>
 
@@ -914,20 +655,22 @@ export default function ProjectDetail() {
               style={{
                 fontSize: 13,
                 color: "var(--text-tertiary)",
-                maxWidth: 380,
+                maxWidth: 420,
                 margin: "0 auto 20px",
                 lineHeight: 1.5,
               }}
             >
-              Upload your first XRD pattern to start your scientific workflow.
-              Each upload creates an experiment automatically.
+              Experiments are created inside each instrument workspace. Choose an
+              instrument, then create an experiment, upload data and run the
+              technique-specific analysis.
             </p>
-            <button
+            <Link
               className="button primary"
-              onClick={() => setShowUpload(true)}
+              href={`/workspaces/${id}`}
+              style={{ textDecoration: "none" }}
             >
-              <Upload size={15} /> Upload your first XRD pattern
-            </button>
+              <Layers size={15} /> Open the Workspace
+            </Link>
           </div>
         ) : (
           <div
@@ -1148,7 +891,7 @@ export default function ProjectDetail() {
               }}
             >
               <p style={{ fontSize: 13, color: "var(--text-muted)" }}>
-                No activity yet. Upload data to get started.
+                No activity yet. Run an experiment from the instrument workspace.
               </p>
             </div>
           ) : (
@@ -1260,80 +1003,6 @@ export default function ProjectDetail() {
           )}
         </div>
       </section>
-
-      {/* ── Upload Modal ────────────────────────────────── */}
-      {showUpload && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: "rgba(0, 0, 0, 0.6)",
-            backdropFilter: "blur(4px)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-            padding: 20,
-          }}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setShowUpload(false);
-          }}
-        >
-          <div
-            style={{
-              background: "var(--bg-primary)",
-              border: "1px solid var(--border-subtle)",
-              borderRadius: "var(--radius-xl)",
-              width: "100%",
-              maxWidth: 640,
-              maxHeight: "80vh",
-              overflow: "auto",
-              padding: 28,
-              boxShadow: "var(--shadow-xl)",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: 20,
-              }}
-            >
-              <div>
-                <h2
-                  style={{
-                    fontSize: 18,
-                    fontWeight: 700,
-                    color: "var(--text-primary)",
-                    marginBottom: 2,
-                  }}
-                >
-                  Upload XRD Data
-                </h2>
-                <p style={{ fontSize: 13, color: "var(--text-tertiary)" }}>
-                  Add diffraction data to {project.name}
-                </p>
-              </div>
-              <button
-                className="button"
-                onClick={() => setShowUpload(false)}
-                style={{ padding: 8, borderRadius: "var(--radius-md)" }}
-              >
-                <X size={16} />
-              </button>
-            </div>
-            <UploadZone
-              projectId={id}
-              onUploadComplete={handleUploadComplete}
-              onUploadData={handleUploadData}
-            />
-          </div>
-        </div>
-      )}
 
       {/* ── Responsive CSS ────────────────────────────── */}
       <style>{`

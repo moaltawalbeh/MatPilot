@@ -27,6 +27,7 @@ from backend.domain.interfaces.repository import (
     IUserRepository,
 )
 from backend.domain.interfaces.unit_of_work import IUnitOfWork
+from backend.infrastructure.database.connection import _normalize_database_url
 from backend.infrastructure.database.async_repositories import (
     AsyncActivityRepository,
     AsyncAnalysisJobRepository,
@@ -101,7 +102,13 @@ def build_async_uow(db_url: str) -> Tuple[object, AsyncUnitOfWork]:
     for disposal. Creating the engine/session does not connect to the
     database; the first query or ``create_all`` establishes the connection.
     """
-    engine = create_async_engine(db_url, poolclass=NullPool, echo=False)
+    clean_url, connect_args = _normalize_database_url(db_url)
+    engine = create_async_engine(
+        clean_url,
+        connect_args=connect_args,
+        poolclass=NullPool,
+        echo=False,
+    )
     session_factory = async_sessionmaker(
         bind=engine,
         class_=AsyncSession,

@@ -50,9 +50,9 @@ const sections: { title: string; items: NavItem[] }[] = [
     title: "CHARACTERIZATION",
     items: [
       { href: "/characterization", label: "All Modules", icon: Layers },
-      { href: "/characterization/raman", label: "Raman", icon: Waves, badge: "Soon" },
-      { href: "/characterization/ftir", label: "FTIR", icon: AudioLines, badge: "Soon" },
-      { href: "/characterization/uvvis", label: "UV-Vis", icon: Sun, badge: "Soon" },
+      { href: "/characterization/raman", label: "Raman", icon: Waves },
+      { href: "/characterization/ftir", label: "FTIR", icon: AudioLines },
+      { href: "/characterization/uvvis", label: "UV-Vis", icon: Sun },
       { href: "/characterization/sem", label: "SEM", icon: Microscope, badge: "Soon" },
       { href: "/characterization/eds", label: "EDS/EDX", icon: Atom, badge: "Soon" },
       { href: "/characterization/tem", label: "TEM", icon: ScanEye, badge: "Soon" },

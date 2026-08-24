@@ -244,6 +244,27 @@ export default function LoginPage() {
             Create one
           </Link>
         </div>
+
+        <div
+          style={{
+            marginTop: 12,
+            textAlign: "center",
+            fontSize: 13,
+            color: "var(--text-tertiary)",
+          }}
+        >
+          Didn&apos;t verify your email yet?{" "}
+          <Link
+            href="/verify"
+            style={{
+              color: "var(--accent-orange)",
+              fontWeight: 500,
+              textDecoration: "none",
+            }}
+          >
+            Verify now
+          </Link>
+        </div>
       </div>
     </div>
   );

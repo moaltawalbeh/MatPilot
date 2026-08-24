@@ -44,6 +44,11 @@ class Experiment:
     material: str = ""
     status: str = "Created"  # Created, Uploaded, Analyzed, Complete
 
+    # Characterization technique discriminator. Determines which instrument
+    # workspace the experiment lives in and which analysis engine applies.
+    # Values: "xrd", "ftir", "raman", "uvvis"
+    technique: str = "xrd"
+
     # File associations
     file_ids: List[str] = field(default_factory=list)
     primary_file_id: Optional[str] = None  # The main data file
@@ -70,6 +75,14 @@ class Experiment:
     # Raw pattern data (stored directly on entity for persistence)
     raw_two_theta: Optional[List[float]] = None
     raw_intensity: Optional[List[float]] = None
+
+    # Generic instrument raw axes (spectroscopy: wavenumber / Raman shift /
+    # wavelength in nm). XRD keeps the semantically-named pair above.
+    raw_x: Optional[List[float]] = None
+    raw_y: Optional[List[float]] = None
+
+    # Instrument-specific analysis result payload (FTIR/Raman/UV-Vis engines).
+    analysis_results: Optional[Dict[str, Any]] = None
 
     # Detected peaks (from peak detection stage)
     detected_peaks: List[Dict[str, Any]] = field(default_factory=list)

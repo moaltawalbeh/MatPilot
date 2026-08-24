@@ -4,8 +4,8 @@
 
 | Layer | Service | URL Pattern |
 |-------|---------|-------------|
-| Frontend | Vercel | `https://<project>.vercel.app` |
-| Backend | Render | `https://<service>.onrender.com` |
+| Frontend | Vercel | `https://matpilot.site` |
+| Backend | Render | `https://api.matpilot.site` |
 | Database | Neon PostgreSQL | `postgresql://...neon.tech/...` |
 
 ## Prerequisites
@@ -55,7 +55,7 @@ Set these in the Render dashboard under **Environment**:
 | Variable | Value | Required |
 |----------|-------|----------|
 | `MATPILOT_ENV` | `production` | Yes |
-| `MATPILOT_CORS_ORIGINS` | `https://your-app.vercel.app` | Yes |
+| `MATPILOT_CORS_ORIGINS` | `https://matpilot.site` | Yes |
 | `DATABASE_URL` | `postgresql://...neon.tech/...` | When DB is added |
 | `MATPILOT_STORAGE_PATH` | `/data/storage` | Optional |
 | `MATPILOT_CIF_CACHE_DIR` | `/data/cif_cache` | Optional |
@@ -65,7 +65,7 @@ Set these in the Render dashboard under **Environment**:
 
 Click **Create Web Service**. Render will build and deploy automatically.
 
-The backend URL will be something like: `https://matpilot-api.onrender.com`
+The backend URL will be `https://api.matpilot.site` (or your Render service URL).
 
 ---
 
@@ -91,13 +91,13 @@ Set these in the Vercel dashboard under **Settings → Environment Variables**:
 
 | Variable | Value | Required |
 |----------|-------|----------|
-| `NEXT_PUBLIC_API_URL` | `https://matpilot-api.onrender.com` | Yes |
+| `NEXT_PUBLIC_API_URL` | `https://api.matpilot.site` | Yes |
 
 ### Deploy
 
 Click **Deploy**. Vercel will build and deploy automatically.
 
-The frontend URL will be something like: `https://matpilot.vercel.app`
+The frontend URL will be `https://matpilot.site` (or your Vercel domain).
 
 ---
 
@@ -111,7 +111,7 @@ The frontend URL will be something like: `https://matpilot.vercel.app`
 - [ ] Rietveld refinement works
 - [ ] PDF report generation works
 - [ ] CORS is configured (no browser console CORS errors)
-- [ ] No localhost references in production network requests
+- [ ] No hardcoded local development URLs in production network requests
 
 ---
 
@@ -129,7 +129,7 @@ python -m backend.main
 uvicorn backend.main:app --reload --port 8000
 ```
 
-Backend runs at `http://localhost:8000`.
+The backend is reachable at `https://matpilot.site` in production. Locally, the server binds `0.0.0.0:8000`; point the frontend at it via `NEXT_PUBLIC_API_URL`.
 
 ### Frontend
 
@@ -139,7 +139,7 @@ npm install
 npm run dev
 ```
 
-Frontend runs at `http://localhost:3000`.
+The frontend is available at `https://matpilot.site` in production.
 
 ### Environment Variables
 
@@ -181,7 +181,7 @@ Copy `frontend/.env.example` to `frontend/.env.local` for frontend variables.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | Backend API URL |
+| `NEXT_PUBLIC_API_URL` | `https://matpilot.site` | Backend API URL |
 
 ---
 
@@ -201,9 +201,9 @@ Copy `frontend/.env.example` to `frontend/.env.local` for frontend variables.
 
 ### CORS errors in browser console
 
-- Set `MATPILOT_CORS_ORIGINS` on Render to your Vercel frontend URL.
-- Format: `https://your-app.vercel.app` (no trailing slash).
-- Multiple origins: `https://app.vercel.app,https://staging.vercel.app`.
+- Set `MATPILOT_CORS_ORIGINS` on Render to your frontend URL.
+- Format: `https://matpilot.site` (no trailing slash).
+- Multiple origins: `https://matpilot.site,https://staging.matpilot.site`.
 
 ### PDF generation fails
 

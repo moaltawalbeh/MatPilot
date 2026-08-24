@@ -3,7 +3,7 @@
 from typing import List, Optional
 from uuid import UUID
 
-from backend.domain.entities.project import Project
+from backend.domain.entities.project import ANONYMOUS_OWNER_ID, Project
 from backend.domain.exceptions.domain_exceptions import EntityNotFoundError, ValidationError
 
 
@@ -11,7 +11,7 @@ class ProjectUseCase:
     def __init__(self, uow):
         self._uow = uow
 
-    async def list_projects(self, owner_id: str = "default") -> List[dict]:
+    async def list_projects(self, owner_id: str = ANONYMOUS_OWNER_ID) -> List[dict]:
         async with self._uow:
             projects = await self._uow.projects.get_by_owner(owner_id)
             return [self._to_dict(p) for p in projects]

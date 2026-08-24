@@ -1,82 +1,25 @@
 """Global Search Router.
 
 Provides cross-module search across samples, measurements, structures,
-experiments, projects, and collections.
+experiments, projects, and collections. Reads from the same stores the
+individual routers use, so results always match what the UI displays.
 """
 
-import re
 from datetime import datetime, timezone
 from typing import Optional, List
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
+
+from backend.api.dependencies import get_container
+from backend.api.routers.samples import _samples
+from backend.api.routers.measurements import _measurements
+from backend.api.routers.structures import _structures
+from backend.api.routers.collections import _collections
 
 router = APIRouter(prefix="/search", tags=["Search"])
 
-_search_data = {
-    "samples": [],
-    "measurements": [],
-    "structures": [],
-    "experiments": [],
-    "projects": [],
-    "collections": [],
-}
-
-_seed_done = False
-
-
-def _seed_demo_data():
-    global _seed_done
-    if _seed_done:
-        return
-    _seed_done = True
-
-    now = datetime.now(timezone.utc).isoformat()
-
-    _search_data["samples"] = [
-        {"id": "s1", "type": "sample", "name": "BaTiO3 Ceramic", "formula": "BaTiO3", "description": "Barium titanate ceramic pellet for piezoelectric testing", "tags": ["ceramic", "piezoelectric"], "status": "Active", "created_at": now},
-        {"id": "s2", "type": "sample", "name": "Si wafer", "formula": "Si", "description": "Single crystal silicon wafer reference standard", "tags": ["reference", "silicon"], "status": "Active", "created_at": now},
-        {"id": "s3", "type": "sample", "name": "Fe2O3 Nanopowder", "formula": "Fe2O3", "description": "Hematite nanopowder for magnetic characterization", "tags": ["nanopowder", "magnetic"], "status": "Active", "created_at": now},
-    ]
-
-    _search_data["measurements"] = [
-        {"id": "m1", "type": "measurement", "name": "XRD Scan — BaTiO3", "formula": "", "description": "Room temperature XRD pattern collected at Cu K-alpha radiation", "tags": ["xrd", "room-temp"], "status": "Completed", "created_at": now},
-        {"id": "m2", "type": "measurement", "name": "XRD Scan — Fe2O3", "formula": "", "description": "High-temperature XRD scan of hematite nanopowder", "tags": ["xrd", "high-temp"], "status": "Completed", "created_at": now},
-    ]
-
-    _search_data["structures"] = [
-        {"id": "st1", "type": "structure", "name": "Quartz (SiO2)", "formula": "SiO2", "description": "Alpha-quartz structure from COD database", "tags": ["quartz", "reference"], "space_group": "P3121", "status": "Active", "created_at": now},
-        {"id": "st2", "type": "structure", "name": "Corundum (Al2O3)", "formula": "Al2O3", "description": "Alpha-alumina corundum structure", "tags": ["corundum", "reference"], "space_group": "R-3c", "status": "Active", "created_at": now},
-        {"id": "st3", "type": "structure", "name": "Perovskite (CaTiO3)", "formula": "CaTiO3", "description": "Cubic perovskite crystal structure", "tags": ["perovskite"], "space_group": "Pm-3m", "status": "Active", "created_at": now},
-    ]
-
-    _search_data["experiments"] = [
-        {"id": "e1", "type": "experiment", "name": "Phase ID — BaTiO3 Batch", "formula": "", "description": "Automated phase identification for BaTiO3 ceramic batch", "tags": ["phase-id", "batch"], "status": "Analyzed", "created_at": now},
-    ]
-
-    _search_data["projects"] = [
-        {"id": "p1", "type": "project", "name": "Piezoelectric Research", "formula": "", "description": "Research project studying piezoelectric ceramics for sensor applications", "tags": ["piezoelectric", "sensors"], "status": "Active", "created_at": now},
-        {"id": "p2", "type": "project", "name": "Battery Materials", "formula": "", "description": "Characterization of lithium-ion battery cathode materials", "tags": ["battery", "energy"], "status": "Active", "created_at": now},
-    ]
-
-    _search_data["collections"] = [
-        {"id": "c1", "type": "collection", "name": "Reference Standards", "formula": "", "description": "Collection of certified reference material samples for calibration", "tags": ["reference", "calibration"], "status": "Active", "created_at": now},
-        {"id": "c2", "type": "collection", "name": "Perovskite Library", "formula": "", "description": "Curated set of perovskite-structure samples", "tags": ["perovskite", "library"], "status": "Active", "created_at": now},
-    ]
-
-
-def _match_item(item: dict, query: str) -> bool:
-    q = query.lower()
-    searchable = [
-        item.get("name", ""),
-        item.get("formula", ""),
-        item.get("description", ""),
-        item.get("space_group", "") or "",
-        " ".join(item.get("tags", [])),
-    ]
-    return any(q in field.lower() for field in searchable)
-
-
+# singular type -> plural store key
 _TYPE_MAP = {
     "sample": "samples",
     "measurement": "measurements",
@@ -85,6 +28,83 @@ _TYPE_MAP = {
     "project": "projects",
     "collection": "collections",
 }
+
+_STORE_TYPE = {
+    "samples": "sample",
+    "measurements": "measurement",
+    "structures": "structure",
+    "experiments": "experiment",
+    "projects": "project",
+    "collections": "collection",
+}
+
+
+def _field(item, name, default=""):
+    if isinstance(item, dict):
+        value = item.get(name, default)
+    else:
+        value = getattr(item, name, default)
+    return value if value is not None else default
+
+
+def _normalize(item, etype: str) -> dict:
+    tags = _field(item, "tags", [])
+    if not isinstance(tags, (list, tuple)):
+        tags = []
+    created = _field(item, "created_at", None)
+    if created is None:
+        created = datetime.now(timezone.utc)
+    if isinstance(created, datetime):
+        created = created.isoformat()
+    return {
+        "id": str(_field(item, "id", "")),
+        "type": etype,
+        "name": _field(item, "name", ""),
+        "formula": _field(item, "formula", ""),
+        "description": _field(item, "description", ""),
+        "material": _field(item, "material", ""),
+        "tags": list(tags),
+        "space_group": _field(item, "space_group", "") or "",
+        "status": str(_field(item, "status", "")),
+        "created_at": created,
+    }
+
+
+async def _load_items(container, key: str) -> List[dict]:
+    etype = _STORE_TYPE[key]
+
+    if key == "projects":
+        try:
+            return [_normalize(e, etype) for e in await container.uow.projects.get_all()]
+        except Exception:
+            return []
+    if key == "experiments":
+        try:
+            return [_normalize(e, etype) for e in await container.uow.experiments.get_all()]
+        except Exception:
+            return []
+
+    module_stores = {
+        "samples": _samples,
+        "measurements": _measurements,
+        "structures": _structures,
+        "collections": _collections,
+    }
+    store = module_stores.get(key, {})
+    return [_normalize(v, etype) for v in store.values()]
+
+
+def _match_item(item: dict, query: str) -> bool:
+    q = query.lower()
+    searchable = [
+        item.get("name", ""),
+        item.get("formula", ""),
+        item.get("material", ""),
+        item.get("description", ""),
+        item.get("space_group", "") or "",
+        " ".join(item.get("tags", [])),
+    ]
+    return any(q in field.lower() for field in searchable)
 
 
 class SearchResponse(BaseModel):
@@ -109,32 +129,20 @@ async def global_search(
     type: Optional[str] = Query(None, description="Filter by entity type"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
+    container=Depends(get_container),
 ):
-    _seed_demo_data()
-
-    stores_to_search = _search_data
+    keys: List[str] = list(_TYPE_MAP.values())
     if type and type.lower() in _TYPE_MAP:
-        stores_to_search = {type.lower(): _search_data.get(type.lower(), [])}
+        keys = [_TYPE_MAP[type.lower()]]
 
-    if not q.strip():
-        all_items = []
-        for store in stores_to_search.values():
-            all_items.extend(store)
-        total = len(all_items)
-        start = (page - 1) * page_size
-        return SearchResponse(
-            items=all_items[start : start + page_size],
-            total=total,
-            query=q,
-            page=page,
-            page_size=page_size,
-        )
+    all_items: List[dict] = []
+    for key in keys:
+        all_items.extend(await _load_items(container, key))
 
-    matched: List[dict] = []
-    for store in stores_to_search.values():
-        for item in store:
-            if _match_item(item, q):
-                matched.append(item)
+    if q.strip():
+        matched = [i for i in all_items if _match_item(i, q)]
+    else:
+        matched = all_items
 
     total = len(matched)
     start = (page - 1) * page_size
@@ -148,17 +156,20 @@ async def global_search(
 
 
 @router.get("/recent", response_model=List[SearchRecentItem])
-async def recent_items():
-    _seed_demo_data()
+async def recent_items(container=Depends(get_container)):
+    all_items: List[dict] = []
+    for key in _TYPE_MAP.values():
+        all_items.extend(await _load_items(container, key))
 
-    recent = []
-    for store in _search_data.values():
-        for item in store[-3:]:
-            recent.append(SearchRecentItem(
-                id=item["id"],
-                type=item["type"],
-                name=item["name"],
-                description=item.get("description", ""),
-                updated_at=item.get("created_at", ""),
-            ))
-    return recent[:10]
+    all_items.sort(key=lambda i: i.get("created_at", ""), reverse=True)
+
+    return [
+        SearchRecentItem(
+            id=item["id"],
+            type=item["type"],
+            name=item["name"],
+            description=item.get("description", ""),
+            updated_at=item.get("created_at", ""),
+        )
+        for item in all_items[:10]
+    ]

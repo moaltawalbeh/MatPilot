@@ -49,6 +49,7 @@ class ExperimentResponse(BaseModel):
     description: str
     material: str
     status: str
+    technique: str
     file_ids: List[str]
     primary_file_id: Optional[str]
     has_pattern_data: bool
@@ -189,6 +190,7 @@ async def list_project_experiments(project_id: str, container=Depends(get_contai
             description=e.description,
             material=e.material,
             status=e.status,
+            technique=e.technique,
             file_ids=[str(fid) for fid in e.file_ids],
             primary_file_id=e.primary_file_id,
             has_pattern_data=e.has_pattern_data,

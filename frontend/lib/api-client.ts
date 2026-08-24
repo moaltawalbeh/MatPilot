@@ -29,6 +29,23 @@ import type {
   SearchResult,
   RefinementParameter,
   ManualRefinementSession,
+  SpectrumDetail,
+  SpectrumListItem,
+  SpectrumUploadResponse,
+  SpectrumListResponse,
+  SpectrumAnalysisResult,
+  SpectroscopySummary,
+  CharacterizationDashboard,
+  SpectrumHistoryEntry,
+  SpectroscopyTechnique,
+  InstrumentTechnique,
+  InstrumentSummary,
+  WorkspaceExperiment,
+  WorkspaceExperimentDetail,
+  SpectralReferenceResult,
+  SpectralReferenceMatch,
+  SpectralProviderStatus,
+  WorkspaceReport,
 } from "@/types";
 
 function resolveApiUrl(): string {
@@ -38,11 +55,11 @@ function resolveApiUrl(): string {
   if (typeof window !== "undefined" && process.env.NODE_ENV === "production") {
     throw new Error(
       "[MatPilot] NEXT_PUBLIC_API_URL is not set. " +
-      "Configure it in your Vercel project settings to point to your backend (e.g. https://matpilot-1.onrender.com)."
+      "Configure it in your Vercel project settings to point to your backend (e.g. https://matpilot.site)."
     );
   }
 
-  return "http://localhost:8000";
+  return "https://matpilot.site";
 }
 
 export const API_URL = resolveApiUrl();
@@ -486,12 +503,7 @@ export const apiService = {
 
   // ── Auth ─────────────────────────────────────────────────────────
   register: (data: { username: string; email: string; password: string; full_name?: string }) =>
-    apiFetch<{
-      user: AuthUser;
-      access_token: string;
-      refresh_token: string;
-      verification_token?: string;
-    }>("/auth/register", {
+    apiFetch<{ message: string; email: string }>("/auth/register", {
       method: "POST",
       body: JSON.stringify(data),
     }),
@@ -518,14 +530,20 @@ export const apiService = {
       body: JSON.stringify({ token }),
     }),
 
+  verifyEmailCode: (email: string, code: string) =>
+    apiFetch<{ message: string }>("/auth/verify-code", {
+      method: "POST",
+      body: JSON.stringify({ email, code }),
+    }),
+
   resendVerification: (email: string) =>
-    apiFetch<{ message: string; verification_token?: string }>("/auth/resend-verification", {
+    apiFetch<{ message: string }>("/auth/resend-verification", {
       method: "POST",
       body: JSON.stringify({ email }),
     }),
 
   forgotPassword: (email: string) =>
-    apiFetch<{ message: string; reset_token?: string }>("/auth/forgot-password", {
+    apiFetch<{ message: string }>("/auth/forgot-password", {
       method: "POST",
       body: JSON.stringify({ email }),
     }),
@@ -612,4 +630,184 @@ export const apiService = {
     const filename = match?.[1] || `report.${format}`;
     return { blob, filename };
   },
+
+  // ── Spectroscopy (FTIR / Raman / UV-Vis) ──────────────────────────
+
+  spectroscopySummary: () =>
+    apiFetch<SpectroscopySummary>("/spectroscopy/summary"),
+
+  characterizationDashboard: () =>
+    apiFetch<CharacterizationDashboard>("/dashboard/characterization"),
+
+  listSpectra: (technique: SpectroscopyTechnique, params?: { sample_id?: string; limit?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.sample_id) qs.set("sample_id", params.sample_id);
+    if (params?.limit) qs.set("limit", String(params.limit));
+    const q = qs.toString();
+    return apiFetch<SpectrumListResponse>(`/spectroscopy/${technique}${q ? `?${q}` : ""}`);
+  },
+
+  getSpectrum: (technique: SpectroscopyTechnique, id: string) =>
+    apiFetch<SpectrumDetail>(`/spectroscopy/${technique}/${id}`),
+
+  uploadSpectrum: (
+    technique: SpectroscopyTechnique,
+    file: File,
+    extra?: { sample_id?: string; name?: string; description?: string },
+  ) => {
+    const form = new FormData();
+    form.append("file", file);
+    if (extra?.sample_id) form.append("sample_id", extra.sample_id);
+    if (extra?.name) form.append("name", extra.name);
+    if (extra?.description) form.append("description", extra.description);
+    return apiFetch<SpectrumUploadResponse>(`/spectroscopy/${technique}/upload`, {
+      method: "POST",
+      body: form,
+    });
+  },
+
+  analyzeSpectrum: (technique: SpectroscopyTechnique, id: string, data: { window?: number; baseline_order?: number; prominence?: number }) =>
+    apiFetch<{ spectrum_id: string; success: boolean; message: string; results: SpectrumAnalysisResult; history: SpectrumHistoryEntry[] }>(
+      `/spectroscopy/${technique}/${id}/analyze`,
+      { method: "POST", body: JSON.stringify(data) },
+    ),
+
+  deleteSpectrum: (technique: SpectroscopyTechnique, id: string) =>
+    apiFetch<{ success: boolean; message: string }>(`/spectroscopy/${technique}/${id}`, {
+      method: "DELETE",
+    }),
+
+  spectraBySample: (sampleId: string) =>
+    apiFetch<{ sample_id: string; spectra: SpectrumListItem[]; total: number }>(
+      `/spectroscopy/by-sample/${sampleId}`,
+      { method: "POST" },
+    ),
+
+  downloadSpectrumReport: async (
+    technique: SpectroscopyTechnique,
+    id: string,
+    format: "txt" | "csv" | "json" = "txt",
+  ): Promise<{ blob: Blob; filename: string }> => {
+    const detail = await apiFetch<SpectrumDetail>(`/spectroscopy/${technique}/${id}`);
+    const header = `x,processed_y,is_peak\n`;
+    const rows = detail.x.map((xv, i) => {
+      const isPeak = (detail.peaks ?? []).some((p) => Math.abs(p.position - xv) < 1e-6);
+      return `${xv},${detail.y[i] ?? ""},${detail.processed_y?.[i] ?? ""},${isPeak ? 1 : 0}`;
+    });
+    const dataTable = rows.join("\n");
+    if (format === "csv") {
+      const blob = new Blob([header + dataTable], { type: "text/csv;charset=utf-8" });
+      return { blob, filename: `${technique}-${id}-data.csv` };
+    }
+    if (format === "json") {
+      const blob = new Blob([JSON.stringify(detail, null, 2)], { type: "application/json;charset=utf-8" });
+      return { blob, filename: `${technique}-${id}-data.json` };
+    }
+    const text = `${technique} spectrum ${id} (${detail.filename})\n` +
+      `Points: ${detail.data_points}  Range: ${detail.x_range?.[0] ?? ""} – ${detail.x_range?.[1] ?? ""}\n\n` +
+      header + dataTable;
+    const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+    return { blob, filename: `${technique}-${id}-data.txt` };
+  },
+
+  // ── Instrument Workspace (technique-scoped experiments) ─────────────
+
+  listInstruments: (projectId: string) =>
+    apiFetch<InstrumentSummary[]>(`/projects/${projectId}/instruments`),
+
+  createInstrumentExperiment: (
+    projectId: string,
+    technique: InstrumentTechnique,
+    data: {
+      name: string;
+      description?: string;
+      material?: string;
+      x?: number[];
+      y?: number[];
+      parameters?: Record<string, unknown>;
+      run_analysis?: boolean;
+    },
+  ) =>
+    apiFetch<WorkspaceExperimentDetail>(
+      `/projects/${projectId}/instruments/${technique}/experiments`,
+      { method: "POST", body: JSON.stringify(data) },
+    ),
+
+  listInstrumentExperiments: (projectId: string, technique: InstrumentTechnique) =>
+    apiFetch<WorkspaceExperiment[]>(
+      `/projects/${projectId}/instruments/${technique}/experiments`,
+    ),
+
+  getInstrumentExperiment: (projectId: string, technique: InstrumentTechnique, experimentId: string) =>
+    apiFetch<WorkspaceExperimentDetail>(
+      `/projects/${projectId}/instruments/${technique}/experiments/${experimentId}`,
+    ),
+
+  deleteInstrumentExperiment: (projectId: string, technique: InstrumentTechnique, experimentId: string) =>
+    apiFetch<{ success: boolean; message: string }>(
+      `/projects/${projectId}/instruments/${technique}/experiments/${experimentId}`,
+      { method: "DELETE" },
+    ),
+
+  analyzeInstrumentExperiment: (
+    projectId: string,
+    technique: InstrumentTechnique,
+    experimentId: string,
+    data: { parameters?: Record<string, unknown>; x?: number[]; y?: number[] } = {},
+  ) =>
+    apiFetch<{
+      experiment_id: string;
+      technique: string;
+      success: boolean;
+      message: string;
+      results: Record<string, unknown> | null;
+    }>(
+      `/projects/${projectId}/instruments/${technique}/experiments/${experimentId}/analyze`,
+      { method: "POST", body: JSON.stringify(data) },
+    ),
+
+  instrumentReferenceProviders: (projectId: string, technique: InstrumentTechnique) =>
+    apiFetch<{ technique: string; providers: SpectralProviderStatus[] }>(
+      `/projects/${projectId}/instruments/${technique}/reference/providers`,
+    ),
+
+  instrumentReferenceSearch: (projectId: string, technique: InstrumentTechnique, query: string, limit?: number) =>
+    apiFetch<{ query: string; technique: string; results: SpectralReferenceResult[] }>(
+      `/projects/${projectId}/instruments/${technique}/reference/search?query=${encodeURIComponent(query)}${limit ? `&limit=${limit}` : ""}`,
+    ),
+
+  instrumentReferenceMatch: (
+    projectId: string,
+    technique: InstrumentTechnique,
+    data: { experiment_id?: string; x?: number[]; y?: number[]; limit?: number },
+  ) =>
+    apiFetch<{ technique: string; matches: SpectralReferenceMatch[] }>(
+      `/projects/${projectId}/instruments/${technique}/reference/match`,
+      { method: "POST", body: JSON.stringify(data) },
+    ),
+
+  workspaceReport: (projectId: string) =>
+    apiFetch<WorkspaceReport>(`/projects/${projectId}/instruments/report`),
+
+  workspaceReportAiSummary: (projectId: string) =>
+    apiFetch<{ project_id: string; ai_summary: string; model: string }>(
+      `/projects/${projectId}/instruments/report/ai-summary`,
+      { method: "POST" },
+    ),
+
+  interpretInstrumentExperiment: (
+    projectId: string,
+    technique: InstrumentTechnique,
+    experimentId: string,
+    question?: string,
+  ) =>
+    apiFetch<{
+      experiment_id: string;
+      technique: string;
+      interpretation: string;
+      model: string;
+    }>(
+      `/projects/${projectId}/instruments/${technique}/experiments/${experimentId}/interpret`,
+      { method: "POST", body: JSON.stringify({ question: question ?? undefined }) },
+    ),
 };

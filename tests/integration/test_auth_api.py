@@ -12,11 +12,16 @@ from backend.infrastructure.database.sql_uow import InMemoryUnitOfWork
 from backend.services.auth_service import AuthService
 
 
-@pytest.fixture
-def client(app):
-    uow = InMemoryUnitOfWork()
-    from backend.services.email_service import EmailService
+from backend.services.email_service import EmailService
 
+
+@pytest.fixture
+def uow():
+    return InMemoryUnitOfWork()
+
+
+@pytest.fixture
+def client(app, uow):
     def _override():
         email_service = EmailService()
         app.state.container.email_service = email_service
@@ -32,35 +37,57 @@ def _auth_headers(token: str) -> dict:
     return {"Authorization": f"Bearer {token}"}
 
 
-def test_register_verify_me_flow(client):
+async def test_register_verify_me_flow(client, uow):
     resp = client.post(
         "/auth/register",
         json={"username": "carol", "email": "carol@example.com", "password": "secret123"},
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert data["user"]["username"] == "carol"
-    assert data["user"]["is_verified"] is False
-    assert data["verification_token"]
+    assert data["email"] == "carol@example.com"
+    assert data["message"]
 
-    headers = _auth_headers(data["access_token"])
-    me = client.get("/auth/me", headers=headers)
-    assert me.status_code == 200
-    assert me.json()["email"] == "carol@example.com"
+    # Login is blocked until the email is verified.
+    assert (
+        client.post(
+            "/auth/login", json={"username_or_email": "carol", "password": "secret123"}
+        ).status_code
+        == 401
+    )
 
-    verify = client.post("/auth/verify-email", json={"token": data["verification_token"]})
+    user = await uow.users.get_by_email("carol@example.com")
+    assert user is not None
+    assert user.email_verification_token
+
+    verify = client.post("/auth/verify-email", json={"token": user.email_verification_token})
     assert verify.status_code == 200
 
-    me = client.get("/auth/me", headers=headers)
+    login = client.post(
+        "/auth/login", json={"username_or_email": "carol", "password": "secret123"}
+    )
+    assert login.status_code == 200
+    data = login.json()
+    assert data["user"]["username"] == "carol"
+    assert data["user"]["is_verified"] is True
+    assert data["access_token"]
+
+    me = client.get("/auth/me", headers=_auth_headers(data["access_token"]))
+    assert me.status_code == 200
+    assert me.json()["email"] == "carol@example.com"
     assert me.json()["is_verified"] is True
 
 
-def test_login_logout_revokes_token(client):
+async def test_login_logout_revokes_token(client, uow):
     client.post(
         "/auth/register",
         json={"username": "dave", "email": "dave@example.com", "password": "secret123"},
     )
-    login = client.post("/auth/login", json={"username_or_email": "dave", "password": "secret123"})
+    user = await uow.users.get_by_email("dave@example.com")
+    client.post("/auth/verify-email", json={"token": user.email_verification_token})
+
+    login = client.post(
+        "/auth/login", json={"username_or_email": "dave", "password": "secret123"}
+    )
     assert login.status_code == 200
     token = login.json()["access_token"]
 
@@ -72,12 +99,18 @@ def test_login_logout_revokes_token(client):
     assert client.get("/auth/me", headers=_auth_headers(token)).status_code == 401
 
 
-def test_change_password_invalidates_old_token(client):
+async def test_change_password_invalidates_old_token(client, uow):
     client.post(
         "/auth/register",
         json={"username": "erin", "email": "erin@example.com", "password": "old-pass"},
     )
-    login = client.post("/auth/login", json={"username_or_email": "erin", "password": "old-pass"})
+    user = await uow.users.get_by_email("erin@example.com")
+    client.post("/auth/verify-email", json={"token": user.email_verification_token})
+
+    login = client.post(
+        "/auth/login", json={"username_or_email": "erin", "password": "old-pass"}
+    )
+    assert login.status_code == 200
     token = login.json()["access_token"]
     headers = _auth_headers(token)
 
@@ -93,7 +126,10 @@ def test_change_password_invalidates_old_token(client):
     assert client.get("/auth/me", headers=headers).status_code == 401
 
     # Wrong old password rejected.
-    new_login = client.post("/auth/login", json={"username_or_email": "erin", "password": "new-pass"})
+    new_login = client.post(
+        "/auth/login", json={"username_or_email": "erin", "password": "new-pass"}
+    )
+    assert new_login.status_code == 200
     wrong = client.post(
         "/auth/change-password",
         json={"old_password": "nope", "new_password": "x-pass"},
@@ -102,20 +138,26 @@ def test_change_password_invalidates_old_token(client):
     assert wrong.status_code == 400
 
 
-def test_forgot_and_reset_password_flow(client):
+async def test_forgot_and_reset_password_flow(client, uow):
     client.post(
         "/auth/register",
         json={"username": "frank", "email": "frank@example.com", "password": "orig-pass"},
     )
+    user = await uow.users.get_by_email("frank@example.com")
+    client.post("/auth/verify-email", json={"token": user.email_verification_token})
 
     forgot = client.post("/auth/forgot-password", json={"email": "frank@example.com"})
     assert forgot.status_code == 200
-    reset_token = forgot.json()["reset_token"]
+    assert "message" in forgot.json()
+    assert "reset_token" not in forgot.json()
+
+    user = await uow.users.get_by_email("frank@example.com")
+    assert user.password_reset_token
 
     # Old password stops working after reset.
     reset = client.post(
         "/auth/reset-password",
-        json={"token": reset_token, "new_password": "reset-pass"},
+        json={"token": user.password_reset_token, "new_password": "reset-pass"},
     )
     assert reset.status_code == 200
 

@@ -13,7 +13,7 @@ from backend.api.routers import (
     projects, experiments, samples, measurements, structures, collections,
     downloads, notifications, search_configs, activities, dashboard, admin,
     teams, organizations, search, manual_refinement, auth, chat, legal, billing,
-    ftir, raman, uv_vis,
+    ftir, raman, uv_vis, spectroscopy, instruments,
 )
 from backend.api.middleware.error_handler import register_exception_handlers
 from backend.api.routers.instruments import xrd as v2_xrd, ftir as v2_ftir, raman as v2_raman, uvvis as v2_uvvis
@@ -113,8 +113,9 @@ def create_app() -> FastAPI:
     app.include_router(ftir.router)
     app.include_router(raman.router)
     app.include_router(uv_vis.router)
-    # V2 hub-and-spoke instrument APIs.  These are separate from the legacy
-    # convenience endpoints above and retain instrument-specific entities.
+    app.include_router(spectroscopy.router)
+    app.include_router(instruments.router)
+    # V2 hub-and-spoke instrument APIs.
     app.include_router(v2_xrd.router)
     app.include_router(v2_ftir.router)
     app.include_router(v2_raman.router)

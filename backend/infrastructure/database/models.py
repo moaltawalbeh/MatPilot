@@ -22,7 +22,10 @@ class UserModel(Base):
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     is_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     email_verification_token: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    email_verification_code: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    email_verification_expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     password_reset_token: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    password_reset_expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     token_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     role: Mapped[str] = mapped_column(String(50), nullable=False, default="RESEARCHER")
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="ACTIVE")
@@ -119,7 +122,25 @@ class InstrumentExperimentModel(Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     material: Mapped[str | None] = mapped_column(String(255), nullable=True)
     status: Mapped[str | None] = mapped_column(String(50), nullable=True, default="Created")
-    
+    technique: Mapped[str | None] = mapped_column(String(50), nullable=True, default="xrd")
+    uploaded_filename: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    wavelength: Mapped[float | None] = mapped_column(Float, nullable=True)
+    radiation: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    data_points: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
+    two_theta_range: Mapped[dict | list | None] = mapped_column(JSON, nullable=True)
+    file_ids: Mapped[dict | list | None] = mapped_column(JSON, nullable=True, default=list)
+    primary_file_id: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    has_pattern_data: Mapped[bool | None] = mapped_column(Boolean, nullable=True, default=False)
+    has_crystal_structure: Mapped[bool | None] = mapped_column(Boolean, nullable=True, default=False)
+    job_ids: Mapped[dict | list | None] = mapped_column(JSON, nullable=True, default=list)
+    has_results: Mapped[bool | None] = mapped_column(Boolean, nullable=True, default=False)
+    raw_two_theta: Mapped[dict | list | None] = mapped_column(JSON, nullable=True)
+    raw_intensity: Mapped[dict | list | None] = mapped_column(JSON, nullable=True)
+    raw_x: Mapped[dict | list | None] = mapped_column(JSON, nullable=True)
+    raw_y: Mapped[dict | list | None] = mapped_column(JSON, nullable=True)
+    analysis_results: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    processed_pattern: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
     # Generic execution history
     pipeline_stages: Mapped[dict | list | None] = mapped_column(JSON, nullable=True, default=list)
     analysis_history: Mapped[dict | list | None] = mapped_column(JSON, nullable=True, default=list)
@@ -138,13 +159,9 @@ class XRDExperimentModel(InstrumentExperimentModel):
 
     id: Mapped[uuid.UUID] = mapped_column(ForeignKey("instrument_experiments.id"), primary_key=True)
     
-    raw_two_theta: Mapped[dict | list | None] = mapped_column(JSON, nullable=True)
-    raw_intensity: Mapped[dict | list | None] = mapped_column(JSON, nullable=True)
     processed_intensity: Mapped[dict | list | None] = mapped_column(JSON, nullable=True)
-    
     radiation_type: Mapped[str | None] = mapped_column(String(50), nullable=True, default="Cu")
     wavelength_angstrom: Mapped[float | None] = mapped_column(Float, nullable=True)
-    
     detected_peaks: Mapped[dict | list | None] = mapped_column(JSON, nullable=True, default=list)
     candidate_phases: Mapped[dict | list | None] = mapped_column(JSON, nullable=True, default=list)
     cif_files: Mapped[dict | list | None] = mapped_column(JSON, nullable=True, default=list)

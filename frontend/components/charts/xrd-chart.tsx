@@ -1,6 +1,7 @@
 "use client";
 import { useState, useRef, useCallback, useMemo, useEffect, useId } from "react";
-import { FileBarChart, RotateCcw, ZoomIn, Download, Maximize2 } from "lucide-react";
+import { FileBarChart, RotateCcw, ZoomIn, Download, Maximize2, MapPin } from "lucide-react";
+import { PeakListPanel, toggleInSet, useChartAnnotations, type PeakListItem } from "@/components/charts/chart-interactions";
 
 type DataPoint = {
   angle: number;
@@ -139,6 +140,14 @@ function exportSvg(svgEl: SVGSVGElement, fmt: "png" | "svg") {
   img.src = URL.createObjectURL(new Blob([data], { type: "image/svg+xml;charset=utf-8" }));
 }
 
+function thPeakId(tp: TheoreticalPeak, i: number): string {
+  return `th-${tp.two_theta.toFixed(3)}-${(tp.hkl || tp.phaseName || i)}`.replace(/\s+/g, "_");
+}
+
+function pkPeakId(p: Peak): string {
+  return `pk-${p.two_theta.toFixed(3)}`;
+}
+
 export function XrdChart({
   data,
   peaks,
@@ -167,6 +176,9 @@ export function XrdChart({
   const [box, setBox] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
   const [mousePos, setMousePos] = useState<{ sx: number; sy: number } | null>(null);
   const [isPanning, setIsPanning] = useState(false);
+  const [selectedPeaks, setSelectedPeaks] = useState<Set<string>>(new Set());
+  const [hoveredPeakId, setHoveredPeakId] = useState<string | null>(null);
+  const { annotations, annotateMode, setAnnotateMode, addAnnotation, removeAnnotation } = useChartAnnotations();
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -234,6 +246,27 @@ export function XrdChart({
     return r;
   }, [data, sx, sy]);
 
+  const peakItems = useMemo<PeakListItem[]>(() => {
+    if (theoreticalPeaks && theoreticalPeaks.length > 0) {
+      return theoreticalPeaks.map((tp, i) => ({
+        id: thPeakId(tp, i),
+        label: tp.two_theta.toFixed(2),
+        sublabel: tp.hkl || tp.phaseName || undefined,
+        color: tp.color || C.theoretical,
+      }));
+    }
+    return (peaks ?? []).map((p) => ({
+      id: pkPeakId(p),
+      label: p.two_theta.toFixed(2),
+      sublabel: `I ${p.intensity.toFixed(0)}`,
+      color: C.peak,
+    }));
+  }, [theoreticalPeaks, peaks]);
+
+  const togglePeak = useCallback((id: string, multi: boolean) => {
+    setSelectedPeaks((prev) => toggleInSet(prev, id, multi));
+  }, []);
+
   const svgToClient = useCallback(
     (e: React.MouseEvent | React.TouchEvent): { cx: number; cy: number } => {
       const rect = svgRef.current?.getBoundingClientRect();
@@ -265,6 +298,11 @@ export function XrdChart({
       if (!data || data.length === 0) return;
       const raw = svgToClient(e);
       const { cx, cy } = clampXY(raw.cx, raw.cy);
+      if (annotateMode) {
+        e.preventDefault();
+        addAnnotation(invX(cx), invY(cy), `2θ = ${invX(cx).toFixed(2)}°`);
+        return;
+      }
       const isBox = e.shiftKey;
       if (isBox) {
         e.preventDefault();
@@ -276,7 +314,7 @@ export function XrdChart({
         setIsPanning(true);
       }
     },
-    [data, domain, svgToClient, clampXY],
+    [data, domain, annotateMode, svgToClient, clampXY, invX, invY, addAnnotation],
   );
 
   const handleMouseMove = useCallback(
@@ -478,6 +516,16 @@ export function XrdChart({
     if (minDist > 2) nearestPeak = null;
   }
 
+  let nearestObs: Peak | null = null;
+  if (hasCursor && peaks && peaks.length > 0) {
+    let minDist = Infinity;
+    for (const p of peaks) {
+      const dist = Math.abs(p.two_theta - cursorDataX);
+      if (dist < minDist) { minDist = dist; nearestObs = p; }
+    }
+    if (minDist > Math.max(0.5, (domain.x1 - domain.x0) * 0.008)) nearestObs = null;
+  }
+
   const selRect = box
     ? {
         x: Math.min(box.x1, box.x2),
@@ -503,6 +551,15 @@ export function XrdChart({
               {domain.x0.toFixed(1)}°–{domain.x1.toFixed(1)}°
             </span>
           )}
+          <PeakListPanel items={peakItems} hoveredId={hoveredPeakId} onHover={setHoveredPeakId} selectedIds={selectedPeaks} onToggle={togglePeak} countLabel="Peaks" />
+          <button
+            onClick={() => setAnnotateMode((m) => !m)}
+            className="button ghost sm"
+            title="Toggle annotation mode — click the chart to place a marker (right-click a marker to remove)"
+            style={{ height: 24, padding: "0 5px", background: annotateMode ? "var(--surface-2, #f3f4f6)" : undefined, color: annotateMode ? "var(--accent-orange, #f97316)" : undefined }}
+          >
+            <MapPin size={12} />
+          </button>
           <button
             onClick={handleReset}
             className="button ghost sm"
@@ -569,18 +626,51 @@ export function XrdChart({
           </g>
 
           <g clipPath={`url(#${clipRef})`}>
-            {peaks?.map((p, i) => (
-              <line key={`pk${i}`} x1={sx(p.two_theta)} y1={M.top} x2={sx(p.two_theta)} y2={M.top + ch} stroke={C.peak} strokeWidth={0.8} strokeDasharray="3 3" opacity={0.55} />
-            ))}
-            {theoreticalPeaks?.map((tp, i) => {
-              const tpColor = tp.color || C.theoretical;
+            {peaks?.map((p, i) => {
+              const id = pkPeakId(p);
+              const selected = selectedPeaks.has(id);
+              const hovered = hoveredPeakId === id;
               return (
-                <g key={`th${i}`}>
-                  <line x1={sx(tp.two_theta)} y1={M.top} x2={sx(tp.two_theta)} y2={M.top + ch} stroke={tpColor} strokeWidth={1} strokeDasharray="4 2" opacity={0.7} />
+                <g
+                  key={`pk${i}`}
+                  onClick={(e) => { e.stopPropagation(); togglePeak(id, e.shiftKey || e.ctrlKey || e.metaKey); }}
+                  onDoubleClick={(e) => e.stopPropagation()}
+                  onMouseEnter={() => setHoveredPeakId(id)}
+                  onMouseLeave={() => setHoveredPeakId((h) => (h === id ? null : h))}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  style={{ cursor: "pointer" }}
+                >
+                  <line x1={sx(p.two_theta)} y1={M.top} x2={sx(p.two_theta)} y2={M.top + ch} stroke={C.peak} strokeWidth={selected ? 1.6 : hovered ? 1.1 : 0.8} strokeDasharray={selected ? undefined : "3 3"} opacity={selected ? 0.95 : hovered ? 0.85 : 0.55} style={{ transition: "opacity 0.2s ease, stroke-width 0.2s ease" }} />
+                  <line x1={sx(p.two_theta)} y1={M.top} x2={sx(p.two_theta)} y2={M.top + ch} stroke="transparent" strokeWidth={10} style={{ pointerEvents: "stroke", cursor: "pointer" }} />
+                </g>
+              );
+            })}
+            {theoreticalPeaks?.map((tp, i) => {
+              const id = thPeakId(tp, i);
+              const tpColor = tp.color || C.theoretical;
+              const selected = selectedPeaks.has(id);
+              const hovered = hoveredPeakId === id;
+              return (
+                <g
+                  key={`th${i}`}
+                  onClick={(e) => { e.stopPropagation(); togglePeak(id, e.shiftKey || e.ctrlKey || e.metaKey); }}
+                  onDoubleClick={(e) => e.stopPropagation()}
+                  onMouseEnter={() => setHoveredPeakId(id)}
+                  onMouseLeave={() => setHoveredPeakId((h) => (h === id ? null : h))}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  style={{ cursor: "pointer" }}
+                >
+                  <line x1={sx(tp.two_theta)} y1={M.top} x2={sx(tp.two_theta)} y2={M.top + ch} stroke={tpColor} strokeWidth={selected ? 2 : hovered ? 1.6 : 1} strokeDasharray={selected ? undefined : "4 2"} opacity={selected ? 1 : hovered ? 0.95 : 0.7} style={{ transition: "opacity 0.2s ease, stroke-width 0.2s ease" }} />
+                  <line x1={sx(tp.two_theta)} y1={M.top} x2={sx(tp.two_theta)} y2={M.top + ch} stroke="transparent" strokeWidth={10} style={{ pointerEvents: "stroke", cursor: "pointer" }} />
                   {tp.hkl && (
-                    <text x={sx(tp.two_theta)} y={M.top + 10 + (i % 3) * 11} textAnchor="middle" fontSize={8} fill={tpColor} fontWeight={500}>
+                    <text x={sx(tp.two_theta)} y={M.top + 10 + (i % 3) * 11} textAnchor="middle" fontSize={8} fill={tpColor} fontWeight={selected || hovered ? 700 : 500}>
                       {tp.hkl}
                     </text>
+                  )}
+                  {selected && (
+                    <circle cx={sx(tp.two_theta)} cy={M.top + ch - 12} r={3} fill={tpColor} stroke="#fff" strokeWidth={1}>
+                      <animate attributeName="r" values="2.5;4.5;2.5" dur="1.6s" repeatCount="indefinite" />
+                    </circle>
                   )}
                 </g>
               );
@@ -593,6 +683,22 @@ export function XrdChart({
                     {r.label}
                   </text>
                 )}
+              </g>
+            ))}
+          </g>
+
+          <g clipPath={`url(#${clipRef})`}>
+            {annotations.map((a) => (
+              <g
+                key={a.id}
+                onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); removeAnnotation(a.id); }}
+                style={{ cursor: "pointer" }}
+              >
+                <circle cx={sx(a.x)} cy={sy(a.y)} r={3} fill={a.color || "#f59e0b"} stroke="#fff" strokeWidth={1} />
+                <line x1={sx(a.x)} y1={sy(a.y)} x2={sx(a.x) + 5} y2={sy(a.y) - 10} stroke="#f59e0b" strokeWidth={0.8} />
+                <text x={sx(a.x) + 7} y={sy(a.y) - 10} fontSize={9} fill={a.color || "#b45309"} fontFamily="system-ui, sans-serif">
+                  {a.label}
+                </text>
               </g>
             ))}
           </g>
@@ -647,20 +753,27 @@ export function XrdChart({
               <line x1={cursorSvg.sx} y1={M.top} x2={cursorSvg.sx} y2={M.top + ch} stroke={C.crosshair} strokeWidth={0.8} strokeDasharray="3 3" />
               <line x1={M.left} y1={cursorSvg.sy} x2={M.left + cw} y2={cursorSvg.sy} stroke={C.crosshair} strokeWidth={0.8} strokeDasharray="3 3" />
               {nearestIdx >= 0 && (
-                <circle cx={sx(cursorDataX)} cy={sy(nearestY)} r={3.5} fill={C.experimental} stroke="#fff" strokeWidth={1.5} />
+                <circle cx={sx(cursorDataX)} cy={sy(nearestY)} r={3.5} fill={C.experimental} stroke="#fff" strokeWidth={1.5}>
+                  <animate attributeName="r" values="3;5;3" dur="1.4s" repeatCount="indefinite" />
+                </circle>
               )}
             </g>
           )}
 
           {cursorSvg && hasCursor && (
             <g style={{ pointerEvents: "none" }}>
-              <rect x={M.left + cw - 185} y={M.top + 6} width={178} height={nearestPeak ? 68 : 38} rx={4} fill="var(--bg-elevated, #fff)" stroke="var(--border-default, #ddd)" strokeWidth={0.8} opacity={0.94} />
+              <rect x={M.left + cw - 185} y={M.top + 6} width={178} height={nearestPeak ? 68 : nearestObs ? 54 : 38} rx={4} fill="var(--bg-elevated, #fff)" stroke="var(--border-default, #ddd)" strokeWidth={0.8} opacity={0.94} />
               <text x={M.left + cw - 177} y={M.top + 21} fontSize={10} fill="var(--text-secondary, #555)" fontFamily="system-ui, sans-serif">
                 2θ = {cursorDataX.toFixed(3)}°
               </text>
               <text x={M.left + cw - 177} y={M.top + 36} fontSize={10} fill="var(--text-secondary, #555)" fontFamily="system-ui, sans-serif">
                 I = {nearestY != null ? nearestY.toFixed(0) : "—"}
               </text>
+              {nearestObs && !nearestPeak && (
+                <text x={M.left + cw - 177} y={M.top + 50} fontSize={9} fill={C.peak} fontFamily="system-ui, sans-serif" fontWeight={500}>
+                  Peak {nearestObs.two_theta.toFixed(2)}°
+                </text>
+              )}
               {nearestPeak && (
                 <>
                   <text x={M.left + cw - 177} y={M.top + 50} fontSize={9} fill={nearestPeak.color || C.theoretical} fontFamily="system-ui, sans-serif" fontWeight={500}>

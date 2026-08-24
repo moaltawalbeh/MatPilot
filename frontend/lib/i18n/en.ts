@@ -11,6 +11,7 @@ export const en: TranslationKeys = {
   nav_database: "Database",
   nav_settings: "Settings",
   nav_services: "Services",
+  nav_pricing: "Pricing",
   nav_about: "About",
   nav_launch: "Launch Workspace",
   nav_characterization: "Characterization",

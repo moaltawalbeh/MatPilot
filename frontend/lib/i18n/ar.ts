@@ -11,6 +11,7 @@ export const ar: TranslationKeys = {
   nav_database: "قاعدة البيانات",
   nav_settings: "الإعدادات",
   nav_services: "الخدمات",
+  nav_pricing: "الأسعار",
   nav_about: "حول",
   nav_launch: "إطلاق مساحة العمل",
   nav_characterization: "التحاليل",

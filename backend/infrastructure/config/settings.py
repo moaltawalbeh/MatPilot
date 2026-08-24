@@ -10,6 +10,13 @@ import tempfile
 from dataclasses import dataclass, field
 from typing import List, Optional
 
+from dotenv import load_dotenv
+
+# Load .env from the current/project working directory (without overriding
+# real environment variables) so the app honors the env file regardless of
+# how the process was launched.
+load_dotenv()
+
 
 @dataclass(frozen=True)
 class UploadConfig:
@@ -83,6 +90,50 @@ class AnalysisConfig:
 
 
 @dataclass(frozen=True)
+class EmailConfig:
+    """Outbound email configuration."""
+    backend: str = field(
+        default_factory=lambda: os.environ.get("MATPILOT_EMAIL_BACKEND", "")
+    )
+    from_address: str = field(
+        default_factory=lambda: os.environ.get(
+            "EMAIL_FROM",
+            os.environ.get(
+                "MATPILOT_EMAIL_FROM", "MatPilot <no-reply@matpilot.site>"
+            ),
+        )
+    )
+    app_url: str = field(
+        default_factory=lambda: os.environ.get(
+            "APP_URL", os.environ.get("MATPILOT_APP_URL", "https://matpilot.site")
+        )
+    )
+    # Resend (https://resend.com) — auto-selected when RESEND_API_KEY is set.
+    resend_api_key: Optional[str] = field(
+        default_factory=lambda: os.environ.get("RESEND_API_KEY")
+    )
+    smtp_host: Optional[str] = field(default_factory=lambda: os.environ.get("MATPILOT_SMTP_HOST"))
+    smtp_port: int = field(
+        default_factory=lambda: int(os.environ.get("MATPILOT_SMTP_PORT", "587"))
+    )
+    smtp_user: Optional[str] = field(default_factory=lambda: os.environ.get("MATPILOT_SMTP_USER"))
+    smtp_password: Optional[str] = field(default_factory=lambda: os.environ.get("MATPILOT_SMTP_PASSWORD"))
+    smtp_use_tls: bool = field(
+        default_factory=lambda: os.environ.get("MATPILOT_SMTP_USE_TLS", "true").lower() == "true"
+    )
+    smtp_use_ssl: bool = field(
+        default_factory=lambda: os.environ.get("MATPILOT_SMTP_USE_SSL", "false").lower() == "true"
+    )
+    verification_code_length: int = field(
+        default_factory=lambda: int(os.environ.get("MATPILOT_VERIFY_CODE_LENGTH", "6"))
+    )
+    # Email verification / password-reset tokens expire after 24 hours.
+    verification_token_ttl_hours: int = field(
+        default_factory=lambda: int(os.environ.get("MATPILOT_VERIFY_TOKEN_TTL_HOURS", "24"))
+    )
+
+
+@dataclass(frozen=True)
 class APIConfig:
     """API server configuration."""
     host: str = field(default_factory=lambda: os.environ.get("MATPILOT_API_HOST", "0.0.0.0"))
@@ -92,7 +143,12 @@ class APIConfig:
 
 
 def _parse_cors_origins() -> List[str]:
-    """Parse CORS origins from MATPILOT_CORS_ORIGINS env var (comma-separated)."""
+    """Parse CORS origins from MATPILOT_CORS_ORIGINS env var (comma-separated).
+
+    Falls back to the application's own origin (``APP_URL`` /
+    ``MATPILOT_APP_URL``, defaulting to ``https://matpilot.site``). Local
+    development should set ``MATPILOT_CORS_ORIGINS`` explicitly.
+    """
     raw = os.environ.get("MATPILOT_CORS_ORIGINS", "")
     if raw:
         origins = []
@@ -101,10 +157,10 @@ def _parse_cors_origins() -> List[str]:
             if o:
                 origins.append(o)
         return origins
-    env = os.environ.get("MATPILOT_ENV", "development")
-    if env == "development":
-        return ["http://localhost:3000", "http://localhost:3001"]
-    return ["*"]
+    app_url = os.environ.get("APP_URL") or os.environ.get("MATPILOT_APP_URL")
+    if app_url:
+        return [app_url.rstrip("/")]
+    return ["https://matpilot.site"]
 
 
 @dataclass(frozen=True)
@@ -131,6 +187,7 @@ class MatPilotConfig:
     reference: ReferenceConfig = field(default_factory=ReferenceConfig)
     analysis: AnalysisConfig = field(default_factory=AnalysisConfig)
     api: APIConfig = field(default_factory=APIConfig)
+    email: EmailConfig = field(default_factory=EmailConfig)
     logging: LoggingConfig = field(default_factory=LoggingConfig)
 
 

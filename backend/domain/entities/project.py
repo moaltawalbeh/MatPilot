@@ -5,6 +5,8 @@ from datetime import datetime
 from typing import List, Optional, Dict, Any
 from uuid import UUID, uuid4
 
+ANONYMOUS_OWNER_ID = "00000000-0000-0000-0000-000000000000"
+
 
 @dataclass
 class ProjectMetadata:
@@ -25,7 +27,7 @@ class Project:
     name: str = ""
     description: str = ""
     material: str = ""
-    owner_id: str = "default"
+    owner_id: str = ANONYMOUS_OWNER_ID
     experiment_ids: List[UUID] = field(default_factory=list)
     file_ids: List[str] = field(default_factory=list)
     job_ids: List[str] = field(default_factory=list)

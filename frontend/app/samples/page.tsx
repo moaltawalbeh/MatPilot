@@ -4,6 +4,8 @@ import { Page } from "@/components/ui/page";
 import { useSamples } from "@/hooks/use-api";
 import { Plus, Loader2, ArrowUpRight, Search } from "lucide-react";
 import { useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 const STATUS_OPTIONS = ["", "Active", "Archived", "Pending"];
 const CRYSTAL_SYSTEMS = ["", "Cubic", "Hexagonal", "Tetragonal", "Orthorhombic", "Monoclinic", "Triclinic", "Rhombohedral"];
@@ -11,6 +13,7 @@ const CRYSTAL_SYSTEMS = ["", "Cubic", "Hexagonal", "Tetragonal", "Orthorhombic",
 export default function SamplesPage() {
   const [status, setStatus] = useState("");
   const [search, setSearch] = useState("");
+  const router = useRouter();
   const { data, isLoading } = useSamples({ status: status || undefined, search: search || undefined });
 
   const samples: any[] = data?.samples ?? (Array.isArray(data) ? data : []);
@@ -78,7 +81,9 @@ export default function SamplesPage() {
                 <tr
                   key={s.id}
                   style={{ cursor: "pointer" }}
-                  onClick={() => { console.log("Navigate to sample", s.id); alert(`Sample: ${s.name}`); }}
+                  onClick={() => router.push(`/samples/${s.id}`)}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--bg-hover)"; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
                 >
                   <td>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>

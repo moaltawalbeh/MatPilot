@@ -2,22 +2,49 @@
 
 Uses the app DI container's unit of work — Neon PostgreSQL when
 ``DATABASE_URL`` is configured, in-memory otherwise (local dev).
+
+Sensitive endpoints (register / login / verify / resend / forgot-password)
+are rate limited per client IP to deter credential stuffing, verification-code
+guessing, and email bombing.
 """
+
+import os
+from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel
-from typing import Optional
 
 from backend.api.dependencies import get_container
+from backend.infrastructure.security.rate_limiter import (
+    RATE_LIMIT_WINDOW_SECONDS,
+    check_rate_limit,
+    client_ip,
+    rate_limit_dependency,
+)
 from backend.services.auth_service import AuthService
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
+
+# Per-endpoint request budgets within the sliding window (env-tunable).
+LOGIN_RATE_LIMIT = int(os.environ.get("MATPILOT_RATE_LIMIT_LOGIN", "10"))
+REGISTER_RATE_LIMIT = int(os.environ.get("MATPILOT_RATE_LIMIT_REGISTER", "10"))
+VERIFY_RATE_LIMIT = int(os.environ.get("MATPILOT_RATE_LIMIT_VERIFY", "20"))
+RESEND_RATE_LIMIT = int(os.environ.get("MATPILOT_RATE_LIMIT_RESEND", "5"))
+FORGOT_RATE_LIMIT = int(os.environ.get("MATPILOT_RATE_LIMIT_FORGOT", "5"))
 
 
 async def get_db_auth_service(request: Request = None):
     """Provide an AuthService backed by the container's unit of work."""
     container = get_container(request)
-    yield AuthService(container.uow, getattr(container, "email_service", None))
+    email_cfg = container.config.email
+    yield AuthService(
+        container.uow,
+        email_provider=getattr(container, "email_provider", None),
+        email_service=getattr(container, "email_service", None),
+        app_url=email_cfg.app_url,
+        verification_code_length=email_cfg.verification_code_length,
+        verification_token_ttl_minutes=email_cfg.verification_token_ttl_hours * 60,
+    )
 
 
 class RegisterRequest(BaseModel):
@@ -38,6 +65,11 @@ class RefreshRequest(BaseModel):
 
 class VerifyEmailRequest(BaseModel):
     token: str
+
+
+class VerifyCodeRequest(BaseModel):
+    email: str
+    code: str
 
 
 class ResendVerificationRequest(BaseModel):
@@ -73,7 +105,10 @@ async def get_current_user_dep(
     return user
 
 
-@router.post("/register")
+@router.post(
+    "/register",
+    dependencies=[Depends(rate_limit_dependency("auth:register", REGISTER_RATE_LIMIT, RATE_LIMIT_WINDOW_SECONDS))],
+)
 async def register(request: RegisterRequest, auth_service: AuthService = Depends(get_db_auth_service)):
     try:
         return await auth_service.register(
@@ -86,7 +121,10 @@ async def register(request: RegisterRequest, auth_service: AuthService = Depends
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.post("/login")
+@router.post(
+    "/login",
+    dependencies=[Depends(rate_limit_dependency("auth:login", LOGIN_RATE_LIMIT, RATE_LIMIT_WINDOW_SECONDS))],
+)
 async def login(request: LoginRequest, auth_service: AuthService = Depends(get_db_auth_service)):
     try:
         return await auth_service.login(
@@ -105,7 +143,10 @@ async def refresh(request: RefreshRequest, auth_service: AuthService = Depends(g
         raise HTTPException(status_code=401, detail=str(e))
 
 
-@router.post("/verify-email")
+@router.post(
+    "/verify-email",
+    dependencies=[Depends(rate_limit_dependency("auth:verify-email", VERIFY_RATE_LIMIT, RATE_LIMIT_WINDOW_SECONDS))],
+)
 async def verify_email(request: VerifyEmailRequest, auth_service: AuthService = Depends(get_db_auth_service)):
     try:
         return await auth_service.verify_email(request.token)
@@ -113,23 +154,59 @@ async def verify_email(request: VerifyEmailRequest, auth_service: AuthService = 
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.post("/resend-verification")
+@router.post(
+    "/verify-code",
+    dependencies=[Depends(rate_limit_dependency("auth:verify-code", VERIFY_RATE_LIMIT, RATE_LIMIT_WINDOW_SECONDS))],
+)
+async def verify_code(request: VerifyCodeRequest, auth_service: AuthService = Depends(get_db_auth_service)):
+    try:
+        return await auth_service.verify_code(request.email, request.code)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post(
+    "/resend-verification",
+    dependencies=[Depends(rate_limit_dependency("auth:resend", RESEND_RATE_LIMIT, RATE_LIMIT_WINDOW_SECONDS))],
+)
 async def resend_verification(
-    request: ResendVerificationRequest,
+    request: Request,
+    body: ResendVerificationRequest,
     auth_service: AuthService = Depends(get_db_auth_service),
 ):
-    return await auth_service.resend_verification(request.email)
+    # Additional per-recipient budget to prevent email bombing.
+    check_rate_limit(
+        "auth:resend-email",
+        f"{client_ip(request)}:{body.email.lower()}",
+        RESEND_RATE_LIMIT,
+        RATE_LIMIT_WINDOW_SECONDS,
+    )
+    return await auth_service.resend_verification(body.email)
 
 
-@router.post("/forgot-password")
+@router.post(
+    "/forgot-password",
+    dependencies=[Depends(rate_limit_dependency("auth:forgot", FORGOT_RATE_LIMIT, RATE_LIMIT_WINDOW_SECONDS))],
+)
 async def forgot_password(
-    request: ForgotPasswordRequest,
+    request: Request,
+    body: ForgotPasswordRequest,
     auth_service: AuthService = Depends(get_db_auth_service),
 ):
-    return await auth_service.forgot_password(request.email)
+    # Per-recipient budget to prevent password-reset email bombing.
+    check_rate_limit(
+        "auth:forgot-email",
+        f"{client_ip(request)}:{body.email.lower()}",
+        FORGOT_RATE_LIMIT,
+        RATE_LIMIT_WINDOW_SECONDS,
+    )
+    return await auth_service.forgot_password(body.email)
 
 
-@router.post("/reset-password")
+@router.post(
+    "/reset-password",
+    dependencies=[Depends(rate_limit_dependency("auth:reset", FORGOT_RATE_LIMIT, RATE_LIMIT_WINDOW_SECONDS))],
+)
 async def reset_password(
     request: ResetPasswordRequest,
     auth_service: AuthService = Depends(get_db_auth_service),

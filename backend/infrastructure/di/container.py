@@ -18,6 +18,8 @@ from backend.infrastructure.storage.s3_storage import S3StorageProvider
 from backend.infrastructure.storage.azure_storage import AzureStorageProvider
 from backend.infrastructure.storage.gcs_storage import GCSStorageProvider
 from backend.infrastructure.storage.storage_provider import IStorageProvider
+from backend.infrastructure.email.factory import create_email_provider
+from backend.infrastructure.email.provider import IEmailProvider
 from backend.infrastructure.database.sql_uow import InMemoryUnitOfWork
 from backend.infrastructure.database.async_uow import build_async_uow
 from backend.reference.engine.reference_engine import ReferenceEngine
@@ -32,6 +34,18 @@ from backend.reference.providers.user_private_provider import UserPrivateProvide
 from backend.reference.providers.org_private_provider import OrgPrivateProvider
 from backend.reference.providers.local_cache_provider import LocalCacheProvider
 from backend.reference.providers.local_cod_provider import LocalCODProvider
+from backend.reference.spectral_providers.local_reference_library import LocalSpectralLibraryProvider
+from backend.reference.spectral_providers.ramanbase_provider import RamanbaseProvider
+from backend.reference.spectral_providers.archived_providers import (
+    OpenSpecyProvider,
+    SDBSProvider,
+    NISTWebBookProvider,
+    PhotochemCADProvider,
+    RamanOpenDBProvider,
+    SpectraBaseProvider,
+    RRUFFProvider,
+)
+from backend.reference.spectral_providers.spectral_reference_service import SpectralReferenceService
 from backend.reference.providers.pubchem_provider import PubChemProvider
 from backend.reference.providers.user_private_provider import UserPrivateProvider
 from backend.reference.providers.org_private_provider import OrgPrivateProvider
@@ -83,12 +97,20 @@ class DIContainer:
         self.storage_provider = self._create_storage_provider()
         self.storage_service = StorageService(self.storage_provider)
 
+        # Email Provider
+        self.email_provider: IEmailProvider = create_email_provider(self.config.email)
+
         # Reference Engine (Sprint 6: with CIF cache + theoretical pattern generation)
         self.reference_engine = ReferenceEngine(
             cif_cache_dir=self.config.reference.cif_cache_dir,
             wavelength=self.config.reference.wavelength,
         )
         self._register_providers()
+
+        # Spectral Reference Service (FTIR / Raman / UV-Vis databases)
+        self.spectral_reference_service = SpectralReferenceService(
+            providers=self._spectral_providers()
+        )
 
         # Parser Factory
         self.parser_factory = ParserFactory()
@@ -158,6 +180,27 @@ class DIContainer:
         else:
             self.logger.warning(f"Unknown storage backend {backend}, falling back to local")
             return LocalStorageProvider(self.config.storage.local_base_path)
+
+    def _spectral_providers(self):
+        """Spectral database adapters: offline library first, live on top."""
+        providers = [LocalSpectralLibraryProvider()]
+        # Live providers (network reachability is checked lazily on use).
+        providers.append(RamanbaseProvider())
+        # Architected providers that are not yet live (Open Specy, SDBS, NIST,
+        # PhotochemCAD, Raman Open Database, SpectraBase, RRUFF) — always
+        # reported unavailable.
+        providers.extend(
+            [
+                OpenSpecyProvider(),
+                SDBSProvider(),
+                NISTWebBookProvider(),
+                PhotochemCADProvider(),
+                RamanOpenDBProvider(),
+                SpectraBaseProvider(),
+                RRUFFProvider(),
+            ]
+        )
+        return providers
 
     def _register_providers(self):
         self.reference_engine.register_provider(LocalCODProvider())

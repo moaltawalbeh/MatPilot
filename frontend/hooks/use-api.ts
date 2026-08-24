@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiService } from "@/lib/api-client";
-import type { RefinementParameter, ManualRefinementSession } from "@/types";
+import type { RefinementParameter, ManualRefinementSession, SpectroscopyTechnique, InstrumentTechnique } from "@/types";
 
 export function useProjects() {
   return useQuery({
@@ -676,5 +676,247 @@ export function useRefinementParameters() {
   return useQuery({
     queryKey: ["refinement-parameters"],
     queryFn: apiService.getRefinementParameters,
+  });
+}
+
+// ── Spectroscopy (FTIR / Raman / UV-Vis) Hooks ───────────────────────
+
+export function useSpectroscopySummary() {
+  return useQuery({
+    queryKey: ["spectroscopy-summary"],
+    queryFn: apiService.spectroscopySummary,
+    refetchInterval: 30_000,
+  });
+}
+
+export function useCharacterizationDashboard() {
+  return useQuery({
+    queryKey: ["characterization-dashboard"],
+    queryFn: apiService.characterizationDashboard,
+    refetchInterval: 30_000,
+  });
+}
+
+export function useSpectra(technique: SpectroscopyTechnique, params?: { sample_id?: string }) {
+  return useQuery({
+    queryKey: ["spectra", technique, params?.sample_id],
+    queryFn: () => apiService.listSpectra(technique, params),
+    enabled: !!technique,
+  });
+}
+
+export function useSpectrum(technique: SpectroscopyTechnique, id: string | null) {
+  return useQuery({
+    queryKey: ["spectrum", technique, id],
+    queryFn: () => apiService.getSpectrum(technique, id!),
+    enabled: !!technique && !!id,
+  });
+}
+
+export function useUploadSpectrum(technique: SpectroscopyTechnique) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ file, sample_id, name, description }: { file: File; sample_id?: string; name?: string; description?: string }) =>
+      apiService.uploadSpectrum(technique, file, { sample_id, name, description }),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["spectra", technique] });
+      qc.invalidateQueries({ queryKey: ["spectrum"] });
+      qc.invalidateQueries({ queryKey: ["spectroscopy-summary"] });
+      qc.invalidateQueries({ queryKey: ["characterization-dashboard"] });
+      qc.invalidateQueries({ queryKey: ["measurements"] });
+      if (data.spectrum.sample_id) {
+        qc.invalidateQueries({ queryKey: ["spectra-by-sample"] });
+        qc.invalidateQueries({ queryKey: ["samples"] });
+      }
+    },
+  });
+}
+
+export function useAnalyzeSpectrum(technique: SpectroscopyTechnique) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: { window?: number; baseline_order?: number; prominence?: number } }) =>
+      apiService.analyzeSpectrum(technique, id, data),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ["spectrum", technique, vars.id] });
+      qc.invalidateQueries({ queryKey: ["spectra", technique] });
+      qc.invalidateQueries({ queryKey: ["characterization-dashboard"] });
+    },
+  });
+}
+
+export function useDeleteSpectrum(technique: SpectroscopyTechnique) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiService.deleteSpectrum(technique, id),
+    onSuccess: (_data, id) => {
+      qc.invalidateQueries({ queryKey: ["spectra", technique] });
+      qc.invalidateQueries({ queryKey: ["spectrum", technique, id] });
+      qc.invalidateQueries({ queryKey: ["spectroscopy-summary"] });
+      qc.invalidateQueries({ queryKey: ["characterization-dashboard"] });
+      qc.invalidateQueries({ queryKey: ["measurements"] });
+    },
+  });
+}
+
+export function useSpectraBySample(sampleId: string | null) {
+  return useQuery({
+    queryKey: ["spectra-by-sample", sampleId],
+    queryFn: () => apiService.spectraBySample(sampleId!),
+    enabled: !!sampleId,
+  });
+}
+
+export function useDownloadSpectrum(technique: SpectroscopyTechnique) {
+  return useMutation({
+    mutationFn: async ({ id, format }: { id: string; format: "txt" | "csv" | "json" }) => {
+      const { blob, filename } = await apiService.downloadSpectrumReport(technique, id, format);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      return filename;
+    },
+  });
+}
+
+// ── Instrument Workspace ──────────────────────────────────────────────
+
+export function useInstruments(projectId: string) {
+  return useQuery({
+    queryKey: ["instruments", projectId],
+    queryFn: () => apiService.listInstruments(projectId),
+    enabled: !!projectId,
+  });
+}
+
+export function useInstrumentExperiments(projectId: string, technique: InstrumentTechnique | null) {
+  return useQuery({
+    queryKey: ["instrument-experiments", projectId, technique],
+    queryFn: () => apiService.listInstrumentExperiments(projectId, technique as InstrumentTechnique),
+    enabled: !!projectId && !!technique,
+  });
+}
+
+export function useGetInstrumentExperiment(
+  projectId: string,
+  technique: InstrumentTechnique | null,
+  experimentId: string | null,
+) {
+  return useQuery({
+    queryKey: ["instrument-experiment", projectId, technique, experimentId],
+    queryFn: () =>
+      apiService.getInstrumentExperiment(projectId, technique as InstrumentTechnique, experimentId as string),
+    enabled: !!projectId && !!technique && !!experimentId,
+  });
+}
+
+export function useCreateInstrumentExperiment(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      technique,
+      ...data
+    }: {
+      technique: InstrumentTechnique;
+      name: string;
+      description?: string;
+      material?: string;
+      x?: number[];
+      y?: number[];
+      parameters?: Record<string, unknown>;
+    }) => apiService.createInstrumentExperiment(projectId, technique, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["instruments", projectId] });
+      qc.invalidateQueries({ queryKey: ["instrument-experiments", projectId] });
+      qc.invalidateQueries({ queryKey: ["project-experiments", projectId] });
+    },
+  });
+}
+
+export function useDeleteInstrumentExperiment(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ technique, experimentId }: { technique: InstrumentTechnique; experimentId: string }) =>
+      apiService.deleteInstrumentExperiment(projectId, technique, experimentId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["instruments", projectId] });
+      qc.invalidateQueries({ queryKey: ["instrument-experiments", projectId] });
+      qc.invalidateQueries({ queryKey: ["project-experiments", projectId] });
+    },
+  });
+}
+
+export function useAnalyzeInstrumentExperiment(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      technique,
+      experimentId,
+      data,
+    }: {
+      technique: InstrumentTechnique;
+      experimentId: string;
+      data?: { parameters?: Record<string, unknown>; x?: number[]; y?: number[] };
+    }) => apiService.analyzeInstrumentExperiment(projectId, technique, experimentId, data),
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ["instrument-experiments", projectId, vars.technique] });
+      qc.invalidateQueries({ queryKey: ["instruments", projectId] });
+    },
+  });
+}
+
+export function useInstrumentReferenceSearch(projectId: string, technique: InstrumentTechnique | null, query: string) {
+  return useQuery({
+    queryKey: ["instrument-ref-search", projectId, technique, query],
+    queryFn: () => apiService.instrumentReferenceSearch(projectId, technique as InstrumentTechnique, query),
+    enabled: !!projectId && !!technique && query.trim().length > 0,
+  });
+}
+
+export function useInstrumentReferenceMatch(projectId: string, technique: InstrumentTechnique | null, experimentId: string | null) {
+  return useQuery({
+    queryKey: ["instrument-ref-match", projectId, technique, experimentId],
+    queryFn: () =>
+      apiService.instrumentReferenceMatch(projectId, technique as InstrumentTechnique, {
+        experiment_id: experimentId as string,
+      }),
+    enabled: !!projectId && !!technique && !!experimentId && technique !== "xrd",
+  });
+}
+
+export function useWorkspaceReport(projectId: string) {
+  return useQuery({
+    queryKey: ["workspace-report", projectId],
+    queryFn: () => apiService.workspaceReport(projectId),
+    enabled: !!projectId,
+  });
+}
+
+export function useWorkspaceReportAiSummary(projectId: string) {
+  return useMutation({
+    mutationFn: () => apiService.workspaceReportAiSummary(projectId),
+  });
+}
+
+export function useInterpretInstrumentExperiment(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      technique,
+      experimentId,
+      question,
+    }: {
+      technique: InstrumentTechnique;
+      experimentId: string;
+      question?: string;
+    }) => apiService.interpretInstrumentExperiment(projectId, technique, experimentId, question),
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ["instrument-interpretation", projectId, vars.technique, vars.experimentId] });
+    },
   });
 }

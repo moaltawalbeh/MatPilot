@@ -3,9 +3,13 @@ import os
 from logging.config import fileConfig
 
 from alembic import context
+from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import create_async_engine
 
+from backend.infrastructure.database.connection import _normalize_database_url
 from backend.infrastructure.database.models import Base
+
+load_dotenv()
 
 config = context.config
 
@@ -16,7 +20,7 @@ target_metadata = Base.metadata
 
 DATABASE_URL: str = os.getenv(
     "DATABASE_URL",
-    config.get_main_option("sqlalchemy.url", "postgresql+asyncpg://postgres:postgres@localhost:5432/matpilot"),
+    config.get_main_option("sqlalchemy.url", ""),
 )
 
 
@@ -41,7 +45,12 @@ def do_run_migrations(connection):
 
 async def run_async_migrations() -> None:
     """Run migrations in 'online' async mode."""
-    connectable = create_async_engine(DATABASE_URL, poolclass=None)
+    clean_url, connect_args = _normalize_database_url(DATABASE_URL)
+    connectable = create_async_engine(
+        clean_url,
+        connect_args=connect_args,
+        poolclass=None,
+    )
 
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)

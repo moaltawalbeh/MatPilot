@@ -15,6 +15,7 @@ import {
   useDownloads,
   useSystemHealth,
   useMeasurements,
+  useCharacterizationDashboard,
 } from "@/hooks/use-api";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -68,6 +69,7 @@ export default function Dashboard() {
   const { data: structuresData, isLoading: loadingStructures } = useStructures({ limit: 5 });
   const { data: downloadsData, isLoading: loadingDownloads } = useDownloads({ status: "PENDING", limit: 5 });
   const { data: health, isLoading: loadingHealth } = useSystemHealth();
+  const { data: characterization } = useCharacterizationDashboard();
 
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -110,18 +112,18 @@ export default function Dashboard() {
   ];
 
   const characterizationModules = [
-    { name: "XRD", icon: Atom, color: "var(--accent-orange)", available: true, href: "/experiments" },
-    { name: "Raman", icon: Waves, color: "var(--accent-cyan)", available: false, href: "/characterization/raman" },
-    { name: "FTIR", icon: AudioLines, color: "var(--accent-emerald)", available: false, href: "/characterization/ftir" },
-    { name: "UV-Vis", icon: Sun, color: "var(--accent-amber)", available: false, href: "/characterization/uv-vis" },
-    { name: "SEM", icon: Microscope, color: "var(--accent-violet)", available: false, href: "/characterization/sem" },
-    { name: "EDS", icon: ScanEye, color: "var(--accent-rose)", available: false, href: "/characterization/eds" },
-    { name: "TEM", icon: Eye, color: "var(--accent-cyan)", available: false, href: "/characterization/tem" },
-    { name: "XPS", icon: Target, color: "var(--accent-orange)", available: false, href: "/characterization/xps" },
-    { name: "TGA", icon: Thermometer, color: "var(--accent-emerald)", available: false, href: "/characterization/tga" },
-    { name: "DSC", icon: Flame, color: "var(--accent-rose)", available: false, href: "/characterization/dsc" },
-    { name: "BET", icon: CircleDot, color: "var(--accent-violet)", available: false, href: "/characterization/bet" },
-    { name: "DLS", icon: Zap, color: "var(--accent-cyan)", available: false, href: "/characterization/dls" },
+    { name: "XRD", icon: Atom, color: "var(--accent-orange)", available: true, href: "/experiments", id: "xrd" },
+    { name: "Raman", icon: Waves, color: "var(--accent-cyan)", available: true, href: "/characterization/raman", id: "raman" },
+    { name: "FTIR", icon: AudioLines, color: "var(--accent-emerald)", available: true, href: "/characterization/ftir", id: "ftir" },
+    { name: "UV-Vis", icon: Sun, color: "var(--accent-amber)", available: true, href: "/characterization/uvvis", id: "uvvis" },
+    { name: "SEM", icon: Microscope, color: "var(--accent-violet)", available: false, href: "/characterization/sem", id: "sem" },
+    { name: "EDS", icon: ScanEye, color: "var(--accent-rose)", available: false, href: "/characterization/eds", id: "eds" },
+    { name: "TEM", icon: Eye, color: "var(--accent-cyan)", available: false, href: "/characterization/tem", id: "tem" },
+    { name: "XPS", icon: Target, color: "var(--accent-orange)", available: false, href: "/characterization/xps", id: "xps" },
+    { name: "TGA", icon: Thermometer, color: "var(--accent-emerald)", available: false, href: "/characterization/tga", id: "tga" },
+    { name: "DSC", icon: Flame, color: "var(--accent-rose)", available: false, href: "/characterization/dsc", id: "dsc" },
+    { name: "BET", icon: CircleDot, color: "var(--accent-violet)", available: false, href: "/characterization/bet", id: "bet" },
+    { name: "DLS", icon: Zap, color: "var(--accent-cyan)", available: false, href: "/characterization/dls", id: "dls" },
   ];
 
   const workflowSteps = [
@@ -297,12 +299,21 @@ export default function Dashboard() {
                   <mod.icon size={17} style={{ color: mod.color }} />
                 </div>
                 <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)" }}>{mod.name}</span>
-                <span
-                  className={`badge ${mod.available ? "good" : ""}`}
-                  style={{ fontSize: 10, padding: "1px 7px" }}
-                >
-                  {mod.available ? "Available" : "Coming Soon"}
-                </span>
+                {(() => {
+                  const stat = characterization?.techniques?.find((t) => t.technique === mod.id);
+                  return mod.available && stat ? (
+                    <span className="badge good" style={{ fontSize: 10, padding: "1px 7px" }}>
+                      {stat.count} stored
+                    </span>
+                  ) : (
+                    <span
+                      className={`badge ${mod.available ? "good" : ""}`}
+                      style={{ fontSize: 10, padding: "1px 7px" }}
+                    >
+                      {mod.available ? "Available" : "Coming Soon"}
+                    </span>
+                  );
+                })()}
               </div>
             </Link>
           ))}
