@@ -50,16 +50,16 @@ class AuthService:
     def __init__(
         self,
         uow,
-        email_provider: Optional[IEmailProvider] = None,
         email_service: Optional[Any] = None,
+        email_provider: Optional[IEmailProvider] = None,
         app_url: str = "https://matpilot.site",
         verification_code_length: int = 6,
         verification_token_ttl_minutes: Optional[int] = None,
         logger: Optional[MatPilotLogger] = None,
     ):
         self.uow = uow
-        self.email_provider = email_provider
         self.email_service = email_service
+        self.email_provider = email_provider
         self.app_url = app_url.rstrip("/")
         self.verification_code_length = max(4, min(int(verification_code_length or 6), 12))
         self.verification_token_ttl_minutes = int(
@@ -147,7 +147,7 @@ class AuthService:
 
     async def _notify(self, message: EmailMessage) -> None:
         """Send an email, logging (never surfacing) delivery failures."""
-        if not self.email_provider:
+        if not self.email_provider or not hasattr(self.email_provider, "send"):
             return
         try:
             await self.email_provider.send(message)
@@ -262,23 +262,19 @@ class AuthService:
         await self.uow.commit()
         await self._send_verification_email(user)
         if self.email_service and user.email:
-            try:
-                self.email_service.send_verification_email(
-                    recipient=user.email,
-                    username=user.username,
-                    token=user.email_verification_token,
-                )
-                self.email_service.send_welcome_email(
-                    recipient=user.email,
-                    username=user.username,
-                    full_name=user.full_name or user.username,
-                )
-            except Exception:
-                pass
+            self.email_service.send_verification_email(
+                recipient=user.email,
+                username=user.username,
+                token=user.email_verification_token,
+            )
+            self.email_service.send_welcome_email(
+                recipient=user.email,
+                username=user.username,
+                full_name=user.full_name or user.username,
+            )
         return {
             "message": "Verification email has been sent. Please check your inbox to activate your account.",
             "email": email,
-            "verification_token": user.email_verification_token,
         }
 
     async def login(self, username_or_email: str, password: str) -> dict:
@@ -403,10 +399,7 @@ class AuthService:
                 )
             except Exception:
                 pass
-        return {
-            "message": "If the account exists, a verification email has been sent",
-            "verification_token": user.email_verification_token,
-        }
+        return {"message": "If the account exists, a verification email has been sent"}
 
     async def forgot_password(self, email: str) -> dict:
         user = await self.uow.users.get_by_email(email)
@@ -430,10 +423,7 @@ class AuthService:
                 )
             except Exception:
                 pass
-        return {
-            "message": "If the account exists, a password reset email has been sent",
-            "reset_token": user.password_reset_token,
-        }
+        return {"message": "If the account exists, a password reset email has been sent"}
 
     async def reset_password(self, token: str, new_password: str) -> dict:
         user = await self.uow.users.get_by_password_reset_token(token)

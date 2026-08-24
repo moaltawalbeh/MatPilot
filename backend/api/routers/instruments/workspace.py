@@ -244,11 +244,7 @@ async def create_experiment(
     request: ExperimentCreateRequest,
     container=Depends(get_container),
 ):
-    """Create an experiment in the given instrument workspace.
-
-    Optional ``x``/``y`` stores the raw spectrum; when provided the analysis
-    engine runs immediately (unless ``run_analysis`` is false).
-    """
+    """Create an experiment in the given instrument workspace."""
     tech = _validate_technique(technique)
     await _require_project(project_id, container)
 
@@ -465,10 +461,7 @@ async def reference_match(
     request: ReferenceMatchRequest,
     container=Depends(get_container),
 ):
-    """Match a spectrum against the reference library.
-
-    Provide ``experiment_id`` to reuse that experiment's data, or pass ``x``/``y``.
-    """
+    """Match a spectrum against the reference library."""
     tech = _validate_technique(technique)
     if tech == "xrd":
         raise HTTPException(status_code=404, detail="XRD uses crystallographic reference providers")
@@ -545,7 +538,7 @@ async def workspace_report_ai_summary(
 
     service = WorkspaceReportService(container.uow)
     report = await service.generate(project_id)
-    if report is None:  # pragma: no cover - guarded by _require_project
+    if report is None:
         raise HTTPException(status_code=404, detail=f"Project {project_id} not found")
     text = render_text(report)
     result = summarize_report(text, report["project"].get("name", "Untitled Project"))
@@ -568,7 +561,7 @@ async def workspace_report(
 
     service = WorkspaceReportService(container.uow)
     report = await service.generate(project_id)
-    if report is None:  # pragma: no cover - guarded by _require_project
+    if report is None:
         raise HTTPException(status_code=404, detail=f"Project {project_id} not found")
     return report
 
@@ -586,7 +579,7 @@ async def workspace_report_download(
 
     service = WorkspaceReportService(container.uow)
     report = await service.generate(project_id)
-    if report is None:  # pragma: no cover - guarded by _require_project
+    if report is None:
         raise HTTPException(status_code=404, detail=f"Project {project_id} not found")
     content = render_text(report)
     safe_name = "".join(
