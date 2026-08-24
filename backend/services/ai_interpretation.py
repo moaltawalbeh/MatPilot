@@ -142,7 +142,7 @@ def interpret(
                 f"An error occurred while contacting the AI service: {exc}\n\n"
                 f"Raw {technique} results for '{experiment_name}':\n{context}"
             ),
-            "model": MODEL,
+            "model": "none",
         }
 
 
@@ -199,5 +199,5 @@ def summarize_report(report_text: str, project_name: str) -> Dict[str, str]:
     except Exception as exc:
         return {
             "ai_summary": f"An error occurred while contacting the AI service: {exc}",
-            "model": MODEL,
+            "model": "none",
         }
