@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { Zap, ArrowRight, FlaskConical, Database, Target, BarChart3, FileText, FileBarChart, ChevronRight, Check, Globe, Sun, Moon, Waves, AudioLines, Microscope, Atom, ScanEye, Thermometer, Flame, CircleDot, Layers, Sparkles } from "lucide-react";
+import { Zap, ArrowRight, FlaskConical, Database, Target, BarChart3, FileText, FileBarChart, ChevronRight, Check, Globe, Sun, Moon, Waves, AudioLines, Sparkles } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 import { useLanguage } from "@/components/language-provider";
 import { LOCALES } from "@/lib/i18n";
@@ -30,18 +30,10 @@ const WORKFLOW_STEPS = [
 const TECH = ["Python", "FastAPI", "Next.js", "React", "TypeScript", "NumPy", "SciPy", "pymatgen", "Groq AI", "PostgreSQL", "Materials Science"];
 
 const TECHNIQUES = [
-  { name: "X-ray Diffraction", icon: FileBarChart, color: "var(--accent-orange)", available: true, href: "/experiments" },
-  { name: "Raman Spectroscopy", icon: Waves, color: "var(--accent-cyan)", available: false, href: "/characterization/raman" },
-  { name: "FTIR Spectroscopy", icon: AudioLines, color: "var(--accent-emerald)", available: false, href: "/characterization/ftir" },
-  { name: "UV-Vis Spectroscopy", icon: Sun, color: "var(--accent-amber)", available: false, href: "/characterization/uvvis" },
-  { name: "SEM", icon: Microscope, color: "var(--accent-violet)", available: false, href: "/characterization/sem" },
-  { name: "EDS/EDX", icon: Atom, color: "var(--accent-rose)", available: false, href: "/characterization/eds" },
-  { name: "TEM", icon: ScanEye, color: "var(--accent-cyan)", available: false, href: "/characterization/tem" },
-  { name: "XPS", icon: Target, color: "var(--accent-orange)", available: false, href: "/characterization/xps" },
-  { name: "TGA", icon: Thermometer, color: "var(--accent-emerald)", available: false, href: "/characterization/tga" },
-  { name: "DSC", icon: Flame, color: "var(--accent-rose)", available: false, href: "/characterization/dsc" },
-  { name: "BET Surface Area", icon: Layers, color: "var(--accent-violet)", available: false, href: "/characterization/bet" },
-  { name: "Dynamic Light Scattering", icon: CircleDot, color: "var(--accent-amber)", available: false, href: "/characterization/dls" },
+  { name: "X-ray Diffraction", subtitle: "XRD", icon: FileBarChart, color: "var(--accent-orange)", available: true, href: "/dashboard" },
+  { name: "FTIR Spectroscopy", subtitle: "FTIR", icon: AudioLines, color: "var(--accent-emerald)", available: true, href: "/dashboard" },
+  { name: "Raman Spectroscopy", subtitle: "Raman", icon: Waves, color: "var(--accent-cyan)", available: true, href: "/dashboard" },
+  { name: "UV-Vis Spectroscopy", subtitle: "UV-Vis", icon: Sun, color: "var(--accent-amber)", available: true, href: "/dashboard" },
 ];
 
 export default function LandingPage() {
@@ -233,13 +225,13 @@ export default function LandingPage() {
           Supported Characterization Techniques
         </h2>
         <p style={{ fontSize: 15, color: "var(--text-secondary)", textAlign: "center", marginBottom: 40, maxWidth: 600, margin: "0 auto 40px" }}>
-          MatPilot is expanding to support multiple materials characterization methods. XRD is fully implemented, with more techniques coming soon.
+          MatPilot provides four powerful characterization techniques: XRD, FTIR, Raman, and UV-Vis. Create workspaces, organize samples into batches, and perform comprehensive scientific analysis.
         </p>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 16 }}>
           {TECHNIQUES.map((tech) => (
             <Link key={tech.name} href={tech.href} style={{
-              display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
-              padding: "20px 12px", borderRadius: "var(--radius-md)",
+              display: "flex", flexDirection: "column", alignItems: "center", gap: 10,
+              padding: "28px 16px", borderRadius: "var(--radius-lg)",
               background: "var(--surface-1)", border: "1px solid var(--border-subtle)",
               textDecoration: "none", color: "inherit", transition: "all 0.2s",
               position: "relative",
@@ -248,17 +240,14 @@ export default function LandingPage() {
               onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border-subtle)"; e.currentTarget.style.transform = "none"; }}
             >
               <div style={{
-                width: 40, height: 40, borderRadius: "var(--radius-md)",
+                width: 48, height: 48, borderRadius: "var(--radius-md)",
                 background: `${tech.color}15`, display: "grid", placeItems: "center",
               }}>
-                <tech.icon size={20} style={{ color: tech.color }} />
+                <tech.icon size={24} style={{ color: tech.color }} />
               </div>
-              <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-primary)", textAlign: "center" }}>{tech.name}</span>
-              {tech.available ? (
-                <span className="badge good" style={{ fontSize: 9 }}>Available</span>
-              ) : (
-                <span className="badge" style={{ fontSize: 9, color: "var(--text-muted)" }}>Coming Soon</span>
-              )}
+              <span style={{ fontSize: 14, fontWeight: 650, color: "var(--text-primary)", textAlign: "center" }}>{tech.name}</span>
+              <span style={{ fontSize: 11, color: "var(--text-tertiary)" }}>{tech.subtitle}</span>
+              <span className="badge good" style={{ fontSize: 10 }}>Available</span>
             </Link>
           ))}
         </div>

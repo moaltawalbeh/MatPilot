@@ -591,7 +591,7 @@ function XrdResults({ projectId, detail, name }: { projectId: string; detail: Wo
       </div>
       <Link
         className="button primary"
-        href={`/projects/${projectId}/experiments/${detail.id}`}
+        href={`/workspaces/${projectId}/instruments/xrd/experiments/${detail.id}`}
         style={{ fontSize: 13 }}
       >
         <ExternalLink size={14} /> Open in XRD Studio

@@ -11,7 +11,7 @@ type KeyboardShortcutsProps = {
 
 const shortcuts = [
   { keys: ["Ctrl", "K"], label: "Open command palette" },
-  { keys: ["Ctrl", "N"], label: "New project" },
+      { keys: ["Ctrl", "N"], label: "New workspace" },
   { keys: ["Ctrl", "U"], label: "Upload data" },
   { keys: ["Ctrl", "D"], label: "Go to dashboard" },
   { keys: ["Ctrl", "/"], label: "Show keyboard shortcuts" },
@@ -37,7 +37,7 @@ export function KeyboardShortcuts({
         onSearchOpen();
       } else if (mod && e.key === "n") {
         e.preventDefault();
-        router.push("/projects/new");
+        router.push("/dashboard");
       } else if (mod && e.key === "u") {
         e.preventDefault();
         router.push("/upload");

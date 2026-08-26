@@ -55,13 +55,25 @@ AsyncSessionLocal = None
 
 if DATABASE_URL:
     clean_url, connect_args = _normalize_database_url(DATABASE_URL)
+    is_sqlite = "sqlite" in clean_url
 
-    engine = create_async_engine(
-        clean_url,
-        connect_args=connect_args,
-        poolclass=NullPool,
-        echo=False,
-    )
+    if is_sqlite:
+        engine = create_async_engine(
+            clean_url,
+            connect_args=connect_args,
+            poolclass=NullPool,
+            echo=False,
+        )
+    else:
+        engine = create_async_engine(
+            clean_url,
+            connect_args=connect_args,
+            pool_size=10,
+            max_overflow=20,
+            pool_pre_ping=True,
+            pool_recycle=300,
+            echo=False,
+        )
 
     AsyncSessionLocal = async_sessionmaker(
         bind=engine,
@@ -88,10 +100,18 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
 async def init_db() -> None:
     if engine is None:
         raise RuntimeError("DATABASE_URL is not configured")
+    import time
+    _t0 = time.monotonic()
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    await _sync_missing_columns()
+    _elapsed = time.monotonic() - _t0
+    import logging
+    logging.getLogger("matpilot.db").info(
+        "create_all completed in %.2fs", _elapsed
+    )
     await _seed_system_user()
+    # Column sync is handled by Alembic migrations — skip the slow
+    # information_schema queries on every startup to reduce cold-start latency.
 
 
 _SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000"
@@ -144,18 +164,24 @@ _MISSING_COLUMNS: dict[str, list[str]] = {
         "status VARCHAR(50) NULL DEFAULT 'Active'",
         "tags JSON NULL",
     ],
+    "instrument_experiments": [
+        "batch_id UUID NULL",
+    ],
 }
 
 
+_COLUMNS_SYNCED = True  # Column sync handled by Alembic migrations
+
+
 async def _sync_missing_columns() -> None:
-    """Idempotently add model columns that may be absent from existing tables."""
-    async with engine.begin() as conn:
-        for table, columns in _MISSING_COLUMNS.items():
-            for ddl in columns:
-                await conn.execute(
-                    text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {ddl}")
-                )
-        await _sync_model_columns(conn)
+    """No-op: column sync is handled by Alembic migrations.
+
+    This function previously ran expensive information_schema queries on every
+    startup to detect and add missing columns. This caused significant latency
+    during Render Free Tier cold starts. The function is preserved as a no-op
+    for backward compatibility but is no longer called during startup.
+    """
+    pass
 
 
 def _model_column_ddl() -> dict[str, list[tuple[str, str]]]:

@@ -103,12 +103,25 @@ def build_async_uow(db_url: str) -> Tuple[object, AsyncUnitOfWork]:
     database; the first query or ``create_all`` establishes the connection.
     """
     clean_url, connect_args = _normalize_database_url(db_url)
-    engine = create_async_engine(
-        clean_url,
-        connect_args=connect_args,
-        poolclass=NullPool,
-        echo=False,
-    )
+    is_sqlite = "sqlite" in clean_url
+
+    if is_sqlite:
+        engine = create_async_engine(
+            clean_url,
+            connect_args=connect_args,
+            poolclass=NullPool,
+            echo=False,
+        )
+    else:
+        engine = create_async_engine(
+            clean_url,
+            connect_args=connect_args,
+            pool_size=10,
+            max_overflow=20,
+            pool_pre_ping=True,
+            pool_recycle=300,
+            echo=False,
+        )
     session_factory = async_sessionmaker(
         bind=engine,
         class_=AsyncSession,

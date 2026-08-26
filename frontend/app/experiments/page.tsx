@@ -15,8 +15,8 @@ export default function ExperimentsPage() {
       title="Experiments"
       description="Manage diffraction experiments and access the scientific processing pipeline."
       actions={
-        <Link href="/projects" className="button primary" style={{ textDecoration: "none" }}>
-          <FlaskConical size={15} /> Go to Projects
+        <Link href="/dashboard" className="button primary" style={{ textDecoration: "none" }}>
+          <FlaskConical size={15} /> Go to Workspaces
         </Link>
       }
     >
@@ -35,20 +35,20 @@ export default function ExperimentsPage() {
             <FlaskConical size={40} color="var(--text-muted)" style={{ marginBottom: 12, opacity: 0.4 }} />
             <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>No experiments yet</h3>
             <p className="muted" style={{ fontSize: 13, maxWidth: 380, margin: "0 auto 16px" }}>
-              Create a project and upload diffraction data to begin your first experiment.
+              Create a workspace and upload diffraction data to begin your first experiment.
             </p>
-            <Link href="/projects" className="button primary" style={{ textDecoration: "none" }}>Create Project</Link>
+            <Link href="/dashboard" className="button primary" style={{ textDecoration: "none" }}>Create Workspace</Link>
           </div>
         ) : (
           <div style={{ padding: "4px 20px 16px" }}>
             <p className="muted" style={{ marginBottom: 14, fontSize: 13 }}>
-              Select a project to view and manage its experiments.
+              Select a workspace to view and manage its experiments.
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {allProjects.map((project) => (
                 <Link
                   key={project.id}
-                  href={`/projects/${project.id}`}
+                  href={`/workspaces/${project.id}`}
                   style={{
                     display: "flex",
                     alignItems: "center",

@@ -711,8 +711,8 @@ function ReadinessScreen({
       title="Manual Refinement"
       description={experiment ? experiment.name || "Experiment" : "Loading..."}
       actions={
-        <button className="button ghost sm" onClick={() => experiment?.project_id ? router.push(`/projects/${experiment.project_id}/experiments/${experimentId}`) : router.back()}>
-          <ArrowLeft size={13} /> Back to Experiment
+        <button className="button ghost sm" onClick={() => experiment?.project_id ? router.push(`/workspaces/${experiment.project_id}`) : router.back()}>
+          <ArrowLeft size={13} /> Back to Workspace
         </button>
       }
     >
@@ -1021,8 +1021,8 @@ function ManualRefinementContent() {
           <AlertTriangle size={32} style={{ color: "var(--accent-orange)", marginBottom: 12 }} />
           <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>No Experiment Specified</h2>
           <p style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 6 }}>Navigate here from the experiment workspace by selecting Manual Refinement mode.</p>
-          <button className="button lg" onClick={() => router.push("/projects")} style={{ justifyContent: "center", marginTop: 16 }}>
-            <ArrowLeft size={15} /> Go to Projects
+          <button className="button lg" onClick={() => router.push("/dashboard")} style={{ justifyContent: "center", marginTop: 16 }}>
+            <ArrowLeft size={15} /> Go to Workspaces
           </button>
         </div>
       </Page>

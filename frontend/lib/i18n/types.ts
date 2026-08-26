@@ -91,7 +91,60 @@ export type TranslationKeys = {
   success: string;
   language: string;
 
-  // Coming Soon
-  coming_soon_title: string;
-  coming_soon_desc: string;
+  // Workspace
+  ws_my_workspaces: string;
+  ws_new_workspace: string;
+  ws_create_workspace: string;
+  ws_workspace_name: string;
+  ws_material: string;
+  ws_description: string;
+  ws_material_placeholder: string;
+  ws_description_placeholder: string;
+  ws_no_workspaces: string;
+  ws_no_workspaces_desc: string;
+  ws_search_workspaces: string;
+  ws_no_results: string;
+  ws_experiments: string;
+  ws_analyzed: string;
+  ws_pending: string;
+  ws_new_batch: string;
+  ws_create_batch: string;
+  ws_no_experiments: string;
+  ws_no_experiments_desc: string;
+  ws_overview: string;
+  ws_reports: string;
+  ws_workspace_not_found: string;
+  ws_back_to_workspaces: string;
+  ws_delete_confirm: string;
+  ws_research_environment: string;
+  ws_workspace_subtitle: string;
+  ws_unified_report: string;
+  ws_unified_report_desc: string;
+  ws_generating_report: string;
+
+  // Batch
+  batch_title: string;
+  batch_subtitle: string;
+  batch_name: string;
+  batch_name_placeholder: string;
+  batch_max_samples: string;
+  batch_samples: string;
+  batch_upload: string;
+  batch_analyze: string;
+  batch_analyzing: string;
+  batch_complete: string;
+  batch_status_pending: string;
+  batch_status_analyzing: string;
+  batch_status_complete: string;
+
+  // Sample
+  sample_name: string;
+  sample_formula: string;
+  sample_description: string;
+  sample_crystal_system: string;
+  sample_tags: string;
+  sample_add: string;
+  sample_remove: string;
+  sample_empty: string;
+  sample_empty_desc: string;
 };

@@ -35,12 +35,12 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
         action: () => router.push("/dashboard"),
       },
       {
-        id: "nav-projects",
-        label: "Projects",
-        description: "Browse all projects",
+        id: "nav-workspaces",
+        label: "My Workspaces",
+        description: "Browse all workspaces",
         icon: FolderKanban,
         group: "Navigation",
-        action: () => router.push("/projects"),
+        action: () => router.push("/dashboard"),
       },
       {
         id: "nav-experiments",
@@ -123,12 +123,12 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
         action: () => router.push("/search"),
       },
       {
-        id: "action-new-project",
-        label: "New Project",
-        description: "Create a new project",
+        id: "action-new-workspace",
+        label: "New Workspace",
+        description: "Create a new workspace",
         icon: Plus,
         group: "Actions",
-        action: () => router.push("/projects"),
+        action: () => router.push("/dashboard"),
       },
       {
         id: "action-new-sample",

@@ -812,6 +812,52 @@ export type WorkspaceExperimentDetail = WorkspaceExperiment & {
   history: Record<string, unknown>[];
 };
 
+// ── Batch Types ─────────────────────────────────────────────────────
+
+export type BatchListItem = {
+  id: string;
+  project_id: string;
+  technique: InstrumentTechnique;
+  name: string;
+  description: string;
+  status: string;
+  sample_count: number;
+  completed_count: number;
+  warning_count: number;
+  failed_count: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type BatchDetail = BatchListItem & {
+  samples: WorkspaceExperimentDetail[];
+};
+
+export type BatchCreateRequest = {
+  name: string;
+  description?: string;
+  samples?: Array<{
+    name: string;
+    description?: string;
+    material?: string;
+    x?: number[];
+    y?: number[];
+    parameters?: Record<string, unknown>;
+  }>;
+};
+
+export type BatchUpdateRequest = {
+  name?: string;
+  description?: string;
+  status?: string;
+};
+
+export type CompareResponse = {
+  technique: string;
+  sample_count: number;
+  comparison_data: Record<string, unknown>;
+};
+
 export type SpectralReferenceResult = {
   reference_id: string;
   title: string;

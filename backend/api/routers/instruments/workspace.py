@@ -50,6 +50,7 @@ class ExperimentCreateRequest(BaseModel):
     name: str = Field(..., min_length=1)
     description: str = ""
     material: str = ""
+    batch_id: Optional[str] = None
     x: Optional[List[float]] = None
     y: Optional[List[float]] = None
     parameters: Optional[Dict[str, Any]] = None
@@ -261,6 +262,7 @@ async def create_experiment(
         raw_x=request.x,
         raw_y=request.y,
         metadata=ExperimentMetadata(instrument=tech),
+        batch_id=UUID(request.batch_id) if request.batch_id else None,
     )
     if request.x is not None and request.y is not None:
         if len(request.x) != len(request.y):
@@ -630,3 +632,530 @@ def _detail_dict(exp) -> Dict[str, Any]:
         "history": getattr(exp, "analysis_history", []),
     })
     return item
+
+
+# ── Batch & Comparison System ─────────────────────────────────────────
+
+class BatchSampleCreate(BaseModel):
+    name: str = Field(..., min_length=1)
+    description: str = ""
+    material: str = ""
+    x: Optional[List[float]] = None
+    y: Optional[List[float]] = None
+    parameters: Optional[Dict[str, Any]] = None
+
+
+class BatchCreateRequest(BaseModel):
+    name: str = Field(..., min_length=1)
+    description: str = ""
+    samples: List[BatchSampleCreate] = Field(default_factory=list)
+
+
+class BatchListItem(BaseModel):
+    id: str
+    project_id: str
+    technique: str
+    name: str
+    description: str
+    status: str
+    sample_count: int
+    completed_count: int
+    warning_count: int
+    failed_count: int
+    created_at: str
+    updated_at: str
+
+
+class BatchDetail(BatchListItem):
+    samples: List[Dict[str, Any]]
+
+
+class CompareRequest(BaseModel):
+    sample_ids: Optional[List[str]] = None
+
+
+class CompareResponse(BaseModel):
+    technique: str
+    sample_count: int
+    comparison_data: Dict[str, Any]
+
+
+def _compute_technique_comparison(technique: str, samples: List[Any]) -> Dict[str, Any]:
+    """Compute technique-specific scientific comparison metrics across samples."""
+    tech = (technique or "").strip().lower()
+    summary: List[Dict[str, Any]] = []
+
+    for s in samples:
+        res = getattr(s, "analysis_results", None) or {}
+        peaks = getattr(s, "detected_peaks", None) or res.get("peaks", [])
+        
+        info: Dict[str, Any] = {
+            "sample_id": str(s.id),
+            "sample_name": s.name,
+            "has_results": s.has_results,
+            "peak_count": len(peaks),
+        }
+
+        if tech == "xrd":
+            info["two_theta_range"] = _x_range(getattr(s, "raw_x", None))
+            info["candidate_phases"] = res.get("candidate_phases", [])
+            info["goodness_of_fit"] = res.get("rietveld_results", {}).get("gof") or getattr(s, "goodness_of_fit", None)
+            info["top_peaks"] = [p.get("position") for p in peaks[:5] if isinstance(p, dict)]
+        elif tech == "ftir":
+            info["wavenumber_range"] = _x_range(getattr(s, "raw_x", None))
+            info["functional_groups"] = res.get("functional_groups", [])
+            info["library_matches"] = res.get("library_matches", [])[:3]
+            info["key_bands"] = [p.get("position") for p in peaks[:5] if isinstance(p, dict)]
+        elif tech == "raman":
+            info["shift_range"] = _x_range(getattr(s, "raw_x", None))
+            info["phonons"] = res.get("phonons", [])
+            info["cosmic_rays"] = res.get("cosmic_rays", {})
+            info["key_shifts"] = [p.get("position") for p in peaks[:5] if isinstance(p, dict)]
+        elif tech == "uvvis":
+            info["wavelength_range"] = _x_range(getattr(s, "raw_x", None))
+            info["band_gap_ev"] = res.get("band_gap_ev") or res.get("tauc", {}).get("band_gap_ev")
+            info["band_gap_type"] = res.get("band_gap_type") or res.get("tauc", {}).get("mode")
+            info["optical_edge_nm"] = res.get("optical_edge_nm")
+
+        summary.append(info)
+
+    return {
+        "technique": tech,
+        "sample_count": len(samples),
+        "samples": summary,
+    }
+
+
+@router.get("/{technique}/batches", response_model=List[BatchListItem])
+async def list_batches(
+    project_id: str,
+    technique: str,
+    container=Depends(get_container),
+):
+    """List batches for an instrument in a workspace."""
+    tech = _validate_technique(technique)
+    await _require_project(project_id, container)
+    experiments = await _experiments(container, project_id)
+    tech_exps = [e for e in experiments if (e.technique or "").lower() == tech]
+
+    # Group experiments by batch_id or virtual default batch
+    batch_map: Dict[str, List] = {}
+    for exp in tech_exps:
+        b_id = str(getattr(exp, "batch_id", None) or "default")
+        batch_map.setdefault(b_id, []).append(exp)
+
+    results: List[BatchListItem] = []
+    for b_id, exps in batch_map.items():
+        completed = sum(1 for e in exps if e.has_results)
+        # Read batch name/description from first experiment's metadata if available
+        first_meta = getattr(exps[0], "metadata", None)
+        meta_dict = {}
+        if isinstance(first_meta, dict):
+            meta_dict = first_meta
+        elif hasattr(first_meta, "custom") and isinstance(first_meta.custom, dict):
+            meta_dict = first_meta.custom
+        elif hasattr(first_meta, "__dict__"):
+            meta_dict = first_meta.__dict__
+
+        batch_name = meta_dict.get("batch_name") or (
+            f"{TECHNIQUES[tech]} Batch ({b_id[:8]})" if b_id != "default" else f"{TECHNIQUES[tech]} Main Batch"
+        )
+        batch_desc = meta_dict.get("batch_description") or f"Batch containing {len(exps)} sample measurements"
+
+        results.append(
+            BatchListItem(
+                id=b_id,
+                project_id=project_id,
+                technique=tech,
+                name=batch_name,
+                description=batch_desc,
+                status="Completed" if completed == len(exps) and len(exps) > 0 else "Active",
+                sample_count=len(exps),
+                completed_count=completed,
+                warning_count=0,
+                failed_count=0,
+                created_at=exps[0].created_at.isoformat() if exps else "",
+                updated_at=exps[0].updated_at.isoformat() if exps else "",
+            )
+        )
+    return results
+
+
+@router.post("/{technique}/batches", response_model=BatchDetail, status_code=201)
+async def create_batch(
+    project_id: str,
+    technique: str,
+    request: BatchCreateRequest,
+    container=Depends(get_container),
+):
+    """Create a new batch in an instrument workspace (Maximum 20 samples per batch)."""
+    tech = _validate_technique(technique)
+    await _require_project(project_id, container)
+
+    if len(request.samples) > 20:
+        raise HTTPException(
+            status_code=422,
+            detail="Maximum 20 samples allowed per batch per instrument.",
+        )
+
+    from uuid import uuid4
+    batch_uuid = uuid4()
+
+    from backend.services.instrument_analysis import build_experiment
+
+    created_samples = []
+    completed = 0
+
+    for sample_req in request.samples:
+        exp = build_experiment(
+            technique=tech,
+            name=sample_req.name,
+            project_id=project_id,
+            description=sample_req.description,
+            material=sample_req.material,
+        )
+        exp.batch_id = batch_uuid
+        if sample_req.x and sample_req.y:
+            exp.raw_x = sample_req.x
+            exp.raw_y = sample_req.y
+            exp.data_points = len(sample_req.x)
+            try:
+                _run_analysis(exp, sample_req.parameters or {})
+                completed += 1
+            except Exception as exc:
+                exp.status = "Failed"
+                exp.add_history("analyze_error", {"error": str(exc)})
+
+        await container.uow.experiments.add(exp)
+        created_samples.append(exp)
+
+    await container.uow.commit()
+    batch_id = str(batch_uuid)
+    now = created_samples[0].created_at.isoformat() if created_samples else ""
+    updated = created_samples[0].updated_at.isoformat() if created_samples else ""
+
+    return BatchDetail(
+        id=batch_id,
+        project_id=project_id,
+        technique=tech,
+        name=request.name,
+        description=request.description,
+        status="Completed" if completed == len(created_samples) and len(created_samples) > 0 else "Active",
+        sample_count=len(created_samples),
+        completed_count=completed,
+        warning_count=0,
+        failed_count=0,
+        created_at=now,
+        updated_at=updated,
+        samples=[_detail_dict(s) for s in created_samples],
+    )
+
+
+@router.get("/{technique}/batches/{batch_id}", response_model=BatchDetail)
+async def get_batch(
+    project_id: str,
+    technique: str,
+    batch_id: str,
+    container=Depends(get_container),
+):
+    """Fetch batch details and all its constituent sample experiments."""
+    tech = _validate_technique(technique)
+    await _require_project(project_id, container)
+    experiments = await _experiments(container, project_id)
+    tech_exps = [e for e in experiments if (e.technique or "").lower() == tech]
+
+    batch_samples = [
+        e for e in tech_exps
+        if str(getattr(e, "batch_id", None) or "default") == batch_id or str(e.id) == batch_id
+    ]
+    if not batch_samples and batch_id != "default":
+        # Fallback to all technique samples if batch_id matched single id or default
+        batch_samples = tech_exps
+
+    completed = sum(1 for e in batch_samples if e.has_results)
+    first_exp = batch_samples[0] if batch_samples else None
+
+    # Read batch name/description from metadata if available
+    meta_dict = {}
+    if first_exp:
+        first_meta = getattr(first_exp, "metadata", None)
+        if isinstance(first_meta, dict):
+            meta_dict = first_meta
+        elif hasattr(first_meta, "custom") and isinstance(first_meta.custom, dict):
+            meta_dict = first_meta.custom
+        elif hasattr(first_meta, "__dict__"):
+            meta_dict = first_meta.__dict__
+
+    batch_name = meta_dict.get("batch_name") or f"{TECHNIQUES[tech]} Batch"
+    batch_desc = meta_dict.get("batch_description") or f"Batch containing {len(batch_samples)} sample measurements"
+
+    return BatchDetail(
+        id=batch_id,
+        project_id=project_id,
+        technique=tech,
+        name=batch_name,
+        description=batch_desc,
+        status="Completed" if completed == len(batch_samples) and len(batch_samples) > 0 else "Active",
+        sample_count=len(batch_samples),
+        completed_count=completed,
+        warning_count=0,
+        failed_count=0,
+        created_at=first_exp.created_at.isoformat() if first_exp else "",
+        updated_at=first_exp.updated_at.isoformat() if first_exp else "",
+        samples=[_detail_dict(s) for s in batch_samples],
+    )
+
+
+@router.post("/{technique}/batches/{batch_id}/analyze")
+async def analyze_batch(
+    project_id: str,
+    technique: str,
+    batch_id: str,
+    parameters: Optional[Dict[str, Any]] = None,
+    container=Depends(get_container),
+):
+    """Run batch analysis across all samples in the batch independently."""
+    tech = _validate_technique(technique)
+    await _require_project(project_id, container)
+    experiments = await _experiments(container, project_id)
+    batch_samples = [
+        e for e in experiments
+        if (e.technique or "").lower() == tech
+        and (str(getattr(e, "batch_id", None) or "default") == batch_id or str(e.id) == batch_id or batch_id == "default")
+    ]
+
+    analyzed = 0
+    failed = 0
+    for exp in batch_samples:
+        if getattr(exp, "raw_x", None) and getattr(exp, "raw_y", None):
+            try:
+                _run_analysis(exp, parameters or {})
+                await container.uow.experiments.update(exp)
+                analyzed += 1
+            except Exception:
+                failed += 1
+
+    await container.uow.commit()
+    return {
+        "batch_id": batch_id,
+        "technique": tech,
+        "total_samples": len(batch_samples),
+        "analyzed_count": analyzed,
+        "failed_count": failed,
+    }
+
+
+@router.post("/{technique}/batches/{batch_id}/compare", response_model=CompareResponse)
+async def compare_batch_samples(
+    project_id: str,
+    technique: str,
+    batch_id: str,
+    request: CompareRequest,
+    container=Depends(get_container),
+):
+    """Run instrument-specific comparison across selected samples in a batch."""
+    tech = _validate_technique(technique)
+    await _require_project(project_id, container)
+    experiments = await _experiments(container, project_id)
+    tech_exps = [e for e in experiments if (e.technique or "").lower() == tech]
+
+    if request.sample_ids:
+        selected = [e for e in tech_exps if str(e.id) in request.sample_ids]
+    else:
+        selected = tech_exps
+
+    comp_data = _compute_technique_comparison(tech, selected)
+    return CompareResponse(
+        technique=tech,
+        sample_count=len(selected),
+        comparison_data=comp_data,
+    )
+
+
+# ── Batch Update / Delete ───────────────────────────────────────────
+
+class BatchUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    status: Optional[str] = None
+
+
+@router.put("/{technique}/batches/{batch_id}")
+async def update_batch(
+    project_id: str,
+    technique: str,
+    batch_id: str,
+    request: BatchUpdateRequest,
+    container=Depends(get_container),
+):
+    """Update batch metadata (name, description, status)."""
+    tech = _validate_technique(technique)
+    await _require_project(project_id, container)
+    experiments = await _experiments(container, project_id)
+    tech_exps = [e for e in experiments if (e.technique or "").lower() == tech]
+    batch_samples = [
+        e for e in tech_exps
+        if str(getattr(e, "batch_id", None) or "default") == batch_id
+    ]
+    if not batch_samples and batch_id != "default":
+        batch_samples = [e for e in tech_exps if str(e.id) == batch_id]
+    if not batch_samples:
+        raise HTTPException(status_code=404, detail=f"Batch {batch_id} not found")
+
+    updated_fields = {}
+    for exp in batch_samples:
+        if request.name is not None:
+            updated_fields["batch_name"] = request.name
+        if request.description is not None:
+            updated_fields["batch_description"] = request.description
+        if request.status is not None:
+            exp.status = request.status
+
+    for exp in batch_samples:
+        meta = getattr(exp, "metadata", None) or {}
+        if isinstance(meta, dict):
+            meta.update(updated_fields)
+            exp.metadata = meta
+        await container.uow.experiments.update(exp)
+
+    await container.uow.commit()
+    return {"batch_id": batch_id, "technique": tech, "updated": len(batch_samples)}
+
+
+@router.delete("/{technique}/batches/{batch_id}")
+async def delete_batch(
+    project_id: str,
+    technique: str,
+    batch_id: str,
+    container=Depends(get_container),
+):
+    """Delete a batch and all its constituent sample experiments."""
+    tech = _validate_technique(technique)
+    await _require_project(project_id, container)
+    experiments = await _experiments(container, project_id)
+    tech_exps = [e for e in experiments if (e.technique or "").lower() == tech]
+    batch_samples = [
+        e for e in tech_exps
+        if str(getattr(e, "batch_id", None) or "default") == batch_id
+    ]
+    if not batch_samples and batch_id != "default":
+        batch_samples = [e for e in tech_exps if str(e.id) == batch_id]
+    if not batch_samples:
+        raise HTTPException(status_code=404, detail=f"Batch {batch_id} not found")
+
+    deleted = 0
+    for exp in batch_samples:
+        try:
+            await container.uow.experiments.delete(exp.id)
+            deleted += 1
+        except Exception:
+            pass
+
+    await container.uow.commit()
+    return {"batch_id": batch_id, "technique": tech, "deleted": deleted}
+
+
+# ── Sample management within batches ────────────────────────────────
+
+class SampleAddRequest(BaseModel):
+    name: str = Field(..., min_length=1)
+    description: str = ""
+    material: str = ""
+    x: Optional[List[float]] = None
+    y: Optional[List[float]] = None
+    parameters: Optional[Dict[str, Any]] = None
+
+
+@router.post("/{technique}/batches/{batch_id}/samples", response_model=ExperimentDetail, status_code=201)
+async def add_sample_to_batch(
+    project_id: str,
+    technique: str,
+    batch_id: str,
+    request: SampleAddRequest,
+    container=Depends(get_container),
+):
+    """Add a single sample (experiment) to an existing batch."""
+    tech = _validate_technique(technique)
+    await _require_project(project_id, container)
+
+    experiments = await _experiments(container, project_id)
+    tech_exps = [e for e in experiments if (e.technique or "").lower() == tech]
+    existing_batch = [
+        e for e in tech_exps
+        if str(getattr(e, "batch_id", None) or "default") == batch_id
+        or str(e.id) == batch_id
+    ]
+    if not existing_batch and batch_id != "default":
+        raise HTTPException(status_code=404, detail=f"Batch {batch_id} not found")
+
+    if len(existing_batch) >= 20:
+        raise HTTPException(status_code=422, detail="Batch already has maximum 20 samples.")
+
+    from backend.domain.entities.experiment import Experiment, ExperimentMetadata
+
+    # Resolve the batch_id: if it's a real UUID, use it; otherwise fall back to first experiment's id
+    resolved_batch_id = None
+    try:
+        from uuid import UUID as _UUID
+        resolved_batch_id = _UUID(batch_id)
+    except ValueError:
+        if existing_batch:
+            resolved_batch_id = getattr(existing_batch[0], "batch_id", None) or existing_batch[0].id
+
+    exp = Experiment(
+        project_id=UUID(project_id),
+        technique=tech,
+        name=request.name.strip(),
+        description=request.description,
+        material=request.material,
+        status="Created",
+        raw_x=request.x,
+        raw_y=request.y,
+        batch_id=resolved_batch_id,
+        metadata=ExperimentMetadata(instrument=tech),
+    )
+    if request.x is not None and request.y is not None:
+        if len(request.x) != len(request.y):
+            raise HTTPException(status_code=422, detail="x and y must have the same length")
+        if len(request.x) < 5:
+            raise HTTPException(status_code=422, detail="At least 5 data points required")
+        exp.data_points = len(request.x)
+        exp.has_pattern_data = True
+        exp.status = "Uploaded"
+
+    await container.uow.experiments.add(exp)
+    await container.uow.commit()
+
+    if request.x is not None and request.y is not None:
+        try:
+            _run_analysis(exp, request.parameters or {})
+        except Exception:
+            exp.status = "Uploaded"
+
+    exp.add_history("sample_added_to_batch", {
+        "batch_id": batch_id,
+        "technique": tech,
+    })
+    await container.uow.experiments.update(exp)
+    await container.uow.commit()
+    return ExperimentDetail(**_detail_dict(exp))
+
+
+@router.delete("/{technique}/batches/{batch_id}/samples/{sample_id}")
+async def remove_sample_from_batch(
+    project_id: str,
+    technique: str,
+    batch_id: str,
+    sample_id: str,
+    container=Depends(get_container),
+):
+    """Remove a sample (experiment) from a batch."""
+    tech = _validate_technique(technique)
+    await _require_project(project_id, container)
+    exp = await _require_experiment(container, project_id, sample_id)
+    if (exp.technique or "").lower() != tech:
+        raise HTTPException(status_code=404, detail="Experiment not found in this technique workspace")
+
+    await container.uow.experiments.delete(exp.id)
+    await container.uow.commit()
+    return {"deleted": True, "sample_id": sample_id}

@@ -359,7 +359,7 @@ export default function SampleDetailPage() {
                             const spectrumId = (meta.spectrum_id as string) ?? null;
                             const technique = (meta.technique as string) ?? m.type;
                             const Icon = TECHNIQUE_ICONS[technique] ?? (technique === "xrd" ? FileBarChart : Layers);
-                            const href = spectrumId ? `/characterization/${technique}` : "/projects";
+                            const href = spectrumId ? `/characterization/${technique}` : "/dashboard";
                             return (
                               <tr key={m.id}>
                                 <td style={{ padding: "8px", borderBottom: "1px solid var(--border-faint)" }}>

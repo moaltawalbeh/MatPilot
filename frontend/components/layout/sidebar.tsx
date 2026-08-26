@@ -2,7 +2,6 @@
 
 import {
   LayoutDashboard,
-  FolderKanban,
   FlaskConical,
   Beaker,
   Ruler,
@@ -16,14 +15,6 @@ import {
   Waves,
   AudioLines,
   Sun,
-  Microscope,
-  Atom,
-  ScanEye,
-  Target,
-  Thermometer,
-  Flame,
-  Layers,
-  CircleDot,
   ChevronDown,
 } from "lucide-react";
 import Link from "next/link";
@@ -41,26 +32,16 @@ const sections: { title: string; items: NavItem[] }[] = [
   {
     title: "MAIN",
     items: [
-      { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-      { href: "/projects", label: "Projects", icon: FolderKanban },
+      { href: "/dashboard", label: "My Workspaces", icon: LayoutDashboard },
       { href: "/experiments", label: "Experiments", icon: FlaskConical },
     ],
   },
   {
     title: "CHARACTERIZATION",
     items: [
-      { href: "/characterization", label: "All Modules", icon: Layers },
       { href: "/characterization/raman", label: "Raman", icon: Waves },
       { href: "/characterization/ftir", label: "FTIR", icon: AudioLines },
       { href: "/characterization/uvvis", label: "UV-Vis", icon: Sun },
-      { href: "/characterization/sem", label: "SEM", icon: Microscope, badge: "Soon" },
-      { href: "/characterization/eds", label: "EDS/EDX", icon: Atom, badge: "Soon" },
-      { href: "/characterization/tem", label: "TEM", icon: ScanEye, badge: "Soon" },
-      { href: "/characterization/xps", label: "XPS", icon: Target, badge: "Soon" },
-      { href: "/characterization/tga", label: "TGA", icon: Thermometer, badge: "Soon" },
-      { href: "/characterization/dsc", label: "DSC", icon: Flame, badge: "Soon" },
-      { href: "/characterization/bet", label: "BET", icon: Layers, badge: "Soon" },
-      { href: "/characterization/dls", label: "DLS", icon: CircleDot, badge: "Soon" },
     ],
   },
   {
@@ -98,7 +79,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const isActive = useCallback(
     (href: string) => {
       if (href === "/dashboard")
-        return path === "/" || path === "/dashboard" || path.startsWith("/dashboard");
+        return path === "/" || path === "/dashboard" || path.startsWith("/dashboard") || path.startsWith("/workspaces");
       return path === href || path.startsWith(href + "/");
     },
     [path],

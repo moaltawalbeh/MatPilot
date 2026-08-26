@@ -143,7 +143,7 @@ function ReportPanel({ projectId, onClose }: { projectId: string; onClose: () =>
             </div>
           ))}
           <a
-            href={`/projects/${projectId}/instruments/report/download`}
+            href={`/workspaces/${projectId}/instruments/report/download`}
             className="button"
             style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, marginTop: 8 }}
           >

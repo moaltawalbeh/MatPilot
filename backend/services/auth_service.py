@@ -10,6 +10,7 @@ owner verifies their email address via the emailed link or code. No tokens are
 issued at registration time, so a user cannot sign in before verifying.
 """
 
+import asyncio
 import os
 import secrets
 from datetime import datetime, timedelta
@@ -254,7 +255,7 @@ class AuthService:
             full_name=full_name,
             role=UserRole.RESEARCHER,
             status=UserStatus.INACTIVE,
-            hashed_password=self.hash_password(password),
+            hashed_password=await asyncio.to_thread(self.hash_password, password),
             is_verified=False,
         )
         self._issue_verification(user)
@@ -285,7 +286,8 @@ class AuthService:
         if not user or not user.hashed_password:
             raise ValueError("Invalid credentials")
 
-        if not self.verify_password(password, user.hashed_password):
+        is_valid = await asyncio.to_thread(self.verify_password, password, user.hashed_password)
+        if not is_valid:
             raise ValueError("Invalid credentials")
 
         if not user.is_verified:

@@ -252,32 +252,6 @@ export function PublicFooter() {
             <Link href="/terms-and-conditions" style={{ fontSize: 13.5, color: "var(--text-secondary)", textDecoration: "none" }}>Terms & Conditions</Link>
             <Link href="/cookie-policy" style={{ fontSize: 13.5, color: "var(--text-secondary)", textDecoration: "none" }}>Cookie Policy</Link>
             <Link href="/legal-notice" style={{ fontSize: 13.5, color: "var(--text-secondary)", textDecoration: "none" }}>Legal Notice / Imprint</Link>
-=======
-        </div>
-        <div style={{ display: "flex", gap: 48 }}>
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 10 }}>Product</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <Link href="/services" style={{ fontSize: 13, color: "var(--text-secondary)", textDecoration: "none" }}>{t.nav_services}</Link>
-              <Link href="/pricing" style={{ fontSize: 13, color: "var(--text-secondary)", textDecoration: "none" }}>{t.nav_pricing}</Link>
-              <Link href="/dashboard" style={{ fontSize: 13, color: "var(--text-secondary)", textDecoration: "none" }}>{t.nav_launch}</Link>
-            </div>
-          </div>
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 10 }}>Company</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <Link href="/about" style={{ fontSize: 13, color: "var(--text-secondary)", textDecoration: "none" }}>{t.nav_about}</Link>
-              <a href="https://github.com" style={{ fontSize: 13, color: "var(--text-secondary)", textDecoration: "none" }}>GitHub</a>
-            </div>
->>>>>>> origin/main
-          </div>
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 10 }}>Legal</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <Link href="/privacy" style={{ fontSize: 13, color: "var(--text-secondary)", textDecoration: "none" }}>Privacy Policy</Link>
-              <Link href="/terms" style={{ fontSize: 13, color: "var(--text-secondary)", textDecoration: "none" }}>Terms of Service</Link>
-              <Link href="/cookies" style={{ fontSize: 13, color: "var(--text-secondary)", textDecoration: "none" }}>Cookie Policy</Link>
-            </div>
           </div>
         </div>
       </div>

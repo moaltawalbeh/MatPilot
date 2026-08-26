@@ -39,6 +39,7 @@ class Experiment:
     id: UUID = field(default_factory=uuid4)
     project_id: Optional[UUID] = None
     owner_id: Optional[UUID] = None  # Owner user ID for strict multi-tenant scoping
+    batch_id: Optional[UUID] = None  # Links experiment to an InstrumentBatchModel
     name: str = ""
     description: str = ""
     material: str = ""

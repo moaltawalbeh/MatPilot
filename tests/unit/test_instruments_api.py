@@ -357,3 +357,53 @@ def test_workspace_report_ai_summary_empty_project(client):
     r = client.post(f"/projects/{pid}/instruments/report/ai-summary")
     assert r.status_code == 200
     assert isinstance(r.json()["ai_summary"], str)
+
+
+def test_batch_creation_and_20_sample_limit(client):
+    pid = _project(client)
+    x, y = _gaussian([1740.0])
+
+    # 19 samples -> 201 Created
+    samples_19 = [{"name": f"Sample {i+1}", "x": x, "y": y} for i in range(19)]
+    r19 = client.post(f"/projects/{pid}/instruments/ftir/batches", json={"name": "Batch 19", "samples": samples_19})
+    assert r19.status_code == 201
+    assert r19.json()["sample_count"] == 19
+
+    # 20 samples -> 201 Created
+    samples_20 = [{"name": f"Sample {i+1}", "x": x, "y": y} for i in range(20)]
+    r20 = client.post(f"/projects/{pid}/instruments/ftir/batches", json={"name": "Batch 20", "samples": samples_20})
+    assert r20.status_code == 201
+    assert r20.json()["sample_count"] == 20
+
+    # 21 samples -> 422 Unprocessable Entity
+    samples_21 = [{"name": f"Sample {i+1}", "x": x, "y": y} for i in range(21)]
+    r21 = client.post(f"/projects/{pid}/instruments/ftir/batches", json={"name": "Batch 21", "samples": samples_21})
+    assert r21.status_code == 422
+    assert "Maximum 20 samples" in r21.text
+
+
+def test_batch_analyze_and_compare(client):
+    pid = _project(client)
+    x1, y1 = _gaussian([1740.0, 2925.0])
+    x2, y2 = _gaussian([1735.0, 2920.0])
+
+    samples = [
+        {"name": "S1", "x": x1, "y": y1},
+        {"name": "S2", "x": x2, "y": y2},
+    ]
+    create_r = client.post(f"/projects/{pid}/instruments/ftir/batches", json={"name": "FTIR Compare Batch", "samples": samples})
+    assert create_r.status_code == 201
+    batch_data = create_r.json()
+    bid = batch_data["id"]
+
+    analyze_r = client.post(f"/projects/{pid}/instruments/ftir/batches/{bid}/analyze")
+    assert analyze_r.status_code == 200
+    assert analyze_r.json()["analyzed_count"] == 2
+
+    compare_r = client.post(f"/projects/{pid}/instruments/ftir/batches/{bid}/compare", json={})
+    assert compare_r.status_code == 200
+    comp = compare_r.json()
+    assert comp["technique"] == "ftir"
+    assert comp["sample_count"] == 2
+    assert "samples" in comp["comparison_data"]
+

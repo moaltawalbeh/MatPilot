@@ -920,3 +920,158 @@ export function useInterpretInstrumentExperiment(projectId: string) {
     },
   });
 }
+
+// ── Batch Management Hooks ──────────────────────────────────────────
+
+export function useBatches(projectId: string, technique: InstrumentTechnique) {
+  return useQuery({
+    queryKey: ["batches", projectId, technique],
+    queryFn: () => apiService.listBatches(projectId, technique),
+    enabled: !!projectId && !!technique,
+  });
+}
+
+export function useBatch(projectId: string, technique: InstrumentTechnique, batchId: string) {
+  return useQuery({
+    queryKey: ["batch", projectId, technique, batchId],
+    queryFn: () => apiService.getBatch(projectId, technique, batchId),
+    enabled: !!projectId && !!technique && !!batchId,
+  });
+}
+
+export function useCreateBatch(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      technique,
+      ...data
+    }: {
+      technique: InstrumentTechnique;
+      name: string;
+      description?: string;
+      samples?: Array<{ name: string; description?: string; material?: string; x?: number[]; y?: number[]; parameters?: Record<string, unknown> }>;
+    }) => apiService.createBatch(projectId, technique, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["batches", projectId] });
+      qc.invalidateQueries({ queryKey: ["instruments", projectId] });
+      qc.invalidateQueries({ queryKey: ["project-experiments", projectId] });
+    },
+  });
+}
+
+export function useUpdateBatch(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      technique,
+      batchId,
+      ...data
+    }: {
+      technique: InstrumentTechnique;
+      batchId: string;
+      name?: string;
+      description?: string;
+      status?: string;
+    }) => apiService.updateBatch(projectId, technique, batchId, data),
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ["batches", projectId] });
+      qc.invalidateQueries({ queryKey: ["batch", projectId, vars.technique, vars.batchId] });
+    },
+  });
+}
+
+export function useDeleteBatch(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      technique,
+      batchId,
+    }: {
+      technique: InstrumentTechnique;
+      batchId: string;
+    }) => apiService.deleteBatch(projectId, technique, batchId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["batches", projectId] });
+      qc.invalidateQueries({ queryKey: ["instruments", projectId] });
+      qc.invalidateQueries({ queryKey: ["project-experiments", projectId] });
+    },
+  });
+}
+
+export function useAnalyzeBatch(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      technique,
+      batchId,
+      parameters,
+    }: {
+      technique: InstrumentTechnique;
+      batchId: string;
+      parameters?: Record<string, unknown>;
+    }) => apiService.analyzeBatch(projectId, technique, batchId, parameters),
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ["batch", projectId, vars.technique, vars.batchId] });
+      qc.invalidateQueries({ queryKey: ["batches", projectId] });
+    },
+  });
+}
+
+export function useCompareBatch(projectId: string) {
+  return useMutation({
+    mutationFn: ({
+      technique,
+      batchId,
+      sampleIds,
+    }: {
+      technique: InstrumentTechnique;
+      batchId: string;
+      sampleIds?: string[];
+    }) => apiService.compareBatch(projectId, technique, batchId, sampleIds),
+  });
+}
+
+export function useAddSampleToBatch(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      technique,
+      batchId,
+      ...data
+    }: {
+      technique: InstrumentTechnique;
+      batchId: string;
+      name: string;
+      description?: string;
+      material?: string;
+      x?: number[];
+      y?: number[];
+      parameters?: Record<string, unknown>;
+    }) => apiService.addSampleToBatch(projectId, technique, batchId, data),
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ["batch", projectId, vars.technique, vars.batchId] });
+      qc.invalidateQueries({ queryKey: ["batches", projectId] });
+      qc.invalidateQueries({ queryKey: ["instruments", projectId] });
+    },
+  });
+}
+
+export function useRemoveSampleFromBatch(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      technique,
+      batchId,
+      sampleId,
+    }: {
+      technique: InstrumentTechnique;
+      batchId: string;
+      sampleId: string;
+    }) => apiService.removeSampleFromBatch(projectId, technique, batchId, sampleId),
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ["batch", projectId, vars.technique, vars.batchId] });
+      qc.invalidateQueries({ queryKey: ["batches", projectId] });
+      qc.invalidateQueries({ queryKey: ["instruments", projectId] });
+    },
+  });
+}

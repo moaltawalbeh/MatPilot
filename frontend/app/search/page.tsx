@@ -28,7 +28,7 @@ const TYPE_ROUTES: Record<string, string> = {
   measurement: "/measurements",
   structure: "/structures",
   experiment: "/experiments",
-  project: "/projects",
+  project: "/dashboard",
   collection: "/collections",
 };
 

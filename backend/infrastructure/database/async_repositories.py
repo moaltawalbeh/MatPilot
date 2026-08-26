@@ -303,6 +303,7 @@ def _experiment_model_to_entity(m: InstrumentExperimentModel) -> Experiment:
         id=m.id,
         project_id=m.project_id,
         owner_id=m.owner_id,
+        batch_id=getattr(m, "batch_id", None),
         name=m.name,
         description=m.description or "",
         material=m.material or "",
@@ -342,6 +343,7 @@ def _experiment_entity_to_model(e: Experiment) -> InstrumentExperimentModel:
         id=e.id,
         project_id=e.project_id,
         owner_id=e.owner_id,
+        batch_id=getattr(e, "batch_id", None),
         name=e.name,
         description=e.description,
         material=e.material,
@@ -381,6 +383,7 @@ def _experiment_entity_to_values(e: Experiment) -> Dict[str, Any]:
     return {
         "project_id": e.project_id,
         "owner_id": e.owner_id,
+        "batch_id": getattr(e, "batch_id", None),
         "name": e.name,
         "description": e.description,
         "material": e.material,

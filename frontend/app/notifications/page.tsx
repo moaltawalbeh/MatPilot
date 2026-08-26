@@ -127,8 +127,8 @@ export default function NotificationsPage() {
             <p style={{ fontSize: 13, color: "var(--text-tertiary)", maxWidth: 360, margin: "0 auto", lineHeight: 1.5 }}>
               You&apos;ll see updates here when analyses complete, exports are ready, or the platform has news for you.
             </p>
-            <Link href="/projects" className="button" style={{ marginTop: 20, textDecoration: "none", fontSize: 13 }}>
-              <FlaskConical size={14} /> Go to projects
+            <Link href="/dashboard" className="button" style={{ marginTop: 20, textDecoration: "none", fontSize: 13 }}>
+              <FlaskConical size={14} /> Go to workspaces
             </Link>
           </div>
         ) : (

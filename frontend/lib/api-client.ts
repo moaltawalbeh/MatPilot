@@ -42,6 +42,9 @@ import type {
   InstrumentSummary,
   WorkspaceExperiment,
   WorkspaceExperimentDetail,
+  BatchListItem,
+  BatchDetail,
+  CompareResponse,
   SpectralReferenceResult,
   SpectralReferenceMatch,
   SpectralProviderStatus,
@@ -809,5 +812,88 @@ export const apiService = {
     }>(
       `/projects/${projectId}/instruments/${technique}/experiments/${experimentId}/interpret`,
       { method: "POST", body: JSON.stringify({ question: question ?? undefined }) },
+    ),
+
+  // ── Batch Management ──────────────────────────────────────────────
+
+  listBatches: (projectId: string, technique: InstrumentTechnique) =>
+    apiFetch<BatchListItem[]>(
+      `/projects/${projectId}/instruments/${technique}/batches`,
+    ),
+
+  createBatch: (
+    projectId: string,
+    technique: InstrumentTechnique,
+    data: { name: string; description?: string; samples?: Array<{ name: string; description?: string; material?: string; x?: number[]; y?: number[]; parameters?: Record<string, unknown> }> },
+  ) =>
+    apiFetch<BatchDetail>(
+      `/projects/${projectId}/instruments/${technique}/batches`,
+      { method: "POST", body: JSON.stringify(data) },
+    ),
+
+  getBatch: (projectId: string, technique: InstrumentTechnique, batchId: string) =>
+    apiFetch<BatchDetail>(
+      `/projects/${projectId}/instruments/${technique}/batches/${batchId}`,
+    ),
+
+  updateBatch: (
+    projectId: string,
+    technique: InstrumentTechnique,
+    batchId: string,
+    data: { name?: string; description?: string; status?: string },
+  ) =>
+    apiFetch<{ batch_id: string; technique: string; updated: number }>(
+      `/projects/${projectId}/instruments/${technique}/batches/${batchId}`,
+      { method: "PUT", body: JSON.stringify(data) },
+    ),
+
+  deleteBatch: (projectId: string, technique: InstrumentTechnique, batchId: string) =>
+    apiFetch<{ batch_id: string; technique: string; deleted: number }>(
+      `/projects/${projectId}/instruments/${technique}/batches/${batchId}`,
+      { method: "DELETE" },
+    ),
+
+  analyzeBatch: (
+    projectId: string,
+    technique: InstrumentTechnique,
+    batchId: string,
+    parameters?: Record<string, unknown>,
+  ) =>
+    apiFetch<{ batch_id: string; technique: string; total_samples: number; analyzed_count: number; failed_count: number }>(
+      `/projects/${projectId}/instruments/${technique}/batches/${batchId}/analyze`,
+      { method: "POST", body: JSON.stringify(parameters ?? {}) },
+    ),
+
+  compareBatch: (
+    projectId: string,
+    technique: InstrumentTechnique,
+    batchId: string,
+    sampleIds?: string[],
+  ) =>
+    apiFetch<CompareResponse>(
+      `/projects/${projectId}/instruments/${technique}/batches/${batchId}/compare`,
+      { method: "POST", body: JSON.stringify({ sample_ids: sampleIds ?? null }) },
+    ),
+
+  addSampleToBatch: (
+    projectId: string,
+    technique: InstrumentTechnique,
+    batchId: string,
+    data: { name: string; description?: string; material?: string; x?: number[]; y?: number[]; parameters?: Record<string, unknown> },
+  ) =>
+    apiFetch<WorkspaceExperimentDetail>(
+      `/projects/${projectId}/instruments/${technique}/batches/${batchId}/samples`,
+      { method: "POST", body: JSON.stringify(data) },
+    ),
+
+  removeSampleFromBatch: (
+    projectId: string,
+    technique: InstrumentTechnique,
+    batchId: string,
+    sampleId: string,
+  ) =>
+    apiFetch<{ deleted: boolean; sample_id: string }>(
+      `/projects/${projectId}/instruments/${technique}/batches/${batchId}/samples/${sampleId}`,
+      { method: "DELETE" },
     ),
 };

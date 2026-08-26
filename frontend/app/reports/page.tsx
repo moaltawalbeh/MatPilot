@@ -265,7 +265,7 @@ export default function ReportsPage() {
       eyebrow="Reporting"
       title="Reports"
       description="Build and export shareable records from analysis-ready scientific results."
-      actions={<Link href="/projects" className="button primary" style={{ textDecoration: "none" }}><FileText size={15} /> New report</Link>}
+      actions={<Link href="/dashboard" className="button primary" style={{ textDecoration: "none" }}><FileText size={15} /> New report</Link>}
     >
       {/* Export Formats */}
       <section className="card" style={{ marginBottom: 16 }}>
@@ -353,7 +353,7 @@ export default function ReportsPage() {
                     </div>
                     <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
                       <button className="button ghost sm" onClick={() => {
-                        const url = `${window.location.origin}/projects/${project.id}`;
+                        const url = `${window.location.origin}/workspaces/${project.id}`;
                         navigator.clipboard.writeText(url).then(() => {
                           setExportSuccess(`share-${project.name}`);
                           if (successTimerRef.current) clearTimeout(successTimerRef.current);
